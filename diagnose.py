@@ -24,7 +24,7 @@ import pickle
 
 #os.chdir("/Users/alexgagliano/Desktop/prob_association/plots_likelihoodoffsetscale1_wGLADE/")
 
-def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z_std, SN_ra, SN_dec, SN_name, SN_z, fn):
+def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z_std, SN_ra, SN_dec, SN_name, SN_z, Bayesflag, fn):
     cols = np.array(['#ff9f1c', '#2cda9d', '#f15946', '#da80dd', '#f4e76e', '#b87d4b', '#ff928b', '#c73e1d', '#58b09c', '#e7e08b'])
     bands = 'zrg'
     if len(host_ra) > 0:
@@ -35,7 +35,7 @@ def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z
         sep_Pcc = SkyCoord(Pcc_host_ra*u.deg, Pcc_host_dec*u.deg).separation(SkyCoord(SN_ra*u.deg, SN_dec*u.deg)).arcsec
         if (Pcc_host_ra) and (Pcc_host_dec) and (sep_Pcc > sep):
             sep = sep_Pcc
-    rad = np.nanmax([60., 2*sep]) #arcsec to pixels, scaled by 1.5x host-SN separation
+    rad = np.nanmax([60., 1.2*sep]) #arcsec to pixels, scaled by 1.5x host-SN separation
     print(f"Getting img with size len {rad:.2f}")
     pic_data = []
     for band in bands:
@@ -52,11 +52,10 @@ def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z
 
     stretch = SqrtStretch() + ZScaleInterval()
 
-    lo_val, up_val = np.percentile(np.array(pic_data).ravel(), (0.5, 99.5))  # Get the value of lower and upper 0.5% of all pixels
+    lo_val, up_val = np.nanpercentile(np.array(pic_data).ravel(), (0.5, 99.5))  # Get the value of lower and upper 0.5% of all pixels
 
     stretch_val = up_val - lo_val
 
-    # stretch of 10, stretch of x, stretch of 2
     rgb_default = make_lupton_rgb(pic_data[0], pic_data[1], pic_data[2], minimum=lo_val, stretch=stretch_val, Q=0)
     wcs = WCS(hdu.header)
     plt.figure(num=None, figsize=(12, 8), facecolor='w', edgecolor='k')
@@ -70,18 +69,29 @@ def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z
 
     if (Pcc_host_ra and Pcc_host_dec):
         Pcc_str = ""
-        ax.scatter(Pcc_host_ra, Pcc_host_dec, transform=ax.get_transform('fk5'), marker='+', lw=2, s=200,
+        ax.scatter(Pcc_host_ra, Pcc_host_dec, transform=ax.get_transform('fk5'), marker='+', alpha=0.8, lw=2, s=200,
             color='magenta', zorder=100)
     else:
         Pcc_str = "(no Pcc)"
+    Bayesstr = '. '
+    if Bayesflag == 2:
+        Bayesstr += 'Strong match!'
+    elif Bayesflag == 1:
+        Bayesstr +=  'Weak match.'
     if (host_ra and host_dec):
         for i in np.arange(len(host_ra)):
             #print(f"Plotting host {i}")
-            ax.scatter(host_ra[i], host_dec[i], transform=ax.get_transform('fk5'), marker='o', lw=2, s=100,
+            ax.scatter(host_ra[i], host_dec[i], transform=ax.get_transform('fk5'), marker='o', alpha=0.8, lw=2, s=100,
                 edgecolor='k', facecolor=cols[i], zorder=100)
-        plt.title(f"{SN_name}, z={SN_z:.4f}; Host Match, z={host_z_mean:.4f}+/-{host_z_std:.4f} {Pcc_str}")
+        if SN_z == SN_z:
+            plt.title(f"{SN_name}, z={SN_z:.4f}; Host Match, z={host_z_mean:.4f}+/-{host_z_std:.4f} {Pcc_str}{Bayesstr}")
+        else:
+            plt.title(f"{SN_name}, no z; Host Match, z={host_z_mean:.4f}+/-{host_z_std:.4f} {Pcc_str}{Bayesstr}")
     else:
-        plt.title(f"{SN_name}, z={SN_z:.4f}; No host found {Pcc_str}")
+        if SN_z == SN_z:
+            plt.title(f"{SN_name}, z={SN_z:.4f}; No host found {Pcc_str}")
+        else:
+            plt.title(f"{SN_name}, no z; No host found {Pcc_str}")
     ax.imshow(rgb_default, origin='lower')
     plt.axis('off')
     plt.savefig("./%s.png"%fn, bbox_inches='tight')
@@ -131,8 +141,9 @@ def physical_to_angular_size(physical_size, redshift):
     return (physical_size/(cosmo.angular_diameter_distance(redshift)).to(u.kpc).value)*206265
 
 # Function to diagnose the discrepancy when the top-ranked galaxy is not the true host
-def diagnose_ranking(true_index, post_probs, galaxy_catalog, post_offset, post_z, galaxy_ids, z_sn, sn_position, verbose=False):
-    top_indices = np.argsort(post_probs)[-5:][::-1]  # Top 5 ranked galaxies
+def diagnose_ranking(true_index, post_probs, galaxy_catalog, post_offset, post_z, post_absmag, galaxy_ids, z_sn, sn_position, verbose=False):
+    top_indices = np.argsort(post_probs)[-3:][::-1]  # Top 3 ranked galaxies
+    top_index = top_indices[0]
 
     if verbose:
         if true_index > 0:
@@ -148,25 +159,26 @@ def diagnose_ranking(true_index, post_probs, galaxy_catalog, post_offset, post_z
             print(f"Rank {rank}: ID {galaxy_ids[top_indices[rank-1]]} has a posterior probability of being the host: {post_probs[i]:.4f} {is_true}")
 
     # Detailed comparison of the top-ranked and true galaxy
-    for i in np.arange(np.nanmin([len(top_indices), 2])):
-        top_index = top_indices[i]
-        top_gal = galaxy_catalog[top_index]
+    for rank, i in enumerate(top_indices, start=1):
+        top_gal = galaxy_catalog[i]
         top_theta = sn_position.separation(SkyCoord(ra=top_gal['ra']*u.degree, dec=top_gal['dec']*u.degree)).arcsec
 
         if verbose:
             print(f"Coords (SN): {sn_position.ra.deg:.4f}, {sn_position.dec.deg:.4f}")
             print(f"Redshift (SN): {z_sn:.4f}")
             print(f"Top Galaxy (Rank {i}): Coords: {top_gal['ra']:.4f}, {top_gal['dec']:.4f}")
-            print(f"                     Redshift = {top_gal['z_phot_median']:.4f}+/-{top_gal['z_phot_std']:.4f}, Angular Size = {top_gal['angular_size_arcsec']:.4f} arcsec")
+            print(f"                     Redshift = {top_gal['z_best_mean']:.4f}+/-{top_gal['z_best_std']:.4f}, Angular Size = {top_gal['angular_size_arcsec']:.4f} arcsec")
             print(f"                     Fractional Separation = {top_theta/top_gal['angular_size_arcsec']:.4f} host radii")
             print(f"                     Angular Separation (\"): {top_theta:.2f}")
-
+            print(f"                     Redshift posterior = {post_z[i]:.4e}, Offset posterior = {post_offset[i]:.4e}")
+            print(f"                     Absolute mag posterior = {post_absmag[i]:.4e}")
 
     if verbose and true_index > 0:
             true_gal = galaxy_catalog[true_index]
             true_theta = sn_position.separation(SkyCoord(ra=true_gal['ra']*u.degree, dec=true_gal['dec']*u.degree)).arcsec
             print(f"True Galaxy: Fractional Separation = {true_theta/true_gal['angular_size_arcsec']:.4f} host radii")
             print(f"             Redshift = {true_gal['redshift']:.4f}, Angular Size = {true_gal['angular_size_arcsec']:.4f} arcsec")
+            print(f"             Redshift posterior = {post_z_true:.4e}, Offset posterior = {post_offset_true:.4e}")
 
     # Retrieve precomputed priors instead of recalculating
     post_offset_top = post_offset[top_index]
@@ -176,11 +188,6 @@ def diagnose_ranking(true_index, post_probs, galaxy_catalog, post_offset, post_z
     post_z_top = post_z[top_index]
     if true_index > 0:
         post_z_true = post_z[true_index]
-
-    if verbose:
-        print(f"Top Galaxy (Rank 1): Redshift posterior (unnorm) = {post_z_top:.4e}, Offset posterior (unnorm) = {post_offset_top:.4e}")
-        if true_index > 0:
-            print(f"True Galaxy: Redshift posterior (unnorm) = {post_z_true:.4e}, Offset posterior (unnorm) = {post_offset_true:.4e}")
 
     ranked_indices = np.argsort(post_probs)[::-1]
 
@@ -411,14 +418,45 @@ def crossmatch_glade_decals(GLADE_catalog):
     plt.ylim((0, 60))
     plt.show()
 
-#wrongGHOST = pd.read_csv("/Users/alexgagliano/Desktop/prob_association/Jones+18_wrongGHOST.csv")
 
-#import shutil
-#import glob
 
-#for name in wrongGHOST['name'].values:
-#    fns = glob.glob(f"/Users/alexgagliano/Desktop/prob_association/plots_likelihoodoffsetscale1_wGLADE/Jones+18/{name}.png")
-#    if len(fns) > 0:
-#        new_fn = fns[0].split("/")
-#        new_fn = "/".join(new_fn[:-1]) + "/wrongGHOST/" + new_fn[-1]
-#        shutil.copyfile(fns[0], new_fn)
+
+
+#sky_sep_measured = SkyCoord(sn_catalog['sn_ra_deg'].values*u.deg, sn_catalog['sn_dec_deg'].values*u.deg).separation(SkyCoord(sn_catalog['prob_host_ra'].values*u.deg, sn_catalog['prob_host_dec'].values*u.deg)).arcsec
+#sky_sep_jones = SkyCoord(sn_catalog['sn_ra_deg'].values*u.deg, sn_catalog['sn_dec_deg'].values*u.deg).separation(SkyCoord(sn_catalog['host_ra'].values*u.deg, sn_catalog['host_dec'].values*u.deg)).arcsec
+
+#import seaborn as sns
+#sns.set_context("talk")
+
+#plt.plot(sky_sep_measured[~sn_catalog['object_name'].isin(['2002dp', '1997E'])], sky_sep_jones[~sn_catalog['object_name'].isin(['2002dp', '1997E'])], 'o', mec='k', zorder=500)
+#plt.plot(sky_sep_measured[sn_catalog['object_name'].isin(['2002dp', '1997E'])], sky_sep_jones[sn_catalog['object_name'].isin(['2002dp', '1997E'])], 'o', mec='k', c='tab:red', zorder=500)
+#plt.plot([0, 50], [0, 50], c='k', ls='--')
+#plt.xscale("log")
+#plt.yscale("log")
+#plt.xlabel("Measured Offset (\")")
+#plt.ylabel("Jones+18 Offset (\")")
+
+#match_err = SkyCoord(sn_catalog['host_ra'].values*u.deg, sn_catalog['host_dec'].values*u.deg).separation(SkyCoord(sn_catalog['prob_host_ra'].values*u.deg, sn_catalog['prob_host_dec'].values*u.deg)).arcsec
+
+# histogram on linear scale
+#hist, bins, _ = plt.hist(match_err, bins=30);
+
+#logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+#plt.hist(match_err, bins=logbins)
+#plt.xscale('log')
+#plt.yscale("log")
+#plt.xlabel("Error (\")")
+#plt.ylabel("")
+#plt.show()
+
+#sn_catalog.loc[sn_catalog['object_name'] == '1997E', 'prob_host_ra']
+#sn_catalog.loc[sn_catalog['object_name'] == '1997E', 'prob_host_dec']
+#sn_catalog['object_name'][(match_err > 6)].values
+#array(['2000dk', '2002dp', 'ASASSN-15mf', '1997E', '2001en'], dtype=object)
+#'2000dk', 'ASASSN-15mf', '2001en'
+#plt.hist(galaxies['DLR_samples'])
+#plt.hist(truncnorm.rvs(loc=5, scale=3, size=1000, a=-2, b=2))
+#sn_catalog
+#sn_catalog = pd.read_csv("/Users/alexgagliano/Desktop/prob_association/Jones+18_Alexprob.csv")
+
+#sn_catalog.columns.values

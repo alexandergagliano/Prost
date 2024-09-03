@@ -35,7 +35,7 @@ def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z
         sep_Pcc = SkyCoord(Pcc_host_ra*u.deg, Pcc_host_dec*u.deg).separation(SkyCoord(SN_ra*u.deg, SN_dec*u.deg)).arcsec
         if (Pcc_host_ra) and (Pcc_host_dec) and (sep_Pcc > sep):
             sep = sep_Pcc
-    rad = np.nanmax([60., 1.2*sep]) #arcsec to pixels, scaled by 1.5x host-SN separation
+    rad = np.nanmax([60., 2*sep]) #arcsec to pixels, scaled by 1.5x host-SN separation
     print(f"Getting img with size len {rad:.2f}")
     pic_data = []
     for band in bands:

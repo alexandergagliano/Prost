@@ -63,9 +63,10 @@ class schechter(st.rv_continuous):
         return self._unnormalized_pdf(M_abs_samples) / self.normalization
 
 # define priors for properties
-priorfunc_z      = halfnorm(loc=0, scale=0.3)
+priorfunc_z      = halfnorm(loc=0, scale=0.1)
 priorfunc_offset = uniform(loc=0, scale=5)
-priorfunc_absmag = schechter(a=-25, b=-10, name='Hosts_Schechter')
+priorfunc_absmag = uniform(loc=-25, scale=15)
+#schechter(a=-25, b=-10, name='Hosts_Schechter')
 
 def build_decals_candidates(sn_position, search_rad=60, n_samples=1000):
     rad_deg = search_rad/3600.
@@ -104,7 +105,7 @@ def build_decals_candidates(sn_position, search_rad=60, n_samples=1000):
         t.ls_id= pz.ls_id
     WHERE
         q3c_radial_query(t.ra, t.dec, {sn_position.ra.deg:.5f}, {sn_position.dec.deg:.5f}, {rad_deg})
-    AND (t.nobs_r > 0) AND (t.dered_flux_r > 0) AND (t.snr_r > 0) AND nullif(t.dered_mag_r, 'NaN') is not null AND ((pz.z_spec > 0) OR (pz.z_phot_mean > 0))""")
+    AND (t.nobs_r > 0) AND (t.dered_flux_r > 0) AND (t.snr_r > 0) AND nullif(t.dered_mag_r, 'NaN') is not null AND (t.fitbits != 8192) AND ((pz.z_spec > 0) OR (pz.z_phot_mean > 0))""")
 
     candidate_hosts = ascii.read(result).to_pandas()
 
@@ -153,8 +154,9 @@ def build_decals_candidates(sn_position, search_rad=60, n_samples=1000):
 
     galaxies['z_best_mean'] = galaxy_photoz_mean
     galaxies['z_best_std'] = np.abs(galaxy_photoz_std)
-    galaxies['z_best_std'][galaxy_specz > 0] = 0.05*galaxy_specz[galaxy_specz > 0] #ffloor
+    galaxies['z_best_std'][galaxy_specz > 0] = 0.05*galaxy_specz[galaxy_specz > 0] #floor of 5%
     galaxies['z_best_mean'][galaxy_specz > 0] = galaxy_specz[galaxy_specz > 0]
+    galaxies['z_best_std'][np.abs(galaxy_photoz_std) > 0.5*galaxy_photoz_mean] = 0.5*galaxy_photoz_mean[np.abs(galaxy_photoz_std) > 0.5*galaxy_photoz_mean]#ceiling of 50%
     galaxies['ls_id'] = candidate_hosts['ls_id'].values
 
     z_best_samples = norm.rvs(
@@ -168,6 +170,9 @@ def build_decals_candidates(sn_position, search_rad=60, n_samples=1000):
     temp_mag_r = candidate_hosts['dered_mag_r'].values
 
     temp_mag_r_std = np.abs(2.5/np.log(10)*np.sqrt(1/np.maximum(0, candidate_hosts['flux_ivar_r'].values))/candidate_hosts['flux_r'].values)
+
+    #cap at 50% the mag
+    temp_mag_r_std[temp_mag_r_std > temp_mag_r] = 0.5*temp_mag_r[temp_mag_r_std > temp_mag_r]
 
     absmag_samples = norm.rvs(loc=temp_mag_r[:, np.newaxis], scale=temp_mag_r_std[:, np.newaxis], size=(len(temp_mag_r), n_samples)) - cosmo.distmod(z_best_samples).value
 
@@ -219,8 +224,8 @@ def build_glade_candidates(sn_position, search_rad, GLADE_catalog, n_samples):
         candidate_hosts['DEJ2000'], candidate_hosts['PAHyp'],
         temp_sizes, galaxy_a_over_b, temp_sizes_std, galaxy_a_over_b_std, n_samples=n_samples, search_rad=search_rad)
 
-    galaxies['z_best_mean'] = np.nanmean(photo_z_samples, axis=1)
-    galaxies['z_best_std'] = np.nanstd(photo_z_samples, axis=1)
+    galaxies['z_best_mean'] = np.nanmean(z_best_samples, axis=1)
+    galaxies['z_best_std'] = np.nanstd(z_best_samples, axis=1)
 
     z_best_samples[z_best_samples < 0] = 0.001 #set photometric redshift floor
     z_best_samples[z_best_samples != z_best_samples] = 0.001 #set photometric redshift floor
@@ -228,10 +233,10 @@ def build_glade_candidates(sn_position, search_rad, GLADE_catalog, n_samples):
     temp_mag_r = candidate_hosts['BmagHyp'].values
     temp_mag_r_std = np.abs(candidate_hosts['e_BmagHyp'].values)
 
-    absmag_samples = norm.rvs(loc=temp_mag_r[:, np.newaxis], scale=temp_mag_r_std[:, np.newaxis], size=(len(temp_mag_r), n_samples)) - cosmo.distmod(photo_z_samples).value
+    absmag_samples = norm.rvs(loc=temp_mag_r[:, np.newaxis], scale=temp_mag_r_std[:, np.newaxis], size=(len(temp_mag_r), n_samples)) - cosmo.distmod(z_best_samples).value
 
     for i in range(n_galaxies):
-        galaxies['z_best_samples'][i] = photo_z_samples[i, :]
+        galaxies['z_best_samples'][i] = z_best_samples[i, :]
         galaxies['DLR_samples'][i] = DLR_samples[i, :]
         galaxies['absmag_samples'][i] = absmag_samples[i, :]
 
@@ -307,6 +312,8 @@ def prior_redshifts(z_gal_samples, reduce='mean'):
     pdf = priorfunc_z.pdf(z_gal_samples)
     if reduce == 'mean':
         return np.nanmean(pdf, axis=1)  # Resulting shape: (n_galaxies,)
+    elif reduce == 'median':
+        return np.nanmedian(pdf, axis=1)
     else:
         return pdf
 
@@ -314,6 +321,8 @@ def prior_offsets(fractional_offsets, reduce='mean'):
     pdf = priorfunc_offset.pdf(fractional_offsets)
     if reduce == 'mean':
         return np.nanmean(pdf, axis=1)  # Resulting shape: (n_galaxies,)
+    elif reduce == 'median':
+        return np.nanmedian(pdf, axis=1)
     else:
         return pdf
 
@@ -321,6 +330,8 @@ def prior_absolute_magnitude(M_abs_samples, reduce='mean'):
     pdf = priorfunc_absmag.pdf(M_abs_samples)
     if reduce == 'mean':
         return np.nanmean(pdf, axis=1)
+    elif reduce == 'median':
+        return np.nanmedian(pdf, axis=1)
     else:
         return pdf
 
@@ -334,13 +345,21 @@ def likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce='mean'):
 
     if reduce == 'mean':
         return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
+    elif reduce == 'median':
+        return np.nanmedian(likelihoods, axis=1)
     else:
         return likelihoods
 
 
-def likelihood_offsets(fractional_offsets):
+def likelihood_offsets(fractional_offsets, reduce='mean'):
     #set a DLR cutoff of 100 -- ridiculously high
-    return np.nanmean(truncexpon.pdf(fractional_offsets, loc=0, scale=1, b=100), axis=1)
+    likelihoods = truncexpon.pdf(fractional_offsets, loc=0, scale=1, b=100)
+    if reduce == 'mean':
+        return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
+    elif reduce == 'median':
+        return np.nanmedian(likelihoods, axis=1)
+    else:
+        return likelihoods
 
 
 def likelihood_absolute_magnitude(M_abs_samples, reduce='mean'):
@@ -350,10 +369,13 @@ def likelihood_absolute_magnitude(M_abs_samples, reduce='mean'):
     M_sol = 4.74
     Lgal = 10**(-0.4 * (M_abs_samples - M_sol)) # in units of Lsol
     Lgal /= 1.e10 #in units of 10^10 Lsol
+    likelihoods = 0.1*Lgal
     if reduce == 'mean':
-        return  0.1*np.nanmean(Lgal, axis=1)
+        return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
+    elif reduce == 'median':
+        return np.nanmedian(likelihoods, axis=1)
     else:
-        return 0.1*Lgal
+        return likelihoods
 
 def probability_of_unobserved_host(z_sn, z_sn_std, z_sn_samples, cutout_rad=60, m_lim=30, verbose=False, n_samples=1000):
     n_gals = n_samples
@@ -417,15 +439,6 @@ def probability_of_unobserved_host(z_sn, z_sn_std, z_sn_samples, cutout_rad=60, 
 
     Prior_absmag = prior_absolute_magnitude(absmag_samples)
     L_absmag = likelihood_absolute_magnitude(absmag_samples)
-
-    print("prior_absmag:")
-    print(np.nansum(Prior_absmag < 0))
-    print("like absmag")
-    print(np.nansum(L_absmag < 0))
-    print("prior offset")
-    print(np.nansum(Prior_offset_unobs < 0))
-    print("like offset")
-    print(np.nansum(L_offset_unobs < 0))
 
     prob_unobs = Prior_absmag * L_absmag * P_z * Prior_offset_unobs * L_offset_unobs
 
@@ -497,7 +510,6 @@ def probability_host_outside_cone(z_sn, cutout_rad=60, verbose=False, n_samples=
 
 def posterior_samples(z_sn, sn_position, galaxy_catalog, cutout_rad=60, n_samples=1000, m_lim=24.5, verbose=False):
     # Extract arrays for all galaxies from the catalog
-    #z_gal_samples = np.array([gal['photo_z_samples'] for gal in galaxy_catalog])  # Shape (N, M)
     z_gal_mean = np.array([gal['z_best_mean'] for gal in galaxy_catalog])
     z_gal_std = np.array([gal['z_best_std'] for gal in galaxy_catalog])  # Shape (N, M)
     galaxy_ras = np.array([gal['ra'] for gal in galaxy_catalog])
@@ -662,7 +674,7 @@ Ntot = 5
 sn_catalog = sn_catalog.sample(frac=1)
 
 #debugging with specific objects
-sn_catalog = sn_catalog[sn_catalog['object_name'] == 'ZTF20achplfl']
+#sn_catalog = sn_catalog[sn_catalog['object_name'] == 'SN 1989M']
 
 angular_scale = 0.258 #arcsec/pixel
 
@@ -849,59 +861,3 @@ for idx, row in sn_catalog.iterrows():
 #sn_catalog.to_csv("/Users/alexgagliano/Documents/Research/prob_association/slsn_catalog_Alexprob_PccCompare.csv",index=False)
 #sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/ZTFBTS_Alexprob.csv",index=False)
 sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/DELIGHT_Alexprob.csv",index=False)
-
-#sky_sep_measured = SkyCoord(sn_catalog['sn_ra_deg'].values*u.deg, sn_catalog['sn_dec_deg'].values*u.deg).separation(SkyCoord(sn_catalog['prob_host_ra'].values*u.deg, sn_catalog['prob_host_dec'].values*u.deg)).arcsec
-#ky_sep_jones = SkyCoord(sn_catalog['sn_ra_deg'].values*u.deg, sn_catalog['sn_dec_deg'].values*u.deg).separation(SkyCoord(sn_catalog['host_ra'].values*u.deg, sn_catalog['host_dec'].values*u.deg)).arcsec
-
-#plt.plot(sky_sep_measured, sky_sep_jones, 'o', mec='k', c='tab:blue', zorder=500)
-#plt.plot([0, 50], [0, 50], c='k', ls='--')
-#plt.xscale("log")
-#plt.yscale("log")
-#plt.xlabel("Measured Offset (\")")
-#plt.ylabel("Jones+18 Offset (\")")
-
-#match_std = SkyCoord(sn_catalog['host_ra'].values*u.deg, sn_catalog['host_dec'].values*u.deg).separation(SkyCoord(sn_catalog['prob_host_ra'].values*u.deg, sn_catalog['prob_host_dec'].values*u.deg)).arcsec
-#match_std = match_std[match_std == match_std]
-
-# histogram on linear scale
-#hist, bins, _ = plt.hist(match_std, bins=np.linspace(0, 2));
-
-#logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
-#plt.hist(match_std, bins=logbins)
-#plt.xscale('log')
-#plt.yscale("log")
-#plt.xlabel("Error (\")")
-
-#plt.hist(galaxies[576]['photo_z_samples'])
-#likelihood_absolute_magnitude([galaxies[576]['absmag_samples']])
-#plt.hist(galaxies[576]['absmag_samples'], bins=100)
-#galaxies['angular_size_arcsec'][311]
-#galaxies['angular_size_arcsec_std'][311]
-
-#galaxies['ra'][311]
-#galaxies['dec'][311]
-#galaxies['ls_id'][311]
-#len(galaxies)
-#plt.hist(galaxies['absmag_samples'][311])
-
-#galaxies[2]['ra']
-#galaxies[2]['dec']
-#GLADE_catalog.iloc[[742309]]
-#np.argmin(SkyCoord(GLADE_catalog['RAJ2000'].values*u.deg, GLADE_catalog['DEJ2000'].values*u.deg).separation(SkyCoord(galaxies[2]['ra']*u.deg, galaxies[2]['dec']*u.deg)))
-#plt.ylabel("")
-
-#9906627633152972
-#galaxies['ra'][832]
-#galaxies['dec'][832]
-
-#plt.hist(galaxies['absmag_samples'][832])
-
-#likelihood_absolute_magnitude([galaxies['absmag_samples'][832]])
-
-#z_sn_std = np.nan
-#z_sn_samples = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
-#Prior_z = prior_redshifts([galaxies['z_best_samples'][832]])
-#L_z_all = likelihood_redshifts(z_sn_samples, [galaxies['z_best_mean'][832]], [galaxies['z_best_std'][832]])
-#P_z = np.sum(Prior_z[:, np.newaxis] * L_z_all, axis=0) / np.sum(Prior_z)  # Marginalization
-
-#plt.show()

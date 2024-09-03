@@ -29,6 +29,8 @@ import scipy.stats as st
 
 sns.set_context("talk")
 
+# TODO -- speed up (analytically instead of a monte carlo?); consider full posteriors for each galaxy.
+
 cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
 
 class schechter(st.rv_continuous):
@@ -591,7 +593,6 @@ def posterior_samples(z_sn, sn_position, galaxy_catalog, cutout_rad=60, n_sample
     P_outside_norm = P_outside / P_tot
     P_unobs_norm = P_unobs / P_tot
 
-    #stats for individual galaxies
     P_offsets_norm_med =  np.nanmedian(P_offsets_norm, axis=1)
     P_z_norm_med = np.nanmedian(P_z_norm, axis=1)
     P_absmag_norm_med = np.nanmedian(P_absmag_norm, axis=1)
@@ -680,7 +681,7 @@ Ntot = 5
 sn_catalog = sn_catalog.sample(frac=1)
 
 #debugging with specific objects
-#sn_catalog = sn_catalog[sn_catalog['object_name'] == 'SN 1989M']
+#sn_catalog = sn_catalog[sn_catalog['object_name'] == 'SN 1997dq']
 
 angular_scale = 0.258 #arcsec/pixel
 
@@ -720,7 +721,7 @@ for idx, row in sn_catalog.iterrows():
         print("Nothing found in GLADE.")
         glade_match = False
     else:
-        any_prob, none_prob, post_probs, post_offset, post_z, post_absmag = posterior_samples(sn_redshift, sn_position, galaxies, m_lim=16, cutout_rad=rad_arcsec,verbose=False)
+        any_prob, none_prob, post_probs, post_offset, post_z, post_absmag = posterior_samples(sn_redshift, sn_position, galaxies, m_lim=18, cutout_rad=rad_arcsec,verbose=False)
 
         if (any_prob > none_prob):
             print("Found match by GLADE!")
@@ -864,7 +865,9 @@ for idx, row in sn_catalog.iterrows():
 
     sn_catalog.at[idx, 'prob_association_time'] = match_time
 
-
+#likelihood_redshifts(np.array([0.1]), np.array([[0.0033]]), np.array([[0.0026]]))
+#likelihood_redshifts(np.array([0.1]), np.array([[0.00]]), np.array([[0.0026]]))
 #sn_catalog.to_csv("/Users/alexgagliano/Documents/Research/prob_association/slsn_catalog_Alexprob_PccCompare.csv",index=False)
 #sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/ZTFBTS_Alexprob.csv",index=False)
+
 sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/DELIGHT_Alexprob.csv",index=False)

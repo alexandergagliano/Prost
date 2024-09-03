@@ -76,6 +76,9 @@ def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z
     Bayesstr = '. '
     if Bayesflag == 2:
         Bayesstr += 'Strong match!'
+        #don't plot the second-best host
+        host_ra = host_ra[:1]
+        host_dec = host_dec[:1]
     elif Bayesflag == 1:
         Bayesstr +=  'Weak match.'
     if (host_ra and host_dec):

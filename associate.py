@@ -378,86 +378,14 @@ def likelihood_absolute_magnitude(M_abs_samples, reduce='mean'):
         return likelihoods
 
 def probability_of_unobserved_host(z_sn, z_sn_std, z_sn_samples, cutout_rad=60, m_lim=30, verbose=False, n_samples=1000):
-    n_gals = n_samples
+    n_gals = int(0.5*n_samples)
 
     if np.isnan(z_sn):
         z_sn_std = np.nan
         z_sn_samples = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
 
-        #draw galaxies from the same distribution
-        z_gal_mean = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
-        z_gal_std = 0.05*z_gal_mean
-        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean[:, np.newaxis],
-                                                scale=z_gal_std[:, np.newaxis], size=(n_gals, n_samples)))
-        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
-        L_z  = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)
-
-        sorted_indices = np.argsort(z_gal_samples, axis=1)
-        sorted_z_gal_samples = np.take_along_axis(z_gal_samples, sorted_indices, axis=1)
-        sorted_integrand = np.take_along_axis(Prior_z * L_z, sorted_indices, axis=1)
-
-        # Perform integration using simps or trapz
-        P_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
-    else:
-       # Use the known supernova redshift
-        z_sn_std = 0.05 * z_sn
-        z_gal_mean = z_sn  # Assume galaxy redshift is close to SN redshift
-        z_gal_std = z_sn_std
-        z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))
-        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean, scale=z_gal_std, size=n_samples))
-
-        Prior_z = prior_redshifts(z_gal_samples)
-        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std)
-        P_z = Prior_z * L_z
-
-    galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_samples, loc=0, scale=10)  # in kpc
-    galaxy_physical_radius_prior_std = 0.05*galaxy_physical_radius_prior_means
-    galaxy_physical_radius_prior_samples = norm.rvs(loc=galaxy_physical_radius_prior_means[:, np.newaxis],
-                                     scale=galaxy_physical_radius_prior_std[:, np.newaxis],
-                                     size=(n_gals, n_samples))
-
-    sn_distance = cosmo.comoving_distance(np.nanmean(z_sn_samples)).value  # in Mpc
-
-    min_phys_rad = 0
-    max_phys_rad = (cutout_rad / 206265) * sn_distance * 1e3  # in kpc
-
-    physical_offset_mean = np.linspace(min_phys_rad, max_phys_rad, n_gals)
-    physical_offset_std = 0.05*physical_offset_mean
-    physical_offset_samples = norm.rvs(physical_offset_mean[:, np.newaxis],
-                                     physical_offset_std[:, np.newaxis],
-                                     size=(n_gals, n_samples))
-
-    fractional_offset_samples =  physical_offset_samples / galaxy_physical_radius_prior_samples  # Shape: (n_samples, n_samples)
-
-    Prior_offset_unobs = prior_offsets(fractional_offset_samples)
-    L_offset_unobs = likelihood_offsets(fractional_offset_samples)
-
-    d_l_samples = cosmo.luminosity_distance(z_sn_samples).value * 1e6  # Convert to pc
-    absmag_lim_samples = m_lim - 5 * (np.log10(d_l_samples / 10))
-
-    absmag_samples = np.linspace(absmag_lim_samples, 0, n_gals)
-
-    Prior_absmag = prior_absolute_magnitude(absmag_samples)
-    L_absmag = likelihood_absolute_magnitude(absmag_samples)
-
-    prob_unobs = Prior_absmag * L_absmag * P_z * Prior_offset_unobs * L_offset_unobs
-
-    P_unobserved = np.nanmean(prob_unobs)  # Sum over all galaxies
-
-    if verbose:
-        print(f"Unobserved host probability: {P_unobserved}")
-
-    return P_unobserved
-
-
-def probability_host_outside_cone(z_sn, cutout_rad=60, verbose=False, n_samples=1000):
-    n_gals = n_samples
-
-    if np.isnan(z_sn):
-        z_sn_samples = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
-
         # draw galaxies from the same distribution
-        z_gal_mean = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
+        z_gal_mean = np.maximum(0.001, priorfunc_z.rvs(size=n_gals))
         z_gal_std = 0.05 * z_gal_mean
         z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean[:, np.newaxis],
                                                    scale=z_gal_std[:, np.newaxis], size=(n_gals, n_samples)))
@@ -470,14 +398,86 @@ def probability_host_outside_cone(z_sn, cutout_rad=60, verbose=False, n_samples=
 
         # Perform integration using simps or trapz
         P_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
+        P_z = P_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
+    else:
+       # Use the known supernova redshift
+        z_sn_std = 0.05 * z_sn
+        z_gal_mean = z_sn  # Assume galaxy redshift is close to SN redshift
+        z_gal_std = z_sn_std
+        z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))
+        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean, scale=z_gal_std, size=n_samples))
+
+        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
+        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)
+        P_z = Prior_z * L_z
+
+    galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=0, scale=10)  # in kpc
+    galaxy_physical_radius_prior_std = 0.05*galaxy_physical_radius_prior_means
+    galaxy_physical_radius_prior_samples = norm.rvs(loc=galaxy_physical_radius_prior_means[:, np.newaxis],
+                                     scale=galaxy_physical_radius_prior_std[:, np.newaxis],
+                                     size=(n_gals, n_samples))
+
+    sn_distance = cosmo.comoving_distance(z_sn_samples).value  # in Mpc
+
+    min_phys_rad = 0
+    max_phys_rad = (cutout_rad / 206265) * sn_distance * 1e3  # in kpc
+
+    physical_offset_mean = np.linspace(min_phys_rad, max_phys_rad, n_gals)
+    physical_offset_std = 0.05*physical_offset_mean
+
+    physical_offset_samples = norm.rvs(physical_offset_mean,
+                                     physical_offset_std,
+                                     size=(n_gals, n_samples))
+
+    fractional_offset_samples =  physical_offset_samples / galaxy_physical_radius_prior_samples  # Shape: (n_samples, n_samples)
+
+    Prior_offset_unobs = prior_offsets(fractional_offset_samples, reduce=None)
+    L_offset_unobs = likelihood_offsets(fractional_offset_samples, reduce=None)
+
+    d_l_samples = cosmo.luminosity_distance(z_sn_samples).value * 1e6  # Convert to pc
+    absmag_lim_samples = m_lim - 5 * (np.log10(d_l_samples / 10))
+
+    absmag_samples = np.linspace(absmag_lim_samples, 0, n_gals)
+
+    Prior_absmag = prior_absolute_magnitude(absmag_samples, reduce=None)
+    L_absmag = likelihood_absolute_magnitude(absmag_samples, reduce=None)
+
+    prob_unobs = Prior_absmag * L_absmag * P_z * Prior_offset_unobs * L_offset_unobs
+
+    P_unobserved = np.nanmean(prob_unobs, axis=0)  # Sum over all galaxies
+
+    return P_unobserved
+
+
+def probability_host_outside_cone(z_sn, cutout_rad=60, verbose=False, n_samples=1000):
+    n_gals = int(0.5*n_samples)
+
+    if np.isnan(z_sn):
+        z_sn_samples = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
+
+        # draw galaxies from the same distribution
+        z_gal_mean = np.maximum(0.001, priorfunc_z.rvs(size=n_gals))
+        z_gal_std = 0.05 * z_gal_mean
+        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean[:, np.newaxis],
+                                                   scale=z_gal_std[:, np.newaxis], size=(n_gals, n_samples)))
+        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
+        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)
+
+        sorted_indices = np.argsort(z_gal_samples, axis=1)
+        sorted_z_gal_samples = np.take_along_axis(z_gal_samples, sorted_indices, axis=1)
+        sorted_integrand = np.take_along_axis(Prior_z * L_z, sorted_indices, axis=1)
+
+        # Perform integration using simps or trapz
+        P_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
+        P_z = P_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
     else:
         # Use the known supernova redshift
         z_sn_std = 0.05 * z_sn
         z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))
         z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_sn, scale=z_sn_std, size=(n_gals, n_samples)))
 
-        Prior_z = prior_redshifts(z_gal_samples)
-        L_z = likelihood_redshifts(z_sn_samples, z_sn, z_sn_std)
+        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
+        L_z = likelihood_redshifts(z_sn_samples, z_sn, z_sn_std, reduce=None)
         P_z = Prior_z * L_z
 
     # sample brightnesses
@@ -486,25 +486,34 @@ def probability_host_outside_cone(z_sn, cutout_rad=60, verbose=False, n_samples=
     absmag_samples = np.maximum(0.001, norm.rvs(loc=absmag_mean[:, np.newaxis],
                                                 scale=absmag_std[:, np.newaxis], size=(n_gals, n_samples)))
 
-    Prior_absmag = prior_absolute_magnitude(absmag_samples)
+    Prior_absmag = prior_absolute_magnitude(absmag_samples, reduce=None)
 
     # Calculate the distance to the supernova for each sampled redshift
-    sn_distances = cosmo.comoving_distance(np.mean(z_gal_samples, axis=1)).value  # in Mpc
+    sn_distances = cosmo.comoving_distance(z_sn_samples).value  # in Mpc
+
     # Convert angular cutout radius to physical offset at each sampled redshift
     min_phys_rad = (cutout_rad / 206265) * sn_distances * 1e3  # in kpc
     max_phys_rad = 5 * min_phys_rad
-    fractional_offset_samples = np.linspace(min_phys_rad[:, np.newaxis], max_phys_rad[:, np.newaxis], n_samples)
-    fractional_offset_samples = fractional_offset_samples / np.maximum(0.001, halfnorm.rvs(size=n_samples))[:, np.newaxis]
 
-    Prior_offset = prior_offsets(fractional_offset_samples)
-    L_offset = likelihood_offsets(fractional_offset_samples)
-    L_absmag = likelihood_absolute_magnitude(absmag_samples)
+    galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=0, scale=10)  # in kpc
+    galaxy_physical_radius_prior_std = 0.05*galaxy_physical_radius_prior_means
+    galaxy_physical_radius_prior_samples = norm.rvs(loc=galaxy_physical_radius_prior_means[:, np.newaxis],
+                                     scale=galaxy_physical_radius_prior_std[:, np.newaxis],
+                                     size=(n_gals, n_samples))
+
+    physical_offset_samples = np.linspace(min_phys_rad, max_phys_rad, n_gals)
+    #one for each galaxy, as there should be
+
+    fractional_offset_samples = physical_offset_samples / galaxy_physical_radius_prior_samples
+
+    Prior_offset = prior_offsets(fractional_offset_samples, reduce=None)
+    L_offset = likelihood_offsets(fractional_offset_samples, reduce=None)
+    L_absmag = likelihood_absolute_magnitude(absmag_samples, reduce=None)
 
     prob_outside = Prior_absmag * L_absmag * P_z * Prior_offset * L_offset
 
     # Sum over the samples and galaxies to get the total probability
-    P_outside = np.nanmean(prob_outside, axis=1)  # Average over the samples for each galaxy
-    P_outside = np.nanmean(P_outside)  # average over all simulated galaxies
+    P_outside = np.nanmean(prob_outside, axis=0)  # average over all simulated galaxies -- keep the samples
 
     return P_outside
 
@@ -542,54 +551,38 @@ def posterior_samples(z_sn, sn_position, galaxy_catalog, cutout_rad=60, n_sample
 
         # Perform integration using simps or trapz
         P_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
+        P_z = P_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
     else:
         z_sn_std = 0.05*z_sn
         z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))  # Ensure non-negative redshifts
-        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std)  # Shape (N,)
-        Prior_z = prior_redshifts(z_gal_samples)
+        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)  # Shape (N,)
+        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
         P_z = Prior_z*L_z
 
     #depends on zgal, NOT zSN
-    Prior_absmag = prior_absolute_magnitude(absmag_samples)
-    L_absmag = likelihood_absolute_magnitude(absmag_samples)
+    Prior_absmag = prior_absolute_magnitude(absmag_samples, reduce=None)
+    L_absmag = likelihood_absolute_magnitude(absmag_samples, reduce=None)
 
     # Calculate angular diameter distances for all samples
     galaxy_distances = cosmo.angular_diameter_distance(z_gal_samples).to(u.kpc).value  # Shape (N, M)
 
     fractional_offset_samples = offset_arcsec_samples/galaxy_DLR_samples
 
-    Prior_offsets = prior_offsets(fractional_offset_samples)
-    L_offsets = likelihood_offsets(fractional_offset_samples)  # Shape (N,)
+    Prior_offsets = prior_offsets(fractional_offset_samples, reduce=None)
+    L_offsets = likelihood_offsets(fractional_offset_samples, reduce=None)  # Shape (N,)
 
     # Compute the posterior probabilities for all galaxies
     P_gals = (P_z) * (Prior_offsets*L_offsets) * (Prior_absmag*L_absmag)
 
     #other probabilities
-    P_hostless = 0. #some very low value that the SN is actually hostless.
-    P_outside = probability_host_outside_cone(z_sn, cutout_rad=cutout_rad, verbose=False, n_samples=1000)
+    P_hostless = np.array([0]*n_samples) #some very low value that the SN is actually hostless, across all samples.
+    P_outside = probability_host_outside_cone(z_sn, cutout_rad=cutout_rad, verbose=False, n_samples=n_samples)
     P_unobs = probability_of_unobserved_host(z_sn, z_sn_std, z_sn_samples, cutout_rad=cutout_rad, m_lim=m_lim, verbose=verbose)
 
-    if False:
-        print("Unnormalized posteriors of true galaxy:")
-        print("AbsMag prior:")
-        print(np.nanmax(Prior_absmag))
-        print("Redshift posterior:")
-        print(np.nanmax(P_z))
-        print("Offset prior:")
-        print(np.nanmax(Prior_offsets))
-        print("AbsMag likelihood:")
-        print(np.nanmax(L_absmag))
-        print("Offset likelihood:")
-        print(np.nanmax(L_offsets))
-        print("Full posterior for best galaxy:", np.nanmax(post_probs))
-        print("Probability of being outside the region:", P_outside)
-        print("Probability of being unobserved:", P_unobs)
-        print("\n\n")
-
-    P_tot = np.nansum(P_gals) + P_hostless + P_outside + P_unobs
-
+    #sum across all galaxies for these overall metrics
+    P_tot = np.nansum(P_gals, axis=0) + P_hostless + P_outside + P_unobs
     P_none_norm = (P_outside + P_hostless + P_unobs) / P_tot
-    P_any_norm =  np.nansum(P_gals) / P_tot
+    P_any_norm =  np.nansum(P_gals, axis=0) / P_tot
 
     P_gals_norm = P_gals / P_tot
     P_offsets_norm = Prior_offsets * L_offsets/ P_tot
@@ -598,12 +591,25 @@ def posterior_samples(z_sn, sn_position, galaxy_catalog, cutout_rad=60, n_sample
     P_outside_norm = P_outside / P_tot
     P_unobs_norm = P_unobs / P_tot
 
-    print(f"Probability your true host was outside the search cone: {P_outside_norm:.4e}")
-    print(f"Probability your true host is not in this catalog: {P_unobs_norm:.4e}")
-    print(f"Probability your true host is hostless: {P_hostless:.4e}")
-    print(f"Probability your true host IS in this catalog: {P_any_norm:.4e}")
+    #stats for individual galaxies
+    P_offsets_norm_med =  np.nanmedian(P_offsets_norm, axis=1)
+    P_z_norm_med = np.nanmedian(P_z_norm, axis=1)
+    P_absmag_norm_med = np.nanmedian(P_absmag_norm, axis=1)
+    P_gals_norm_med = np.nanmedian(P_gals_norm, axis=1)
 
-    return P_any_norm, P_none_norm, P_gals_norm, P_offsets_norm, P_z_norm, P_absmag_norm
+    #stats for the full association
+    P_hostless_norm_med = np.nanmedian(P_hostless)
+    P_none_norm_med = np.nanmedian(P_none_norm)
+    P_any_norm_med = np.nanmedian(P_any_norm)
+    P_outside_norm_med = np.nanmedian(P_outside_norm)
+    P_unobs_norm_med = np.nanmedian(P_unobs_norm)
+
+    print(f"Probability your true host was outside the search cone: {P_outside_norm_med:.4e}")
+    print(f"Probability your true host is not in this catalog: {P_unobs_norm_med:.4e}")
+    print(f"Probability your true host is hostless: {P_hostless_norm_med:.4e}")
+    print(f"Probability your true host IS in this catalog: {P_any_norm_med:.4e}")
+
+    return P_any_norm_med, P_none_norm_med, P_gals_norm_med, P_offsets_norm_med, P_z_norm_med, P_absmag_norm_med
 
 # Convert physical sizes to angular sizes (arcseconds)
 def physical_to_angular_size(physical_size, redshift):
@@ -621,7 +627,7 @@ def physical_to_angular_size(physical_size, redshift):
 source = "DELIGHT"
 #source = "Jones+18"
 
-with open('/Users/alexgagliano/Documents/Research/prob_association/all.pkl', 'rb') as f:
+with open('/Users/alexgagliano/Documents/Research/prob_association/data/all.pkl', 'rb') as f:
     data = pickle.load(f)
 data.reset_index(inplace=True)
 sn_catalog = data
@@ -668,7 +674,7 @@ sn_catalog['agreement_w_Pcc'] = np.nan
 
 #randomly shuffle
 Nassociated = 0
-verbose = True
+verbose = False
 Ntot = 5
 
 sn_catalog = sn_catalog.sample(frac=1)
@@ -706,7 +712,7 @@ for idx, row in sn_catalog.iterrows():
 
     #glade logic
     n_samples = 1000
-    GLADE_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/GLADE+_HyperLedaSizes.csv", delim_whitespace=True,na_values=['', np.nan],keep_default_na=True)
+    GLADE_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/data/GLADE+_HyperLedaSizes.csv", delim_whitespace=True,na_values=['', np.nan],keep_default_na=True)
     GLADE_catalog.dropna(subset=['logd25Hyp', 'logr25Hyp', 'e_logr25Hyp', 'PAHyp'], inplace=True)
     galaxies = build_glade_candidates(sn_position, rad_arcsec, GLADE_catalog, n_samples=n_samples)
 
@@ -857,6 +863,7 @@ for idx, row in sn_catalog.iterrows():
     print(f"Current agreement fraction: {agree_frac:.2f}")
 
     sn_catalog.at[idx, 'prob_association_time'] = match_time
+
 
 #sn_catalog.to_csv("/Users/alexgagliano/Documents/Research/prob_association/slsn_catalog_Alexprob_PccCompare.csv",index=False)
 #sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/ZTFBTS_Alexprob.csv",index=False)

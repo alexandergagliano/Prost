@@ -1,696 +1,20 @@
-import numpy as np
-from astropy.cosmology import LambdaCDM
-import astropy.cosmology.units as cu
-from astropy.coordinates import SkyCoord
-import astropy.units as u
-from astropy.io import ascii
 import pandas as pd
-from dl import queryClient as qc
-import time
-from astropy.coordinates import Angle
-from scipy.stats import norm, halfnorm, truncnorm, uniform, expon, truncexpon
+import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import quad, dblquad
-from astropy.modeling.powerlaws import Schechter1D
-from astropy.cosmology import z_at_value
 import os
-from astro_ghost.PS1QueryFunctions import getcolorim
-from astro_ghost.PS1QueryFunctions import get_PS1_Pic, find_all
-from astropy.io import fits
-from astropy.visualization import SqrtStretch
-from astropy.visualization import ZScaleInterval
-from astropy.visualization import make_lupton_rgb
-from astropy.wcs import WCS
-import pickle
 os.chdir("/Users/alexgagliano/Documents/Research/prob_association/")
 from diagnose import *
+from helpers import *
 import seaborn as sns
 import scipy.stats as st
+import glob
 
-sns.set_context("talk")
+def associate_supernova(idx, row, GLADE_catalog, n_samples, n_processes, angular_scale, verbose, priorfunc_offset, priorfunc_absmag):
+    start_time = time.time()
 
-# TODO -- speed up (analytically instead of a monte carlo?); consider full posteriors for each galaxy.
-
-cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
-
-class schechter(st.rv_continuous):
-    def __init__(self, a, b, **kwargs):
-        super().__init__(a=a, b=b, **kwargs)
-        self.normalization = self._calculate_normalization(a, b)
-
-    def _calculate_normalization(self, a, b):
-        """
-        Calculate the normalization constant for the Schechter function over the range [a, b].
-        """
-        result, _ = quad(self._unnormalized_pdf, a, b)
-        return result
-
-    def _unnormalized_pdf(self, M_abs_samples):
-        """
-        Unnormalized Schechter function.
-        """
-        h = 0.7  # Flat cosmology
-        phi_star = 5.37e-5 * h**3  # h^3 Mpc^-3 mag^-1 yr^-1
-        M_star = -20.60 - 5 * np.log10(h / 1.0)
-        alpha = -0.62
-
-        L_samples = 10**(-0.4 * (M_abs_samples - M_star))
-        schechter_values = 0.4 * np.log(10) * phi_star * L_samples**(alpha + 1) * np.exp(-L_samples)
-        return schechter_values
-
-    def _pdf(self, M_abs_samples):
-        """
-        Normalized Schechter function.
-        """
-        return self._unnormalized_pdf(M_abs_samples) / self.normalization
-
-# define priors for properties
-priorfunc_z      = halfnorm(loc=0, scale=0.1)
-priorfunc_offset = uniform(loc=0, scale=5)
-priorfunc_absmag = uniform(loc=-25, scale=15)
-#schechter(a=-25, b=-10, name='Hosts_Schechter')
-
-def build_decals_candidates(sn_position, search_rad=60, n_samples=1000):
-    rad_deg = search_rad/3600.
-
-    result = qc.query(sql=f"""SELECT
-        t.ls_id,
-        t.shape_r,
-        t.shape_r_ivar,
-        t.shape_e1,
-        t.shape_e1_ivar,
-        t.shape_e2,
-        t.shape_e2_ivar,
-        t.ra,
-        t.type,
-        t.dec,
-        t.dered_mag_r,
-        t.mag_r,
-        t.flux_r,
-        t.flux_ivar_r,
-        t.nobs_g,
-        t.nobs_r,
-        t.nobs_z,
-        t.fitbits,
-        t.ra_ivar,
-        t.dec_ivar,
-        t.dered_flux_r,
-        pz.z_phot_mean,
-        pz.z_phot_median,
-        pz.z_phot_std,
-        pz.z_spec
-    FROM
-        ls_dr9.tractor t
-    INNER JOIN
-        ls_dr9.photo_z pz
-    ON
-        t.ls_id= pz.ls_id
-    WHERE
-        q3c_radial_query(t.ra, t.dec, {sn_position.ra.deg:.5f}, {sn_position.dec.deg:.5f}, {rad_deg})
-    AND (t.nobs_r > 0) AND (t.dered_flux_r > 0) AND (t.snr_r > 0) AND nullif(t.dered_mag_r, 'NaN') is not null AND (t.fitbits != 8192) AND ((pz.z_spec > 0) OR (pz.z_phot_mean > 0))""")
-
-    candidate_hosts = ascii.read(result).to_pandas()
-
-    n_galaxies = len(candidate_hosts)
-
-    if n_galaxies < 1:
-        print(f"No sources found around {sn_name} in DECaLS! Double-check that the SN coords overlap the survey footprint.")
-        return None
-
-    dtype = [('ra', float), ('dec', float), ('redshift', float), ('physical_size_kpc', float), ('angular_size_arcsec', float),
-            ('angular_size_arcsec_std', float),('z_best_samples', object),('z_best_mean', float),('z_best_std', float),('ls_id', int),
-            ('DLR_samples', object), ('absmag_samples', object)]
-
-    galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
-    galaxies['ra'] = candidate_hosts['ra'].values
-    galaxies['dec'] = candidate_hosts['dec'].values
-
-    temp_sizes = candidate_hosts['shape_r'].values
-    temp_sizes[temp_sizes < 0.25] = 0.25 #1 pixel, at least for PS1
-    temp_sizes_std = candidate_hosts['shape_r_ivar'].values
-    temp_sizes_std  = np.minimum(np.sqrt(1/temp_sizes_std), temp_sizes)
-
-    temp_sizes_std[temp_sizes_std != temp_sizes_std] = 0.05*temp_sizes[temp_sizes_std != temp_sizes_std]
-    temp_sizes_std[temp_sizes_std < 0.05*temp_sizes] = 0.05*temp_sizes[temp_sizes_std < 0.05*temp_sizes]
-    galaxies['angular_size_arcsec'] = temp_sizes
-    galaxies['angular_size_arcsec_std'] = temp_sizes_std
-
-    galaxy_photoz_median = candidate_hosts['z_phot_median'].values
-    galaxy_photoz_mean = candidate_hosts['z_phot_mean'].values
-    galaxy_photoz_std = candidate_hosts['z_phot_std'].values
-    galaxy_specz = candidate_hosts['z_spec'].values
-
-    temp_e1 = candidate_hosts['shape_e1'].astype("float")
-    temp_e1_std = candidate_hosts['shape_e1_ivar'].values
-    temp_e1_std[temp_e1_std < 0.05*temp_e1] = 0.05*temp_e1[temp_e1_std < 0.05*temp_e1]
-    temp_e1_std[temp_e1_std > 1.e-10]  = np.sqrt(1/temp_e1_std[temp_e1_std > 1.e-10])
-
-    temp_e2 = candidate_hosts['shape_e2'].astype("float")
-    temp_e2_std = candidate_hosts['shape_e2_ivar'].values
-    temp_e2_std[temp_e2_std < 0.05*temp_e2] = 0.05*temp_e2[temp_e2_std < 0.05*temp_e2]
-    temp_e2_std[temp_e1_std > 1.e-10]  = np.sqrt(1/temp_e2_std[temp_e2_std > 1.e-10])
-
-    DLR_samples = calc_decals_DLR_with_err(sn_position.ra.deg, sn_position.dec.deg, candidate_hosts['ra'],
-        candidate_hosts['dec'], candidate_hosts['shape_e1'], candidate_hosts['shape_e2'],
-        candidate_hosts['shape_r'], temp_e1_std, temp_e2_std, temp_sizes_std, search_rad=search_rad)
-
-    galaxies['z_best_mean'] = galaxy_photoz_mean
-    galaxies['z_best_std'] = np.abs(galaxy_photoz_std)
-    galaxies['z_best_std'][galaxy_specz > 0] = 0.05*galaxy_specz[galaxy_specz > 0] #floor of 5%
-    galaxies['z_best_mean'][galaxy_specz > 0] = galaxy_specz[galaxy_specz > 0]
-    galaxies['z_best_std'][np.abs(galaxy_photoz_std) > 0.5*galaxy_photoz_mean] = 0.5*galaxy_photoz_mean[np.abs(galaxy_photoz_std) > 0.5*galaxy_photoz_mean]#ceiling of 50%
-    galaxies['ls_id'] = candidate_hosts['ls_id'].values
-
-    z_best_samples = norm.rvs(
-        galaxies['z_best_mean'][:, np.newaxis],  # Shape (N, 1) to allow broadcasting
-        galaxies['z_best_std'][:, np.newaxis],  # Shape (N, 1)
-        size=(n_galaxies, n_samples)  # Shape (N, M)
-    )
-    z_best_samples[z_best_samples < 0] = 0.001 #set photometric redshift floor
-    z_best_samples[z_best_samples != z_best_samples] = 0.001 #set photometric redshift floor
-
-    temp_mag_r = candidate_hosts['dered_mag_r'].values
-
-    temp_mag_r_std = np.abs(2.5/np.log(10)*np.sqrt(1/np.maximum(0, candidate_hosts['flux_ivar_r'].values))/candidate_hosts['flux_r'].values)
-
-    #cap at 50% the mag
-    temp_mag_r_std[temp_mag_r_std > temp_mag_r] = 0.5*temp_mag_r[temp_mag_r_std > temp_mag_r]
-
-    absmag_samples = norm.rvs(loc=temp_mag_r[:, np.newaxis], scale=temp_mag_r_std[:, np.newaxis], size=(len(temp_mag_r), n_samples)) - cosmo.distmod(z_best_samples).value
-
-    for i in range(n_galaxies):
-        galaxies['z_best_samples'][i] = z_best_samples[i, :]
-        galaxies['DLR_samples'][i] = DLR_samples[i, :]
-        galaxies['absmag_samples'][i] = absmag_samples[i, :]
-
-    return galaxies
-
-def build_glade_candidates(sn_position, search_rad, GLADE_catalog, n_samples):
-
-    candidate_hosts = GLADE_catalog[SkyCoord(GLADE_catalog['RAJ2000'].values*u.deg, GLADE_catalog['DEJ2000'].values*u.deg).separation(sn_position).arcsec < search_rad]
-    n_galaxies = len(candidate_hosts)
-
-    if n_galaxies < 1:
-        print(f"No sources found around {sn_name} in GLADE!")
-        return None
-
-    dtype = [('ra', float), ('dec', float), ('redshift', float), ('angular_size_arcsec', float),
-            ('angular_size_arcsec_std', float),('z_best_samples', object),('z_best_mean', float),('z_best_std', float),
-            ('DLR_samples', object), ('absmag_samples', object)]
-
-    galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
-    galaxies['ra'] = candidate_hosts['RAJ2000'].values
-    galaxies['dec'] = candidate_hosts['DEJ2000'].values
-
-    # (n) HyperLEDA decimal logarithm of the length of the projected major axis of a galaxy at the isophotal level 25mag/arcsec2 in the B-band, to semi-major half-axis (half-light radius) in arcsec
-    temp_sizes = 0.5*3*10**(candidate_hosts['logd25Hyp'].values)
-    temp_sizes[temp_sizes < 0.25] = 0.25 #1 pixel, at least for PS1
-    temp_sizes_std = np.minimum(temp_sizes, np.abs(temp_sizes) * np.log(10) * candidate_hosts['e_logd25Hyp'].values)
-
-    temp_sizes_std[temp_sizes_std != temp_sizes_std] = 0.05*temp_sizes[temp_sizes_std != temp_sizes_std]
-    temp_sizes_std[temp_sizes_std < 0.05*temp_sizes] = 0.05*temp_sizes[temp_sizes_std < 0.05*temp_sizes]
-
-    galaxies['angular_size_arcsec'] = temp_sizes
-    galaxies['angular_size_arcsec_std'] = temp_sizes_std
-
-    dist_samples = norm.rvs(loc=candidate_hosts['Dist'].values[:, np.newaxis],
-                            scale=0.05*candidate_hosts['Dist'].values[:, np.newaxis], #assuming, conservatively, a 5% distance uncertainty
-                            size=(len(candidate_hosts), n_samples))
-
-    z_best_samples = z_at_value(cosmo.luminosity_distance, dist_samples*u.Mpc)
-    #galaxy_specz =  z_at_value(cosmo.luminosity_distance, candidate_hosts['Dist'].values*u.Mpc)
-    galaxy_a_over_b = 10**(candidate_hosts['logr25Hyp'])
-    galaxy_a_over_b_std = galaxy_a_over_b * np.log(10) * candidate_hosts['e_logr25Hyp'].values
-
-    DLR_samples = calc_GLADE_DLR_with_err(sn_position.ra.deg, sn_position.dec.deg, candidate_hosts['RAJ2000'],
-        candidate_hosts['DEJ2000'], candidate_hosts['PAHyp'],
-        temp_sizes, galaxy_a_over_b, temp_sizes_std, galaxy_a_over_b_std, n_samples=n_samples, search_rad=search_rad)
-
-    galaxies['z_best_mean'] = np.nanmean(z_best_samples, axis=1)
-    galaxies['z_best_std'] = np.nanstd(z_best_samples, axis=1)
-
-    z_best_samples[z_best_samples < 0] = 0.001 #set photometric redshift floor
-    z_best_samples[z_best_samples != z_best_samples] = 0.001 #set photometric redshift floor
-
-    temp_mag_r = candidate_hosts['BmagHyp'].values
-    temp_mag_r_std = np.abs(candidate_hosts['e_BmagHyp'].values)
-
-    absmag_samples = norm.rvs(loc=temp_mag_r[:, np.newaxis], scale=temp_mag_r_std[:, np.newaxis], size=(len(temp_mag_r), n_samples)) - cosmo.distmod(z_best_samples).value
-
-    for i in range(n_galaxies):
-        galaxies['z_best_samples'][i] = z_best_samples[i, :]
-        galaxies['DLR_samples'][i] = DLR_samples[i, :]
-        galaxies['absmag_samples'][i] = absmag_samples[i, :]
-
-    return galaxies
-
-def calc_DLR_decals(ra_SN, dec_SN, ra_hosts, dec_hosts, e1, e2, size):
-    #definitions buried deep in the tractor documentation i.e. https://github.com/dstndstn/tractor/blob/main/tractor/ellipses.py
-
-    # Calculate angular offsets for all galaxies
-    xr = (ra_SN - ra_hosts.values[:, np.newaxis]) * 3600
-    yr = (dec_SN - dec_hosts.values[:, np.newaxis]) * 3600
-
-    # Calculate ellipticity and axis ratio for all samples
-    e = np.sqrt(e1**2 + e2**2)
-    a_over_b = (1 + e) / (1 - e)
-
-    # Position angle and angle calculations for all samples
-    phi = -np.arctan2(e2, e1) / 2
-    gam = np.arctan2(xr, yr)
-    theta = phi - gam
-
-    # Vectorized calculation of DLR for all samples
-    DLR = size / np.sqrt(((a_over_b) * np.sin(theta))**2 + (np.cos(theta))**2)
-
-    #if no shape information, radius in direction of the SN is radius of the galaxy.
-    mask = (e1 < 1.e-5) & (e2 < 1.e-5) & (size < 1.e-5)
-    DLR[mask] = size[mask]
-    return DLR
-
-def calc_decals_DLR_with_err(ra_SN, dec_SN, ra_hosts, dec_hosts, e1_hosts, e2_hosts, angular_size_hosts, sigma_e1, sigma_e2, sigma_size, n_samples=1000, search_rad=60):
-    # Generate 2D samples for e1, e2, and angular_size for each galaxy
-    e1_samples = norm.rvs(loc=e1_hosts.values[:, np.newaxis], scale=sigma_e1[:, np.newaxis], size=(len(e1_hosts), n_samples))
-    e2_samples = norm.rvs(loc=e2_hosts.values[:, np.newaxis], scale=sigma_e2[:, np.newaxis], size=(len(e2_hosts), n_samples))
-
-    #size_samples = np.maximum(0.25, norm.rvs(loc=angular_size_hosts.values[:, np.newaxis], scale=sigma_size[:, np.newaxis], size=(len(angular_size_hosts), n_samples)))
-    size_samples = norm.rvs(angular_size_hosts.values[:, np.newaxis], sigma_size[:, np.newaxis], (len(angular_size_hosts), n_samples))
-
-    # Calculate DLR for all galaxies and all samples in a vectorized way -- can't be negative!
-    DLR_samples = calc_DLR_decals(ra_SN, dec_SN, ra_hosts, dec_hosts, e1_samples, e2_samples, size_samples)
-
-    return DLR_samples
-
-def calc_DLR_GLADE(ra_SN, dec_SN, ra_hosts, dec_hosts, a_over_b, pa, size):
-    #definitions buried deep in the tractor documentation i.e. https://github.com/dstndstn/tractor/blob/main/tractor/ellipses.py
-
-    # Calculate angular offsets for all galaxies
-    xr = (ra_SN - ra_hosts.values[:, np.newaxis]) * 3600
-    yr = (dec_SN - dec_hosts.values[:, np.newaxis]) * 3600
-
-    # Position angle and angle calculations for all samples
-    phi = np.radians(pa)
-    gam = np.arctan2(xr, yr)
-
-    theta = phi - gam
-
-    # Vectorized calculation of DLR for all samples
-    DLR = size / np.sqrt(((a_over_b) * np.sin(theta))**2 + (np.cos(theta))**2)
-    return DLR
-
-def calc_GLADE_DLR_with_err(ra_SN, dec_SN, ra_hosts, dec_hosts, pa_hosts, angular_size_hosts, a_over_b_hosts, sigma_size, sigma_a_over_b, n_samples=10000, search_rad=60):
-    #LATER -- consider uncertainty in position angle
-    pa_hosts = np.repeat(pa_hosts.values[:, np.newaxis], n_samples, axis=1)
-    # Generate 2D samples for e1, e2, and angular_size for each galaxy
-    size_samples = norm.rvs(angular_size_hosts[:, np.newaxis], sigma_size[:, np.newaxis], (len(angular_size_hosts), n_samples))
-    a_over_b_samples = norm.rvs(a_over_b_hosts.values[:, np.newaxis], sigma_a_over_b.values[:, np.newaxis], (len(a_over_b_hosts), n_samples))
-
-    # Calculate DLR for all galaxies and all samples in a vectorized way -- can't be negative!
-    DLR_samples = calc_DLR_GLADE(ra_SN, dec_SN, ra_hosts, dec_hosts, a_over_b_samples, pa_hosts, size_samples)
-
-    return DLR_samples
-
-def prior_redshifts(z_gal_samples, reduce='mean'):
-    pdf = priorfunc_z.pdf(z_gal_samples)
-    if reduce == 'mean':
-        return np.nanmean(pdf, axis=1)  # Resulting shape: (n_galaxies,)
-    elif reduce == 'median':
-        return np.nanmedian(pdf, axis=1)
-    else:
-        return pdf
-
-def prior_offsets(fractional_offsets, reduce='mean'):
-    pdf = priorfunc_offset.pdf(fractional_offsets)
-    if reduce == 'mean':
-        return np.nanmean(pdf, axis=1)  # Resulting shape: (n_galaxies,)
-    elif reduce == 'median':
-        return np.nanmedian(pdf, axis=1)
-    else:
-        return pdf
-
-def prior_absolute_magnitude(M_abs_samples, reduce='mean'):
-    pdf = priorfunc_absmag.pdf(M_abs_samples)
-    if reduce == 'mean':
-        return np.nanmean(pdf, axis=1)
-    elif reduce == 'median':
-        return np.nanmedian(pdf, axis=1)
-    else:
-        return pdf
-
-def likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce='mean'):
-    z_sn_samples = z_sn_samples[np.newaxis, :]  # Shape: (n_sn_samples, 1)
-    z_gal_mean = z_gal_mean[:, np.newaxis]  # Shape: (1, n_galaxies)
-    z_gal_std = z_gal_std[:, np.newaxis]    # Shape: (1, n_galaxies)
-
-    # Calculate the likelihood of each SN redshift sample across each galaxy
-    likelihoods = norm.pdf(z_sn_samples, loc=z_gal_mean, scale=z_gal_std)  # Shape: (n_sn_samples, n_galaxies)
-
-    if reduce == 'mean':
-        return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
-    elif reduce == 'median':
-        return np.nanmedian(likelihoods, axis=1)
-    else:
-        return likelihoods
-
-
-def likelihood_offsets(fractional_offsets, reduce='mean'):
-    #set a DLR cutoff of 100 -- ridiculously high
-    likelihoods = truncexpon.pdf(fractional_offsets, loc=0, scale=1, b=100)
-    if reduce == 'mean':
-        return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
-    elif reduce == 'median':
-        return np.nanmedian(likelihoods, axis=1)
-    else:
-        return likelihoods
-
-
-def likelihood_absolute_magnitude(M_abs_samples, reduce='mean'):
-    #assuming a typical 0.1 SN/century/10^10 Lsol (in K-band)
-    #TODO -- convert to K-band luminosity of the host!
-    #https://www.aanda.org/articles/aa/pdf/2005/15/aa1411.pdf
-    M_sol = 4.74
-    Lgal = 10**(-0.4 * (M_abs_samples - M_sol)) # in units of Lsol
-    Lgal /= 1.e10 #in units of 10^10 Lsol
-    likelihoods = 0.1*Lgal
-    if reduce == 'mean':
-        return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
-    elif reduce == 'median':
-        return np.nanmedian(likelihoods, axis=1)
-    else:
-        return likelihoods
-
-def probability_of_unobserved_host(z_sn, z_sn_std, z_sn_samples, cutout_rad=60, m_lim=30, verbose=False, n_samples=1000):
-    n_gals = int(0.5*n_samples)
-
-    if np.isnan(z_sn):
-        z_sn_std = np.nan
-        z_sn_samples = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
-
-        # draw galaxies from the same distribution
-        z_gal_mean = np.maximum(0.001, priorfunc_z.rvs(size=n_gals))
-        z_gal_std = 0.05 * z_gal_mean
-        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean[:, np.newaxis],
-                                                   scale=z_gal_std[:, np.newaxis], size=(n_gals, n_samples)))
-        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
-        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)
-
-        sorted_indices = np.argsort(z_gal_samples, axis=1)
-        sorted_z_gal_samples = np.take_along_axis(z_gal_samples, sorted_indices, axis=1)
-        sorted_integrand = np.take_along_axis(Prior_z * L_z, sorted_indices, axis=1)
-
-        # Perform integration using simps or trapz
-        P_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
-        P_z = P_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
-    else:
-       # Use the known supernova redshift
-        z_sn_std = 0.05 * z_sn
-        z_gal_mean = z_sn  # Assume galaxy redshift is close to SN redshift
-        z_gal_std = z_sn_std
-        z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))
-        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean, scale=z_gal_std, size=n_samples))
-
-        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
-        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)
-        P_z = Prior_z * L_z
-
-    galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=0, scale=10)  # in kpc
-    galaxy_physical_radius_prior_std = 0.05*galaxy_physical_radius_prior_means
-    galaxy_physical_radius_prior_samples = norm.rvs(loc=galaxy_physical_radius_prior_means[:, np.newaxis],
-                                     scale=galaxy_physical_radius_prior_std[:, np.newaxis],
-                                     size=(n_gals, n_samples))
-
-    sn_distance = cosmo.comoving_distance(z_sn_samples).value  # in Mpc
-
-    min_phys_rad = 0
-    max_phys_rad = (cutout_rad / 206265) * sn_distance * 1e3  # in kpc
-
-    physical_offset_mean = np.linspace(min_phys_rad, max_phys_rad, n_gals)
-    physical_offset_std = 0.05*physical_offset_mean
-
-    physical_offset_samples = norm.rvs(physical_offset_mean,
-                                     physical_offset_std,
-                                     size=(n_gals, n_samples))
-
-    fractional_offset_samples =  physical_offset_samples / galaxy_physical_radius_prior_samples  # Shape: (n_samples, n_samples)
-
-    Prior_offset_unobs = prior_offsets(fractional_offset_samples, reduce=None)
-    L_offset_unobs = likelihood_offsets(fractional_offset_samples, reduce=None)
-
-    d_l_samples = cosmo.luminosity_distance(z_sn_samples).value * 1e6  # Convert to pc
-    absmag_lim_samples = m_lim - 5 * (np.log10(d_l_samples / 10))
-
-    absmag_samples = np.linspace(absmag_lim_samples, 0, n_gals)
-
-    Prior_absmag = prior_absolute_magnitude(absmag_samples, reduce=None)
-    L_absmag = likelihood_absolute_magnitude(absmag_samples, reduce=None)
-
-    prob_unobs = Prior_absmag * L_absmag * P_z * Prior_offset_unobs * L_offset_unobs
-
-    P_unobserved = np.nanmean(prob_unobs, axis=0)  # Sum over all galaxies
-
-    return P_unobserved
-
-
-def probability_host_outside_cone(z_sn, cutout_rad=60, verbose=False, n_samples=1000):
-    n_gals = int(0.5*n_samples)
-
-    if np.isnan(z_sn):
-        z_sn_samples = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
-
-        # draw galaxies from the same distribution
-        z_gal_mean = np.maximum(0.001, priorfunc_z.rvs(size=n_gals))
-        z_gal_std = 0.05 * z_gal_mean
-        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_gal_mean[:, np.newaxis],
-                                                   scale=z_gal_std[:, np.newaxis], size=(n_gals, n_samples)))
-        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
-        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)
-
-        sorted_indices = np.argsort(z_gal_samples, axis=1)
-        sorted_z_gal_samples = np.take_along_axis(z_gal_samples, sorted_indices, axis=1)
-        sorted_integrand = np.take_along_axis(Prior_z * L_z, sorted_indices, axis=1)
-
-        # Perform integration using simps or trapz
-        P_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
-        P_z = P_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
-    else:
-        # Use the known supernova redshift
-        z_sn_std = 0.05 * z_sn
-        z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))
-        z_gal_samples = np.maximum(0.001, norm.rvs(loc=z_sn, scale=z_sn_std, size=(n_gals, n_samples)))
-
-        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
-        L_z = likelihood_redshifts(z_sn_samples, z_sn, z_sn_std, reduce=None)
-        P_z = Prior_z * L_z
-
-    # sample brightnesses
-    absmag_mean = priorfunc_absmag.rvs(size=n_gals)
-    absmag_std = 0.05 * np.abs(absmag_mean)
-    absmag_samples = np.maximum(0.001, norm.rvs(loc=absmag_mean[:, np.newaxis],
-                                                scale=absmag_std[:, np.newaxis], size=(n_gals, n_samples)))
-
-    Prior_absmag = prior_absolute_magnitude(absmag_samples, reduce=None)
-
-    # Calculate the distance to the supernova for each sampled redshift
-    sn_distances = cosmo.comoving_distance(z_sn_samples).value  # in Mpc
-
-    # Convert angular cutout radius to physical offset at each sampled redshift
-    min_phys_rad = (cutout_rad / 206265) * sn_distances * 1e3  # in kpc
-    max_phys_rad = 5 * min_phys_rad
-
-    galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=0, scale=10)  # in kpc
-    galaxy_physical_radius_prior_std = 0.05*galaxy_physical_radius_prior_means
-    galaxy_physical_radius_prior_samples = norm.rvs(loc=galaxy_physical_radius_prior_means[:, np.newaxis],
-                                     scale=galaxy_physical_radius_prior_std[:, np.newaxis],
-                                     size=(n_gals, n_samples))
-
-    physical_offset_samples = np.linspace(min_phys_rad, max_phys_rad, n_gals)
-    #one for each galaxy, as there should be
-
-    fractional_offset_samples = physical_offset_samples / galaxy_physical_radius_prior_samples
-
-    Prior_offset = prior_offsets(fractional_offset_samples, reduce=None)
-    L_offset = likelihood_offsets(fractional_offset_samples, reduce=None)
-    L_absmag = likelihood_absolute_magnitude(absmag_samples, reduce=None)
-
-    prob_outside = Prior_absmag * L_absmag * P_z * Prior_offset * L_offset
-
-    # Sum over the samples and galaxies to get the total probability
-    P_outside = np.nanmean(prob_outside, axis=0)  # average over all simulated galaxies -- keep the samples
-
-    return P_outside
-
-def posterior_samples(z_sn, sn_position, galaxy_catalog, cutout_rad=60, n_samples=1000, m_lim=24.5, verbose=False):
-    # Extract arrays for all galaxies from the catalog
-    z_gal_mean = np.array([gal['z_best_mean'] for gal in galaxy_catalog])
-    z_gal_std = np.array([gal['z_best_std'] for gal in galaxy_catalog])  # Shape (N, M)
-    galaxy_ras = np.array([gal['ra'] for gal in galaxy_catalog])
-    galaxy_decs = np.array([gal['dec'] for gal in galaxy_catalog])
-    galaxy_DLR_samples = np.array([gal['DLR_samples'] for gal in galaxy_catalog])
-    absmag_samples = np.array([gal['absmag_samples'] for gal in galaxy_catalog])
-
-    # Calculate angular separation between SN and all galaxies (in arcseconds)
-    sn_ra, sn_dec = sn_position.ra.degree, sn_position.dec.degree
-    offset_arcsec = SkyCoord(galaxy_ras*u.deg, galaxy_decs*u.deg).separation(sn_position).arcsec
-
-    #just copied now assuming 0 positional uncertainty -- this can be updated later (TODO!)
-    offset_arcsec_samples = np.repeat(offset_arcsec[:, np.newaxis], n_samples, axis=1)
-
-    #samples from the redshift prior for sources without reported redshifts
-    z_gal_samples = norm.rvs(z_gal_mean[:, np.newaxis], z_gal_std[:, np.newaxis], size=(len(z_gal_mean), n_samples))
-
-    # Sample z values
-    if np.isnan(z_sn):
-        print("WARNING: No SN redshift; marginalizing to infer probability for the likelihood of observed hosts.")
-        # Marginalize over the sampled supernova redshifts by integrating the likelihood over the redshift prior
-        z_sn_std = np.nan
-        z_sn_samples = np.maximum(0.001, priorfunc_z.rvs(size=n_samples))
-        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
-        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)
-
-        sorted_indices = np.argsort(z_gal_samples, axis=1)
-        sorted_z_gal_samples = np.take_along_axis(z_gal_samples, sorted_indices, axis=1)
-        sorted_integrand = np.take_along_axis(Prior_z * L_z, sorted_indices, axis=1)
-
-        # Perform integration using simps or trapz
-        P_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
-        P_z = P_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
-    else:
-        z_sn_std = 0.05*z_sn
-        z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))  # Ensure non-negative redshifts
-        L_z = likelihood_redshifts(z_sn_samples, z_gal_mean, z_gal_std, reduce=None)  # Shape (N,)
-        Prior_z = prior_redshifts(z_gal_samples, reduce=None)
-        P_z = Prior_z*L_z
-
-    #depends on zgal, NOT zSN
-    Prior_absmag = prior_absolute_magnitude(absmag_samples, reduce=None)
-    L_absmag = likelihood_absolute_magnitude(absmag_samples, reduce=None)
-
-    # Calculate angular diameter distances for all samples
-    galaxy_distances = cosmo.angular_diameter_distance(z_gal_samples).to(u.kpc).value  # Shape (N, M)
-
-    fractional_offset_samples = offset_arcsec_samples/galaxy_DLR_samples
-
-    Prior_offsets = prior_offsets(fractional_offset_samples, reduce=None)
-    L_offsets = likelihood_offsets(fractional_offset_samples, reduce=None)  # Shape (N,)
-
-    # Compute the posterior probabilities for all galaxies
-    P_gals = (P_z) * (Prior_offsets*L_offsets) * (Prior_absmag*L_absmag)
-
-    #other probabilities
-    P_hostless = np.array([0]*n_samples) #some very low value that the SN is actually hostless, across all samples.
-    P_outside = probability_host_outside_cone(z_sn, cutout_rad=cutout_rad, verbose=False, n_samples=n_samples)
-    P_unobs = probability_of_unobserved_host(z_sn, z_sn_std, z_sn_samples, cutout_rad=cutout_rad, m_lim=m_lim, verbose=verbose)
-
-    #sum across all galaxies for these overall metrics
-    P_tot = np.nansum(P_gals, axis=0) + P_hostless + P_outside + P_unobs
-    P_none_norm = (P_outside + P_hostless + P_unobs) / P_tot
-    P_any_norm =  np.nansum(P_gals, axis=0) / P_tot
-
-    P_gals_norm = P_gals / P_tot
-    P_offsets_norm = Prior_offsets * L_offsets/ P_tot
-    P_z_norm = P_z / P_tot
-    P_absmag_norm = Prior_absmag*L_absmag / P_tot
-    P_outside_norm = P_outside / P_tot
-    P_unobs_norm = P_unobs / P_tot
-
-    P_offsets_norm_med =  np.nanmedian(P_offsets_norm, axis=1)
-    P_z_norm_med = np.nanmedian(P_z_norm, axis=1)
-    P_absmag_norm_med = np.nanmedian(P_absmag_norm, axis=1)
-    P_gals_norm_med = np.nanmedian(P_gals_norm, axis=1)
-
-    #stats for the full association
-    P_hostless_norm_med = np.nanmedian(P_hostless)
-    P_none_norm_med = np.nanmedian(P_none_norm)
-    P_any_norm_med = np.nanmedian(P_any_norm)
-    P_outside_norm_med = np.nanmedian(P_outside_norm)
-    P_unobs_norm_med = np.nanmedian(P_unobs_norm)
-
-    print(f"Probability your true host was outside the search cone: {P_outside_norm_med:.4e}")
-    print(f"Probability your true host is not in this catalog: {P_unobs_norm_med:.4e}")
-    print(f"Probability your true host is hostless: {P_hostless_norm_med:.4e}")
-    print(f"Probability your true host IS in this catalog: {P_any_norm_med:.4e}")
-
-    return P_any_norm_med, P_none_norm_med, P_gals_norm_med, P_offsets_norm_med, P_z_norm_med, P_absmag_norm_med
-
-# Convert physical sizes to angular sizes (arcseconds)
-def physical_to_angular_size(physical_size, redshift):
-    return (physical_size/(cosmo.angular_diameter_distance(redshift)).to(u.kpc).value)*206265
-
-#sn_catalog = pd.read_csv("/Users/alexgagliano/Documents/Conferences/FreedomTrail_Jan24/sn_catalog/ZTFBTS_TransientTable.csv")
-#sn_catalog = pd.read_csv("/Users/alexgagliano/Desktop/prob_association/slsne_hosts.txt", delim_whitespace=True)
-#sn_catalog_names = pd.read_csv("/Users/alexgagliano/Desktop/prob_association/slsn_sne.txt", delim_whitespace=True)
-#sn_catalog_names.rename(columns={'Name':'object_name'}, inplace=True)
-#sn_catalog = sn_catalog.merge(sn_catalog_names)
-#sn_catalog = pd.read_csv("/Users/alexgagliano/Desktop/prob_association/ZTFBTS_TransientTable.csv")
-#sn_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/localsn_public_cuts.txt", delim_whitespace=True)
-#sn_catalog = sn_catalog[1:]
-
-source = "DELIGHT"
-#source = "Jones+18"
-
-with open('/Users/alexgagliano/Documents/Research/prob_association/data/all.pkl', 'rb') as f:
-    data = pickle.load(f)
-data.reset_index(inplace=True)
-sn_catalog = data
-
-if source == 'FLEET':
-    sn_catalog['host_ra']
-elif source == 'ZTF':
-    for col in ['host_ra', 'host_dec', 'host_Pcc']:
-        sn_catalog[col] = np.nan
-    sn_coords = SkyCoord(sn_catalog['RA'].values, sn_catalog['Dec'].values, unit=(u.hourangle, u.deg))
-    sn_catalog['RA_deg'] = sn_coords.ra.deg
-    sn_catalog['DEC_deg']= sn_coords.dec.deg
-    sn_catalog.rename(columns={'redshift':'Redshift', 'IAUID':'object_name'}, inplace=True)
-    sn_catalog['Redshift'] = sn_catalog['Redshift'].replace('-',np.nan)
-    sn_catalog['Redshift'] = sn_catalog['Redshift'].astype("float")
-elif source == 'Jones+18':
-    sn_catalog['host_Pcc'] = 1.0 #assume all are chosen
-    sn_coords = SkyCoord(sn_catalog['RA'].values, sn_catalog['DEC'].values, unit=(u.hourangle, u.deg))
-    sn_catalog['RA_deg'] = sn_coords.ra.deg
-    sn_catalog['DEC_deg']= sn_coords.dec.deg
-    host_coords = SkyCoord(sn_catalog['hostRA'].values, sn_catalog['hostDec'].values, unit=(u.hourangle, u.deg))
-    sn_catalog['host_ra']  = host_coords.ra.deg
-    sn_catalog['host_dec'] = host_coords.dec.deg
-    sn_catalog.rename(columns={'z':'Redshift', 'ID':'object_name'}, inplace=True)
-    sn_catalog['Redshift'] = sn_catalog['Redshift'].replace('-',np.nan)
-    sn_catalog['Redshift'] = sn_catalog['Redshift'].astype("float")
-elif source == 'DELIGHT':
-    sn_catalog['Redshift'] = np.nan # :(
-    sn_catalog['host_Pcc'] = 1.0
-    sn_catalog.rename(columns={'meanra':'RA_deg', 'meandec':'DEC_deg', 'oid':'object_name'}, inplace=True)
-
-sn_catalog['prob_host_ra'] = np.nan
-sn_catalog['prob_host_dec'] = np.nan
-sn_catalog['prob_host_score'] = np.nan
-sn_catalog['prob_host_2_ra'] = np.nan
-sn_catalog['prob_host_2_dec'] = np.nan
-sn_catalog['prob_host_2_score'] = np.nan
-sn_catalog['prob_host_flag'] = 0
-sn_catalog['sn_ra_deg'] = np.nan
-sn_catalog['sn_dec_deg'] = np.nan
-sn_catalog['prob_association_time'] = np.nan
-
-sn_catalog['agreement_w_Pcc'] = np.nan
-
-#randomly shuffle
-Nassociated = 0
-verbose = False
-Ntot = 5
-
-sn_catalog = sn_catalog.sample(frac=1)
-
-#debugging with specific objects
-#sn_catalog = sn_catalog[sn_catalog['object_name'] == 'SN 1997dq']
-
-angular_scale = 0.258 #arcsec/pixel
-
-for idx, row in sn_catalog.iterrows():
     decals_match = False
     glade_match = False
-
-    start_time = time.time()
-    sn_name = row.object_name#row.IAUID
+    sn_name = row.object_name
     sn_position = SkyCoord(Angle(row.RA_deg, unit=u.deg), Angle(row.DEC_deg, unit=u.deg)) #SkyCoord(Angle(row.RA, unit=u.hourangle), Angle(row.Dec, unit=u.deg))
     base_radius = 200/3600
     sn_redshift = row.Redshift
@@ -708,60 +32,98 @@ for idx, row in sn_catalog.iterrows():
     print(f"\n\nSN Redshift: {sn_redshift:.4f}")
     print(f"SN Name: {sn_name}")
 
-    sn_catalog.at[idx, 'sn_ra_deg'] = sn_position.ra.deg
-    sn_catalog.at[idx, 'sn_dec_deg'] = sn_position.dec.deg
+    row['sn_ra_deg'] = sn_position.ra.deg
+    row['sn_dec_deg'] = sn_position.dec.deg
 
-    #glade logic
-    n_samples = 1000
-    GLADE_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/data/GLADE+_HyperLedaSizes.csv", delim_whitespace=True,na_values=['', np.nan],keep_default_na=True)
-    GLADE_catalog.dropna(subset=['logd25Hyp', 'logr25Hyp', 'e_logr25Hyp', 'PAHyp'], inplace=True)
-    galaxies = build_glade_candidates(sn_position, rad_arcsec, GLADE_catalog, n_samples=n_samples)
+    n_samples_per_process = n_samples // n_processes
+    galaxies = build_glade_candidates(sn_name, sn_position, rad_arcsec, GLADE_catalog, n_samples=n_samples_per_process)
 
     if galaxies is None:
         print("Nothing found in GLADE.")
+        any_prob = 0
+        none_prob = 1
         glade_match = False
     else:
-        any_prob, none_prob, post_probs, post_offset, post_z, post_absmag = posterior_samples(sn_redshift, sn_position, galaxies, m_lim=18, cutout_rad=rad_arcsec,verbose=False)
-
+        #monte_carlo_glade
+        any_prob, none_prob, post_probs, post_offset, post_z, post_absmag = parallel_monte_carlo(
+            sn_redshift, sn_position, galaxies, m_lim=18, cutout_rad=rad_arcsec, verbose=False, n_samples=n_samples, n_processes=n_processes
+        )
+        end_time = time.time()
+        elapsed = end_time - start_time
+        print(f"Took {elapsed:.2f}s to find a GLADE match.")
         if (any_prob > none_prob):
             print("Found match by GLADE!")
             glade_match = True
         else:
             print(f"P(no host observed in GLADE cone): {none_prob:.4e}, P(host observed):{any_prob:.4e}")
             glade_match = False
+
+        best_gal = np.argsort(post_probs)[::-1][0]
+        top_prob = post_probs[best_gal]
+        diagnose_ranking(-1, post_probs, galaxies, post_offset, post_z, post_absmag, np.arange(len(galaxies)), sn_redshift, sn_position, verbose=True)
+
     if not glade_match:
         print("Moving on to decals...")
-        galaxies = build_decals_candidates(sn_position, rad_arcsec, n_samples=n_samples)
-
+        galaxies = build_decals_candidates(sn_name, sn_position, rad_arcsec, n_samples=n_samples_per_process)
         if galaxies is None:
-            continue
-        #setting the limiting magnitude to something exceptionally low
-        any_prob, none_prob, post_probs, post_offset, post_z, post_absmag = posterior_samples(sn_redshift, sn_position, galaxies, m_lim=27, cutout_rad=rad_arcsec,verbose=verbose)
-        if any_prob > none_prob:
-            decals_match = True
-    best_gal = np.argsort(post_probs)[::-1][0]
-    top_prob = post_probs[best_gal]
-
-    if verbose:
-        if glade_match:
-            candidate_ids = np.arange(len(galaxies))
+            print("Nothing found in DECaLS.")
+            any_prob = 0
+            none_prob = 1
+            decals_match = False
         else:
-            candidate_ids = galaxies['ls_id']
-        diagnose_ranking(-1, post_probs, galaxies, post_offset, post_z, post_absmag, candidate_ids, sn_redshift, sn_position, verbose=True)
+            start_time = time.time()
+            any_prob, none_prob, post_probs, post_offset, post_z, post_absmag = parallel_monte_carlo(
+                sn_redshift, sn_position, galaxies, m_lim=27, cutout_rad=rad_arcsec, verbose=verbose, n_samples=n_samples, n_processes=n_processes
+            )
+            end_time = time.time()
+            elapsed = end_time - start_time
+            print(f"Took {elapsed:.2f}s to find a decals match.")
+            if any_prob > none_prob:
+                decals_match = True
+            best_gal = np.argsort(post_probs)[::-1][0]
+            top_prob = post_probs[best_gal]
+            diagnose_ranking(-1, post_probs, galaxies, post_offset, post_z, post_absmag, galaxies['ls_id'], sn_redshift, sn_position, verbose=True)
 
-    if any_prob > none_prob:
+    if (glade_match == False) and (decals_match == False):
+        print("Moving on to PS2...")
+        galaxies = build_panstarrs_candidates(sn_name, sn_position, rad_arcsec, n_samples=n_samples_per_process)
+        if galaxies is None:
+            print("Nothing found in Panstarrs2.")
+            any_prob = 0
+            none_prob = 1
+            panstarrs_match = False
+        else:
+            #monte_carlo_glade
+            any_prob, none_prob, post_probs, post_offset, post_z, post_absmag = parallel_monte_carlo(
+                sn_redshift, sn_position, galaxies, m_lim=24, cutout_rad=rad_arcsec, verbose=False, n_samples=n_samples, n_processes=n_processes
+            )
+            end_time = time.time()
+            elapsed = end_time - start_time
+            print(f"Took {elapsed:.2f}s to find a Panstarrs match.")
+            if (any_prob > none_prob):
+                print("Found match by Panstarrs!")
+                panstarrs_match = True
+            else:
+                print(f"P(no host observed in Panstarrs cone): {none_prob:.4e}, P(host observed):{any_prob:.4e}")
+                panstarrs_match = False
+
+            best_gal = np.argsort(post_probs)[::-1][0]
+            top_prob = post_probs[best_gal]
+            diagnose_ranking(-1, post_probs, galaxies, post_offset, post_z, post_absmag, np.arange(len(galaxies)), sn_redshift, sn_position, verbose=True)
+
+    if (any_prob > none_prob):
         print("Probability of observing the host is higher than missing it.")
         print(f"P(host observed):{any_prob:.4e}")
-        if not glade_match:
-            sn_catalog.at[idx, 'prob_host_ls_id'] = galaxies['ls_id'][best_gal]
+        if decals_match:
+            row['prob_host_ls_id'] = galaxies['ls_id'][best_gal]
             print(f"DECALS ID of matched host:{galaxies['ls_id'][best_gal]}")
-        sn_catalog.at[idx, 'prob_host_z_best_mean'] = galaxies['z_best_mean'][best_gal]
-        sn_catalog.at[idx, 'prob_host_z_best_std'] = galaxies['z_best_std'][best_gal]
-        sn_catalog.at[idx, 'prob_host_ra'] = galaxies['ra'][best_gal]
-        sn_catalog.at[idx, 'prob_host_dec'] = galaxies['dec'][best_gal]
-        sn_catalog.at[idx, 'prob_host_score'] = post_probs[best_gal]
-        sn_catalog.at[idx, 'prob_host_xr'] = (sn_position.ra.deg - galaxies['ra'][best_gal])*3600
-        sn_catalog.at[idx, 'prob_host_yr'] = (sn_position.dec.deg - galaxies['dec'][best_gal])*3600
+        row['prob_host_z_best_mean'] = galaxies['z_best_mean'][best_gal]
+        row['prob_host_z_best_std'] = galaxies['z_best_std'][best_gal]
+        row['prob_host_ra'] = galaxies['ra'][best_gal]
+        row['prob_host_dec'] = galaxies['dec'][best_gal]
+        row['prob_host_score'] = post_probs[best_gal]
+        row['prob_host_xr'] = (sn_position.ra.deg - galaxies['ra'][best_gal])*3600
+        row['prob_host_yr'] = (sn_position.dec.deg - galaxies['dec'][best_gal])*3600
 
         second_best_gal = None
         if len(post_probs) > 1:
@@ -772,71 +134,57 @@ for idx, row in sn_catalog.iterrows():
 
             if bayes_factor < 3:
                 print(f"Warning: The evidence for the top candidate over the second-best is weak. Bayes Factor = {bayes_factor:.2f}. Check for a shred!")
-                sn_catalog.at[idx, 'prob_host_flag'] = 1
+                row['prob_host_flag'] = 1
             elif bayes_factor > 100:
                 print(f"The top candidate has very strong evidence over the second-best. Bayes Factor = {bayes_factor:.2f}")
-                sn_catalog.at[idx, 'prob_host_flag'] = 2
+                row['prob_host_flag'] = 2
 
-            if not glade_match:
-                sn_catalog.at[idx, 'prob_host_2_ls_id'] = galaxies['ls_id'][second_best_gal]
-            sn_catalog.at[idx, 'prob_host_2_z_best_mean'] = galaxies['z_best_mean'][second_best_gal]
-            sn_catalog.at[idx, 'prob_host_2_z_best_std'] = galaxies['z_best_std'][second_best_gal]
-            sn_catalog.at[idx, 'prob_host_2_ra'] = galaxies['ra'][second_best_gal]
-            sn_catalog.at[idx, 'prob_host_2_dec'] = galaxies['dec'][second_best_gal]
-            sn_catalog.at[idx, 'prob_host_2_score'] = post_probs[second_best_gal]
+            if decals_match:
+                row['prob_host_2_ls_id'] = galaxies['ls_id'][second_best_gal]
+            row['prob_host_2_z_best_mean'] = galaxies['z_best_mean'][second_best_gal]
+            row['prob_host_2_z_best_std'] = galaxies['z_best_std'][second_best_gal]
+            row['prob_host_2_ra'] = galaxies['ra'][second_best_gal]
+            row['prob_host_2_dec'] = galaxies['dec'][second_best_gal]
+            row['prob_host_2_score'] = post_probs[second_best_gal]
 
         #compare to probability of chance coincidence
         sep_Pcc = SkyCoord(row['host_ra']*u.deg, row['host_dec']*u.deg).separation(SkyCoord(galaxies['ra'][best_gal]*u.deg, galaxies['dec'][best_gal]*u.deg)).arcsec
         print(f"Separation from Pcc host: {sep_Pcc:.2f}\".")
-        if sep_Pcc < 2: #give a little leeway; these are big galaxies now!
-            sn_catalog.at[idx, 'agreement_w_Pcc'] = True
-        else:
-            sn_catalog.at[idx, 'agreement_w_Pcc'] = False
+        row['separation_from_Pcc'] = sep_Pcc
     else:
         print("WARNING: unlikely that any of these galaxies hosted this SN! Setting best galaxy as second-best.")
         print(f"P(no host observed in DECALS cone): {none_prob:.4e}, P(host observed):{any_prob:.4e}")
-        sn_catalog.at[idx, 'prob_host_flag'] = 5
-        sn_catalog.at[idx, 'prob_host_ls_id'] = np.nan
-        sn_catalog.at[idx, 'prob_host_z_best_mean'] = np.nan
-        sn_catalog.at[idx, 'prob_host_z_best_std'] = np.nan
-        sn_catalog.at[idx, 'prob_host_ra'] = np.nan
-        sn_catalog.at[idx, 'prob_host_dec'] = np.nan
-        sn_catalog.at[idx, 'prob_host_score'] = np.nan
-        sn_catalog.at[idx, 'prob_host_2_z_best_mean'] = galaxies['z_best_mean'][best_gal]
-        sn_catalog.at[idx, 'prob_host_2_z_best_std'] = galaxies['z_best_std'][best_gal]
-        sn_catalog.at[idx, 'prob_host_2_ra'] = galaxies['ra'][best_gal]
-        sn_catalog.at[idx, 'prob_host_2_dec'] = galaxies['dec'][best_gal]
-        sn_catalog.at[idx, 'prob_host_2_score'] = post_probs[best_gal]
+        row['prob_host_flag'] = 5
+        row['prob_host_ls_id'] = np.nan
+        row['prob_host_z_best_mean'] = np.nan
+        row['prob_host_z_best_std'] = np.nan
+        row['prob_host_ra'] = np.nan
+        row['prob_host_dec'] = np.nan
+        row['prob_host_score'] = np.nan
+        if galaxies:
+            row['prob_host_2_z_best_mean'] = galaxies['z_best_mean'][best_gal]
+            row['prob_host_2_z_best_std'] = galaxies['z_best_std'][best_gal]
+            row['prob_host_2_ra'] = galaxies['ra'][best_gal]
+            row['prob_host_2_dec'] = galaxies['dec'][best_gal]
+            row['prob_host_2_score'] = post_probs[best_gal]
         #best_gal = None
 
         #comparison to Pcc
         if (row['host_Pcc'] > 0.1):
             print("Oh no! Pcc gets a host here.")
-            sn_catalog.at[idx, 'agreement_w_Pcc'] = False
         else:
             print("AGREEMENT: No host found by Pcc.")
-            sn_catalog.at[idx, 'agreement_w_Pcc'] = True
 
     end_time = time.time()
     match_time = end_time - start_time
     print(f"Completed in {match_time:.2f} seconds.")
-    Nassociated +=1
-
-    #######################
-    #######################
-    #get PS1 postage stamp
-    #######################
-    #######################
-    #im = getcolorim(sn_position.ra.deg, sn_position.dec.deg, size=stamp_size, filters="grizy", format="png")
-    #plt.imshow(im)
-    #sn_pos = (stamp_size/2, stamp_size/2)
 
     if row.host_Pcc > 0.1:
         Pcc_host_ra = float(row.host_ra)
         Pcc_host_dec = float(row.host_dec)
     else:
         Pcc_host_ra = Pcc_host_dec = None
-    if (glade_match or decals_match):
+    if (glade_match or decals_match or panstarrs_match):
         chosen_gal_ra = [galaxies['ra'][best_gal]]
         chosen_gal_dec = [galaxies['dec'][best_gal]]
         if (second_best_gal is not None) and (second_best_gal < len(galaxies)):
@@ -845,29 +193,139 @@ for idx, row in sn_catalog.iterrows():
     else:
         chosen_gal_ra = chosen_gal_dec = []
 
-    #try:
-    if True:
+    agreeStr = ""
+    matchStr = ""
+    if row['separation_from_Pcc'] < 2:
+        agreeStr += "_disagree"
+    if glade_match:
+        matchStr += "_GLADE"
+    elif decals_match:
+        matchStr += "_DECaLS"
+    elif panstarrs_match:
+        matchStr += "_PS2"
+    try:
         plotSNhost(chosen_gal_ra, chosen_gal_dec, Pcc_host_ra, Pcc_host_dec,
             galaxies['z_best_mean'][best_gal], galaxies['z_best_std'][best_gal],
-            sn_position.ra.deg, sn_position.dec.deg, row.object_name, row.Redshift, sn_catalog.at[idx, 'prob_host_flag'], f"./plots_likelihoodoffsetscale1_wGLADE/DELIGHT/{row.object_name}")
-    #except:
-    if False:
-        print("Failed to plot match. Trying again after 60s...")
-        time.sleep(60)
-        plotSNhost(chosen_gal_ra, chosen_gal_dec, Pcc_host_ra, Pcc_host_dec,
-        galaxies['z_best_mean'][best_gal], galaxies['z_best_std'][best_gal],
-        sn_position.ra.deg, sn_position.dec.deg, row.object_name, row.Redshift, sn_catalog.at[idx, 'prob_host_flag'],
-        f"./plots_likelihoodoffsetscale1_wGLADE/DELIGHT/{row.object_name}")
+            sn_position.ra.deg, sn_position.dec.deg, row.object_name, row.Redshift, row['prob_host_flag'], f"./plots_likelihoodoffsetscale1_wGLADE/DELIGHT/{row.object_name}{agreeStr}{matchStr}")
+    except:
+        try:
+            print("Failed to plot match. Trying again after 60s...")
+            time.sleep(60)
+            plotSNhost(chosen_gal_ra, chosen_gal_dec, Pcc_host_ra, Pcc_host_dec,
+            galaxies['z_best_mean'][best_gal], galaxies['z_best_std'][best_gal],
+            sn_position.ra.deg, sn_position.dec.deg, row.object_name, row.Redshift, row['prob_host_flag'],
+            f"./plots_likelihoodoffsetscale1_wGLADE/DELIGHT/{row.object_name}{agreeStr}{matchStr}")
+        except:
+            print("Couldn't get image....")
 
-    stats_done = sn_catalog['agreement_w_Pcc'].dropna()
-    agree_frac = np.nansum(stats_done)/len(stats_done)
-    print(f"Current agreement fraction: {agree_frac:.2f}")
+    #stats_done = sn_catalog['agreement_w_Pcc'].dropna()
+    #agree_frac = np.nansum(stats_done)/len(stats_done)
+    #print(f"Current agreement fraction: {agree_frac:.2f}")
+    row['prob_association_time'] = match_time
+    return idx, row
 
-    sn_catalog.at[idx, 'prob_association_time'] = match_time
+if __name__ == "__main__":
+    source = "DELIGHT"
+    #source = "Jones+18"
 
-#likelihood_redshifts(np.array([0.1]), np.array([[0.0033]]), np.array([[0.0026]]))
-#likelihood_redshifts(np.array([0.1]), np.array([[0.00]]), np.array([[0.0026]]))
-#sn_catalog.to_csv("/Users/alexgagliano/Documents/Research/prob_association/slsn_catalog_Alexprob_PccCompare.csv",index=False)
-#sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/ZTFBTS_Alexprob.csv",index=False)
+    save = False
 
-sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/DELIGHT_Alexprob.csv",index=False)
+    with open('/Users/alexgagliano/Documents/Research/prob_association/data/all.pkl', 'rb') as f:
+        data = pickle.load(f)
+    data.reset_index(inplace=True)
+    sn_catalog = data
+
+    if source == 'FLEET':
+        sn_catalog['host_ra']
+    elif source == 'ZTF':
+        for col in ['host_ra', 'host_dec', 'host_Pcc']:
+            sn_catalog[col] = np.nan
+        sn_coords = SkyCoord(sn_catalog['RA'].values, sn_catalog['Dec'].values, unit=(u.hourangle, u.deg))
+        sn_catalog['RA_deg'] = sn_coords.ra.deg
+        sn_catalog['DEC_deg']= sn_coords.dec.deg
+        sn_catalog.rename(columns={'redshift':'Redshift', 'IAUID':'object_name'}, inplace=True)
+        sn_catalog['Redshift'] = sn_catalog['Redshift'].replace('-',np.nan)
+        sn_catalog['Redshift'] = sn_catalog['Redshift'].astype("float")
+    elif source == 'Jones+18':
+        sn_catalog['host_Pcc'] = 1.0 #assume all are chosen
+        sn_coords = SkyCoord(sn_catalog['RA'].values, sn_catalog['DEC'].values, unit=(u.hourangle, u.deg))
+        sn_catalog['RA_deg'] = sn_coords.ra.deg
+        sn_catalog['DEC_deg']= sn_coords.dec.deg
+        host_coords = SkyCoord(sn_catalog['hostRA'].values, sn_catalog['hostDec'].values, unit=(u.hourangle, u.deg))
+        sn_catalog['host_ra']  = host_coords.ra.deg
+        sn_catalog['host_dec'] = host_coords.dec.deg
+        sn_catalog.rename(columns={'z':'Redshift', 'ID':'object_name'}, inplace=True)
+        sn_catalog['Redshift'] = sn_catalog['Redshift'].replace('-',np.nan)
+        sn_catalog['Redshift'] = sn_catalog['Redshift'].astype("float")
+    elif source == 'DELIGHT':
+        sn_catalog['Redshift'] = np.nan # :(
+        sn_catalog['host_Pcc'] = 1.0
+        sn_catalog.rename(columns={'meanra':'RA_deg', 'meandec':'DEC_deg', 'oid':'object_name'}, inplace=True)
+
+    sn_catalog['prob_host_ra'] = np.nan
+    sn_catalog['prob_host_dec'] = np.nan
+    sn_catalog['prob_host_score'] = np.nan
+    sn_catalog['prob_host_2_ra'] = np.nan
+    sn_catalog['prob_host_2_dec'] = np.nan
+    sn_catalog['prob_host_2_score'] = np.nan
+    sn_catalog['prob_host_flag'] = 0
+    sn_catalog['sn_ra_deg'] = np.nan
+    sn_catalog['sn_dec_deg'] = np.nan
+    sn_catalog['prob_association_time'] = np.nan
+
+    sn_catalog['separation_from_Pcc'] = np.nan
+
+    #debugging with just the ones we got wrong
+    #redoSet = [fn.split("/")[-1].split("_")[0] for fn in glob.glob("/Users/alexgagliano/Documents/Research/prob_association/plots_likelihoodoffsetscale1_wGLADE/DELIGHT/*_disagree.png")]
+    redoSet = ['SN 1968V'] #only look at one
+    sn_catalog = sn_catalog[sn_catalog['object_name'].isin(redoSet)]
+
+    #randomly shuffle
+    verbose = True
+    save = False
+    sn_catalog = sn_catalog.sample(frac=1)
+
+    angular_scale = 0.258 #arcsec/pixel
+    n_samples = 1000
+    n_processes = max(1, os.cpu_count() - 1)  # Limit to one less than the number of CPUs
+
+    GLADE_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/data/GLADE+_HyperLedaSizes.csv", delimiter='\t',na_values=['     ', np.nan],keep_default_na=True,low_memory=False)
+    GLADE_catalog.dropna(subset=['Bmag', 'logd25Hyp'], inplace=True)
+    GLADE_catalog['e_Bmag'] = 0.05*GLADE_catalog['Bmag']
+
+    cat = GalaxyCatalog(name='glade', data=GLADE_catalog)
+    pos = SkyCoord(185.7288697*u.deg, 15.8235796*u.deg)
+    transient = Transient(name='SN2020oi', position=pos, redshift=0.0052)
+    search_rad = Angle(300*u.arcsec)
+    cat.get_sources(search_rad, pos)
+
+    # define priors for properties
+    transient.set_prior('redshift', halfnorm(loc=0, scale=0.1))
+    transient.set_prior('offset', uniform(loc=0, scale=5))
+    transient.set_prior('absmag', uniform(loc=-25, scale=15))
+
+    transient.set_likelihood('offset', truncexpon(loc=0, scale=1, b=100))
+    transient.set_likelihood('absmag', SNRate_absmag(a=-23, b=-10))
+    cat = transient.associate(cat)
+
+    # Create a list of tasks (one per SN)
+    tasks = [(idx, row, GLADE_catalog, n_samples, n_processes, angular_scale, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag) for idx, row in sn_catalog.iterrows()]
+
+    # Run the association tasks in parallel
+    with Pool(processes=n_processes) as pool:
+        results = pool.starmap(associate_supernova, tasks)
+        pool.close()
+        pool.join()  # Ensures that all resources are released
+
+    # Update the sn_catalog with the results
+    for idx, updated_row in results:
+        # Update the row at the specific index directly
+        sn_catalog.loc[idx] = updated_row
+
+    if (np.nansum(sn_catalog['separation_from_Pcc'] == sn_catalog['separation_from_Pcc']) > 0) and (save):
+        #sn_catalog.to_csv("/Users/alexgagliano/Documents/Research/prob_association/slsn_catalog_Alexprob_PccCompare.csv",index=False)
+        #sn_catalog.to_csv("/Users/alexgagliano/Desktop/prob_association/ZTFBTS_Alexprob.csv",index=False)
+        sn_catalog_done = pd.concat([sn_catalog_done, sn_catalog], ignore_index=True)
+
+        sn_catalog_done.to_csv("/Users/alexgagliano/Desktop/prob_association/DELIGHT_Alexprob.csv",index=False)
+    print("Complete.")

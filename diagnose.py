@@ -9,11 +9,12 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 from scipy.stats import norm, halfnorm, truncnorm, uniform, expon, truncexpon
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Use the Agg backend for non-GUI rendering
 from scipy.integrate import quad, dblquad
 from astropy.modeling.powerlaws import Schechter1D
 from astropy.cosmology import z_at_value
 import os
-
 from astro_ghost.PS1QueryFunctions import get_PS1_Pic, find_all
 from astropy.io import fits
 from astropy.visualization import SqrtStretch
@@ -98,7 +99,7 @@ def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z
     ax.imshow(rgb_default, origin='lower')
     plt.axis('off')
     plt.savefig("./%s.png"%fn, bbox_inches='tight')
-
+    plt.close()
 
 # Generate random positions within the circle
 def uniform_circle_positions(center, radius_deg, n_points):
@@ -162,12 +163,12 @@ def diagnose_ranking(true_index, post_probs, galaxy_catalog, post_offset, post_z
             print(f"Rank {rank}: ID {galaxy_ids[top_indices[rank-1]]} has a posterior probability of being the host: {post_probs[i]:.4f} {is_true}")
 
     # Detailed comparison of the top-ranked and true galaxy
+    print(f"Coords (SN): {sn_position.ra.deg:.4f}, {sn_position.dec.deg:.4f}")
     for rank, i in enumerate(top_indices, start=1):
         top_gal = galaxy_catalog[i]
         top_theta = sn_position.separation(SkyCoord(ra=top_gal['ra']*u.degree, dec=top_gal['dec']*u.degree)).arcsec
 
         if verbose:
-            print(f"Coords (SN): {sn_position.ra.deg:.4f}, {sn_position.dec.deg:.4f}")
             print(f"Redshift (SN): {z_sn:.4f}")
             print(f"Top Galaxy (Rank {i}): Coords: {top_gal['ra']:.4f}, {top_gal['dec']:.4f}")
             print(f"                     Redshift = {top_gal['z_best_mean']:.4f}+/-{top_gal['z_best_std']:.4f}, Angular Size = {top_gal['angular_size_arcsec']:.4f} arcsec")

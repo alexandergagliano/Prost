@@ -193,14 +193,14 @@ def associate_supernova(idx, row, GLADE_catalog, n_samples, n_processes, verbose
     elif panstarrs_match:
         matchStr += "_PS2"
     try:
-        plotSNhost(chosen_gal_ra, chosen_gal_dec, Pcc_host_ra, Pcc_host_dec,
+        plotmatch(chosen_gal_ra, chosen_gal_dec, Pcc_host_ra, Pcc_host_dec,
             galaxies['z_best_mean'][best_gal], galaxies['z_best_std'][best_gal],
             sn_position.ra.deg, sn_position.dec.deg, row.object_name, row.Redshift, row['prob_host_flag'], f"./plots_likelihoodoffsetscale1_wGLADE/DELIGHT/{row.object_name}{agreeStr}{matchStr}")
     except:
         try:
             print("Failed to plot match. Trying again after 60s...")
             time.sleep(60)
-            plotSNhost(chosen_gal_ra, chosen_gal_dec, Pcc_host_ra, Pcc_host_dec,
+            plotmatch(chosen_gal_ra, chosen_gal_dec, Pcc_host_ra, Pcc_host_dec,
             galaxies['z_best_mean'][best_gal], galaxies['z_best_std'][best_gal],
             sn_position.ra.deg, sn_position.dec.deg, row.object_name, row.Redshift, row['prob_host_flag'],
             f"./plots_likelihoodoffsetscale1_wGLADE/DELIGHT/{row.object_name}{agreeStr}{matchStr}")

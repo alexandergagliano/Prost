@@ -25,9 +25,10 @@ import pickle
 
 #os.chdir("/Users/alexgagliano/Desktop/prob_association/plots_likelihoodoffsetscale1_wGLADE/")
 
-def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z_std, SN_ra, SN_dec, SN_name, SN_z, Bayesflag, fn):
+def plotmatch(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z_std, SN_ra, SN_dec, SN_name, SN_z, Bayesflag, fn):
     cols = np.array(['#ff9f1c', '#2cda9d', '#f15946', '#da80dd', '#f4e76e', '#b87d4b', '#ff928b', '#c73e1d', '#58b09c', '#e7e08b'])
     bands = 'zrg'
+    print("IN THE PLOTTING ROUTINE")
     if len(host_ra) > 0:
         sep = np.nanmax(SkyCoord(host_ra*u.deg, host_dec*u.deg).separation(SkyCoord(SN_ra*u.deg, SN_dec*u.deg)).arcsec)
     else:
@@ -52,9 +53,7 @@ def plotSNhost(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z
         os.remove(a[0])
 
     stretch = SqrtStretch() + ZScaleInterval()
-
     lo_val, up_val = np.nanpercentile(np.array(pic_data).ravel(), (0.5, 99.5))  # Get the value of lower and upper 0.5% of all pixels
-
     stretch_val = up_val - lo_val
 
     rgb_default = make_lupton_rgb(pic_data[0], pic_data[1], pic_data[2], minimum=lo_val, stretch=stretch_val, Q=0)

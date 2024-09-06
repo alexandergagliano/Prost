@@ -23,7 +23,6 @@ import pickle
 from multiprocessing import Pool, cpu_count
 import sys
 import re
-import matplotlib.pyplot as plt
 import json
 import requests
 from photoz_helper import calc_photoz

@@ -25,7 +25,7 @@ import sys
 import re
 import json
 import requests
-from photoz_helper import calc_photoz
+from photoz_helper import *
 
 cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
 
@@ -836,16 +836,29 @@ def build_decals_candidates(transient_name, transient_pos, search_rad=60, n_samp
 def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(60*u.arcsec), n_samples=1000):
     rad_deg = search_rad.deg
 
+    transient_pos = SkyCoord(185.7288697*u.deg, 15.8235796*u.deg)
+    rad_deg = 100/3600
     start_query = time.time()
     try:
         result = ps1cone(transient_pos.ra.deg, transient_pos.dec.deg, rad_deg)
+        photoz_cols = ['objID', 'raMean', 'decMean', 'gFKronFlux', 'rFKronFlux', 'iFKronFlux', 'zFKronFlux', 'yFKronFlux',
+                            'gFPSFFlux', 'rFPSFFlux', 'iFPSFFlux', 'zFPSFFlux', 'yFPSFFlux',
+                            'gFApFlux', 'rFApFlux', 'iFApFlux', 'zFApFlux', 'yFApFlux',
+                            'gFmeanflxR5', 'rFmeanflxR5', 'iFmeanflxR5', 'zFmeanflxR5', 'yFmeanflxR5',
+                            'gFmeanflxR6', 'rFmeanflxR6', 'iFmeanflxR6', 'zFmeanflxR6', 'yFmeanflxR6',
+                            'gFmeanflxR7', 'rFmeanflxR7', 'iFmeanflxR7', 'zFmeanflxR7', 'yFmeanflxR7']
+        result_photoz = ps1cone(transient_pos.ra.deg, transient_pos.dec.deg, rad_deg, columns=photoz_cols, table='forced_mean', release='dr2')
     except:
         print("QUERY FAILED -- IS QC SERVICE RUNNING?")
         sys.exit()
     end_query = time.time()
     elapsed = end_query - start_query
-    print(f"Took {elapsed:.2f}s to query for the data.")
+    print(f"Took {elapsed:.2f}s to query for the data (detection & photo-z cols).")
     candidate_hosts = ascii.read(result).to_pandas()
+    candidate_hosts_pzcols = ascii.read(result_photoz).to_pandas()
+    candidate_hosts = candidate_hosts.merge(candidate_hosts_pzcols)
+    candidate_hosts.replace(-999, np.nan, inplace=True)
+    candidate_hosts.dropna(subset=['rKronRad', 'raMean', 'decMean', 'rmomentXX', 'rmomentYY', 'rmomentYY'], inplace=True)
 
     n_galaxies = len(candidate_hosts)
 
@@ -858,18 +871,21 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
             ('DLR_samples', object), ('absmag_samples', object), ('offset_arcsec', float),
             ('z_prob', float), ('offset_prob', float), ('absmag_prob', float), ('total_prob', float)]
 
-    candidate_hosts.replace(-999, np.nan, inplace=True)
-    candidate_hosts.dropna(subset=['rKronRad', 'raMean', 'decMean', 'rmomentXX', 'rmomentYY', 'rmomentYY'], inplace=True)
+    galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
 
     #get photozs from Andrew Engel's code!
     # TODO -- speedup this line!
-    successIDs, hosts_wphotoz, posteriors = calc_photoz(candidate_hosts)
-    candidate_hosts = candidate_hosts[successIDs]
+    DEFAULT_MODEL_PATH = './MLP_lupton.hdf5'
+    DEFAULT_DUST_PATH = '.'
+
+    model, range_z = load_lupton_model(model_path=DEFAULT_MODEL_PATH, dust_path=DEFAULT_DUST_PATH)
+    X = preprocess(candidate_hosts, PATH=os.path.join(DEFAULT_DUST_PATH, 'sfddata-master'))
+    posteriors, point_estimates, errors = evaluate(X, model, range_z)
 
     # not QUITE the mean of the posterior, but we're assuming it's gaussian :/
     #TODO -- sample from the full posterior!
-    galaxies['z_best_mean'] = hosts_wphotoz['z_phot_point']
-    galaxies['z_best_std'] = hosts_wphotoz['z_phot_err']
+    galaxies['z_best_mean'] = point_estimates
+    galaxies['z_best_std'] = np.abs(errors)
 
     z_best_samples = norm.rvs(
         galaxies['z_best_mean'][:, np.newaxis],  # Shape (N, 1) to allow broadcasting

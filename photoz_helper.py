@@ -399,7 +399,6 @@ def evaluate(X,mymodel,range_z):
 
     return posteriors, point_estimates, errors
 
-
 #'id' column in DF is the 0th ordered index of hosts. missing rows are therefore signalled
 #    by skipped numbers in index
 def calc_photoz(hosts, dust_path=DEFAULT_DUST_PATH, model_path=DEFAULT_MODEL_PATH):
@@ -430,10 +429,21 @@ def calc_photoz(hosts, dust_path=DEFAULT_DUST_PATH, model_path=DEFAULT_MODEL_PAT
     posteriors, point_estimates, errors = get_photoz(DF, dust_path=dust_path, model_path=model_path)
     successIDs = DF['objID'].values
 
-    for i in np.arange(len(successIDs)):
-        objID = int(successIDs[i])
-        hosts.loc[hosts['objID']==objID, 'z_phot_point'] = point_estimates[i]
-        hosts.loc[hosts['objID']==objID, 'z_phot_err'] = errors[i]
+    #for i in np.arange(len(successIDs)):
+    #    objID = int(successIDs[i])
+    #    hosts.loc[hosts['objID']==objID, 'z_phot_point'] = point_estimates[i]
+    #    hosts.loc[hosts['objID']==objID, 'z_phot_err'] = errors[i]
+
+    mask = hosts['objID'].isin(successIDs)
+
+    # Map successIDs to point_estimates and errors using pandas' Series and set these values
+    id_to_point = pd.Series(point_estimates, index=successIDs)
+    id_to_error = pd.Series(errors, index=successIDs)
+
+    # Use the mask to update values in 'z_phot_point' and 'z_phot_err' columns
+    hosts.loc[mask, 'z_phot_point'] = hosts['objID'].map(id_to_point)
+    hosts.loc[mask, 'z_phot_err'] = hosts['objID'].map(id_to_error)
+
     return successIDs, hosts, posteriors
 
 

@@ -9,7 +9,7 @@ import seaborn as sns
 import scipy.stats as st
 import glob
 
-def associate_sample(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs=['glade', 'decals']):
+def associate_sample(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs=['glade', 'decals', 'panstarrs']):
     try:
         transient = Transient(name=row.name, position=SkyCoord(row.ra*u.deg, row.dec*u.deg), redshift=row.redshift, n_samples=n_samples)
     except:

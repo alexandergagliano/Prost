@@ -795,6 +795,10 @@ def build_decals_candidates(transient_name, transient_pos, search_rad=60, n_samp
 
     # Propagate uncertainties
     phi_std = 0.5 * np.sqrt((partial_phi_e1**2 * temp_e1_std**2) + (partial_phi_e2**2 * temp_e2_std**2))
+    phi_std = np.abs(phi_std)
+    phi_std[phi_std != phi_std] = 0.05*phi[phi_std != phi_std]
+    phi_std = np.minimum(1.e-10, np.maximum(0.05*np.abs(phi), phi_std)) #5% uncertainty floor
+    print(phi_std)
 
     DLR_samples = calc_DLR(transient_pos, galaxies_pos, temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std)
 
@@ -859,6 +863,7 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     candidate_hosts = candidate_hosts.merge(candidate_hosts_pzcols)
     candidate_hosts.replace(-999, np.nan, inplace=True)
     candidate_hosts.dropna(subset=['rKronRad', 'raMean', 'decMean', 'rmomentXX', 'rmomentYY', 'rmomentYY'], inplace=True)
+    candidate_hosts = candidate_hosts[candidate_hosts['nDetections'] > 1] #some VERY basic filtering
 
     n_galaxies = len(candidate_hosts)
 
@@ -914,8 +919,8 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     temp_sizes_std[temp_sizes_std != temp_sizes_std] = 0.05*temp_sizes[temp_sizes_std != temp_sizes_std]
     temp_sizes_std[temp_sizes_std < 0.05*temp_sizes] = 0.05*temp_sizes[temp_sizes_std < 0.05*temp_sizes]
 
-    U = candidate_hosts['rMomentXY']
-    Q = candidate_hosts['rMomentXX'] - candidate_hosts['YY']
+    U = candidate_hosts['rmomentXY'].values
+    Q = candidate_hosts['rmomentXX'].values - candidate_hosts['rmomentYY'].values
 
     phi = 0.5*np.arctan(U/Q)
     phi_std = 0.05*phi

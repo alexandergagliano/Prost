@@ -91,6 +91,7 @@ if __name__ == "__main__":
 
     likefunc_offset = truncexpon(loc=0, scale=1, b=100)
     likefunc_absmag = SNRate_absmag(a=-23, b=-10)
+    #redshift likelihood depends on galaxy photo-zs, so can't be defined in advance!
 
     # Create a list of tasks (one per transient)
     #tasks = [(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag)

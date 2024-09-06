@@ -28,7 +28,6 @@ import pickle
 def plotmatch(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z_std, SN_ra, SN_dec, SN_name, SN_z, Bayesflag, fn):
     cols = np.array(['#ff9f1c', '#2cda9d', '#f15946', '#da80dd', '#f4e76e', '#b87d4b', '#ff928b', '#c73e1d', '#58b09c', '#e7e08b'])
     bands = 'zrg'
-    print("IN THE PLOTTING ROUTINE")
     if len(host_ra) > 0:
         sep = np.nanmax(SkyCoord(host_ra*u.deg, host_dec*u.deg).separation(SkyCoord(SN_ra*u.deg, SN_dec*u.deg)).arcsec)
     else:
@@ -38,7 +37,7 @@ def plotmatch(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z_
         if (Pcc_host_ra) and (Pcc_host_dec) and (sep_Pcc > sep):
             sep = sep_Pcc
     rad = np.nanmax([60., 2*sep]) #arcsec to pixels, scaled by 1.5x host-SN separation
-    print(f"Getting img with size len {rad:.2f}")
+    print(f"Getting img with size len {rad:.2f}...")
     pic_data = []
     for band in bands:
         get_PS1_Pic('./', None, SN_ra, SN_dec, int(rad*4), band)

@@ -896,11 +896,11 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     z_best_samples[z_best_samples != z_best_samples] = 0.001 #set photometric redshift floor
 
     #galaxy_photoz_median = candidate_hosts['z_phot_median'].values
-    galaxy_photoz_mean = candidate_hosts['z_best_mean'].values
-    galaxy_photoz_std = candidate_hosts['z_best_std'].values
+    #galaxy_photoz_mean = candidate_hosts['z_best_mean'].values
+    #galaxy_photoz_std = candidate_hosts['z_best_std'].values
 
     galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
-    galaxies_pos = SkyCoord(candidate_hosts['raMean'].values*u,deg, candidate_hosts['decMean'].values*u.deg)
+    galaxies_pos = SkyCoord(candidate_hosts['raMean'].values*u.deg, candidate_hosts['decMean'].values*u.deg)
 
     galaxies['ra'] = galaxies_pos.ra.deg
     galaxies['dec'] = galaxies_pos.dec.deg

@@ -134,6 +134,31 @@ def fetch_information_serially(url, data, verbose=False, format='csv'):
 
     return results
 
+def ps1metadata(table="mean", release="dr1", baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs"):
+    """Return metadata for the specified catalog and table. Snagged from the
+       wonderful API at https://ps1images.stsci.edu/ps1_dr2_api.html.
+
+    :param table: Table type. Can be \\'mean\\', \\'stack\\', or \\'detection\\'
+    :type table: str
+    :param release: The Pan-STARRS data release. Can be \\'dr1\\' or \\'dr2\\'.
+    :type release: str
+    :param baseurl: Base URL for the request.
+    :type baseurl: str
+    :return: Table with columns name, type, description.
+    :rtype: Astropy Table
+    """
+
+    checklegal(table,release)
+    url = f"{baseurl}/{release}/{table}/metadata"
+    r = requests.get(url)
+    r.raise_for_status()
+    v = r.json()
+
+    # convert to astropy table
+    tab = Table(rows=[(x['name'],x['type'],x['description']) for x in v],
+               names=('name','type','description'))
+    return tab
+
 def post_url_parallel(results,YSE_ID):
     """TODO: unused function. The querying of PS servers is the slowest part of the script. How to parallelize?
 

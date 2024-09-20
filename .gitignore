@@ -2,6 +2,8 @@
 *.log
 
 obsolete/
+data/
+sfddata-master/
 
 # Ignore all directories named "temp"
 temp/

@@ -1,0 +1,19 @@
+# Ignore all .log files
+*.log
+
+obsolete/
+
+# Ignore all directories named "temp"
+temp/
+
+# Ignore a specific file
+secrets.json
+
+# Ignore all files with the .tmp extension in the root directory
+*.tmp
+
+# Ignore all files in a directory, but not the directory itself
+temp/*
+
+# Exception: do not ignore a specific file
+!important.log

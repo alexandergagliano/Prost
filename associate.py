@@ -9,12 +9,14 @@ import seaborn as sns
 import scipy.stats as st
 import glob
 
-def associate_sample(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs=['glade', 'decals', 'panstarrs']):
+def associate_transient(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs=['glade', 'decals', 'panstarrs']):
     try:
-        transient = Transient(name=row.oid, position=SkyCoord(row.ra*u.deg, row.dec*u.deg), redshift=row.redshift, n_samples=n_samples)
+        transient = Transient(name=row['name'], position=SkyCoord(row.ra*u.deg, row.dec*u.deg), redshift=row.redshift, n_samples=n_samples)
     except:
-        transient = Transient(name=row.oid, position=SkyCoord(row.ra*u.deg, row.dec*u.deg), n_samples=n_samples)
+        transient = Transient(name=row['name'], position=SkyCoord(row.ra*u.deg, row.dec*u.deg), n_samples=n_samples)
 
+    if verbose:
+        print(f"Associating for {transient.name} at RA={transient.position.ra.deg:.6f}, DEC={transient.position.dec.deg:.6f}")
 
     transient.set_prior('redshift', priorfunc_z)
     transient.set_prior('offset', priorfunc_offset)
@@ -23,101 +25,175 @@ def associate_sample(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, p
     transient.set_likelihood('offset', likefunc_offset)
     transient.set_likelihood('absmag', likefunc_absmag)
 
+    best_prob, best_ra, best_dec, query_time = np.nan, np.nan, np.nan, np.nan # Default values when no good host is found
+    best_cat = ''
+
     for cat_name in catalogs:
         if cat_name == 'glade':
             cat = GalaxyCatalog(name=cat_name, data=GLADE_catalog, n_samples=n_samples)
         else:
             cat = GalaxyCatalog(name=cat_name, n_samples=n_samples)
-        cat.get_candidates(transient)
+        cat.get_candidates(transient, timequery=True)
 
         if cat.ngals > 0:
-            cat = transient.associate(cat)
-
-            print("Transient name:")
+            #try:
+            cat = transient.associate(cat, verbose=verbose)
+            #except:
+            #print(f"Failed for {transient.name}.")
             print(transient.name)
 
             if transient.best_host != -1:
-                print(f"Found a good host in {cat_name}!")
                 best_idx = transient.best_host
+                best_objID = cat.galaxies['objID'][best_idx]
                 best_prob = cat.galaxies['total_prob'][best_idx]
                 best_ra = cat.galaxies['ra'][best_idx]
                 best_dec = cat.galaxies['dec'][best_idx]
-
-                try:
-                    plotmatch([best_ra], [best_dec], None, None,
-                        cat.galaxies['z_best_mean'][best_idx], cat.galaxies['z_best_std'][best_idx],
-                        transient.position.ra.deg, transient.position.dec.deg, transient.name, transient.redshift, 0, f"{transient.name}_{cat_name}")
-                except:
-                    print("Couldn't get an image. Waiting 60s before moving on.")
-                    time.sleep(60)
-                    continue
+                best_cat = cat_name
+                query_time = cat.query_time
                 if verbose:
-                    diagnose_ranking(-1, post_probs, galaxies, post_offset, post_z, post_absmag, np.arange(len(galaxies)), sn_redshift, sn_position, verbose=True)
-                return best_prob, best_ra, best_dec
-    if transient.best_host != -1:
-        print("No good hosts found...")
-    return
+                    print(f"Found a good host in {cat_name}!")
+                    print(f"Chosen galaxy has catalog ID of {best_objID} and RA, DEC = {best_ra:.6f}, {best_dec:.6f}")
+                #try:
+                #    plotmatch([best_ra], [best_dec], None, None,
+                #        cat.galaxies['z_best_mean'][best_idx], cat.galaxies['z_best_std'][best_idx],
+                #        transient.position.ra.deg, transient.position.dec.deg, transient.name, transient.redshift, 0, f"{transient.name}_{cat_name}")
+                #except:
+                #    print("Couldn't get an image. Waiting 60s before moving on.")
+                #    time.sleep(60)
+                #    continue
 
-if __name__ == "__main__":
-    source = "DELIGHT"
-    #source = "Jones+18"
+    if (transient.best_host == -1) and (verbose):
+        print("No good host found!")
+    return idx, best_prob, best_ra, best_dec, query_time, best_cat
 
-    with open('/Users/alexgagliano/Documents/Research/prob_association/data/all.pkl', 'rb') as f:
-        sn_catalog = pickle.load(f)
-    sn_catalog.reset_index(inplace=True)
 
+def prepare_catalog(transient_catalog, transient_name_col='name', transient_coord_cols=('ra', 'dec'), debug_names=[], debug=False):
     association_fields = ['prob_host_ra', 'prob_host_dec','prob_host_score','prob_host_2_ra', 'prob_host_2_dec', 'prob_host_2_score',
         'sn_ra_deg', 'sn_dec_deg', 'prob_association_time', 'separation_from_Pcc']
-    for field in association_fields:
-        sn_catalog[field] = np.nan
-    sn_catalog.rename(columns={'meanra':'ra', 'meandec':'dec'}, inplace=True)
 
-    sn_catalog['prob_host_flag'] = 0
+    for field in association_fields:
+        transient_catalog[field] = np.nan
+
+    transient_catalog['prob_host_flag'] = 0
 
     #debugging with just the ones we got wrong
-    #redoSet = [fn.split("/")[-1].split("_")[0] for fn in glob.glob("/Users/alexgagliano/Documents/Research/prob_association/plots_likelihoodoffsetscale1_wGLADE/DELIGHT/*_disagree.png")]
-    #redoSet = ['SN 1968V'] #only look at one
-    #sn_catalog = sn_catalog[sn_catalog['object_name'].isin(redoSet)]
+    if debug and len(debug_names) > 0:
+        transient_catalog = transient_catalog[transient_catalog[transient_name_col].isin(debug_names)]
+
+    #convert coords if needed
+    if ':' in transient_catalog[transient_coord_cols[0]].values[0]:
+        ra = transient_catalog[transient_coord_cols[0]].values
+        dec = transient_catalog[transient_coord_cols[1]].values
+        transient_coords = SkyCoord(ra, dec, unit=(u.hourangle, u.deg))
+    else:
+        #try parsing as a float
+        try:
+            ra = transient_catalog[transient_coord_cols[0]].astype("float").values
+            dec = transient_catalog[transient_coord_cols[1]].astype("float").values
+            transient_coords = SkyCoord(ra, dec, unit=(u.deg, u.deg))
+        except exception as e:
+            raise ValueError("ERROR: I could not understand your coordinate units.")
+
+    transient_catalog['ra'] = transient_coords.ra.deg
+    transient_catalog['dec'] = transient_coords.dec.deg
+
+    transient_catalog.rename(columns={transient_name_col:'name'}, inplace=True)
 
     #randomly shuffle
-    sn_catalog = sn_catalog.sample(frac=1).reset_index(drop=True)
+    transient_catalog = transient_catalog.sample(frac=1).reset_index(drop=True)
+    transient_catalog.reset_index(inplace=True, drop=True)
 
-    verbose = True
-    save = False
-    n_samples = 1000
-    n_processes = os.cpu_count() - 5
+    return transient_catalog
 
-    GLADE_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/data/GLADE+_HyperLedaSizes_mod.csv")
+def associate_sample(transient_catalog, priors=None, likes=None, catalogs=['glade', 'decals', 'panstarrs'], n_samples=1000, verbose=False, parallel=True, save=True):
+    for key in ['offset', 'absmag', 'z']:
+        if key not in priors.keys():
+            raise ValueError(f"ERROR: Please set a prior function for {key}.")
+        elif (key not in likes.keys()) and (key != 'z'):
+            raise ValueError(f"ERROR: Please set a likelihood function for {key}.")
 
+    if 'glade' in catalogs:
+        GLADE_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/data/GLADE+_HyperLedaSizes_mod.csv")
+    else:
+        GLADE_catalog = None
+
+    #unpack priors and likelihoods
+    priorfunc_z = priors['z']
+    priorfunc_offset = priors['offset']
+    priorfunc_absmag = priors['absmag']
+
+    likefunc_offset = likes['offset']
+    likefunc_absmag = likes['absmag']
+
+    if parallel:
+        n_processes = os.cpu_count() - 5
+
+        # Create a list of tasks (one per transient)
+        print("parallelizing...")
+        tasks = [(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs)
+                 for idx, row in transient_catalog.iterrows()]
+
+        # Run the association tasks in parallel
+        with Pool(processes=n_processes) as pool:
+            results = pool.starmap(associate_transient, tasks)
+            pool.close()
+            pool.join()  # Ensures that all resources are released
+    else:
+        results = []
+        for idx, row in transient_catalog.iterrows():
+            event = (idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs)
+            results.append(associate_transient(*event))
+    # Update transient_catalog with results
+    for result in results:
+        idx, best_prob, best_ra, best_dec, query_time, best_cat = result
+        transient_catalog.at[idx, 'prob_host_ra'] = best_ra
+        transient_catalog.at[idx, 'prob_host_dec'] = best_dec
+        transient_catalog.at[idx, 'prob_host_score'] = best_prob
+        transient_catalog.at[idx, 'prob_query_time'] = query_time
+        transient_catalog.at[idx, 'prob_best_cat'] = best_cat
+    print("Association of all transients is complete.")
+
+    # Save the updated catalog
+    if save:
+        ts = int(time.time())
+        transient_catalog.to_csv(f"updated_transient_catalog_{ts}.csv", index=False)
+    else:
+        return transient_catalog
+
+if __name__ == "__main__":
+    #source = "DELIGHT"
+    #source = "Jones+18"
+    source = 'ZTF BTS'
+
+    #with open('/Users/alexgagliano/Documents/Research/prob_association/data/all.pkl', 'rb') as f:
+    #    transient_catalog = pickle.load(f)
+    transient_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/multimodal-supernovae/data/ZTFBTS/ZTFBTS_TransientTable.csv")
     # define priors for properties
     priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
     #priorfunc_z = prior_z_observed_transients(z_min=0, z_max=1, mag_cutoff=19, Mmean=-19, Mmin=-24, Mmax=-17)
     #%matplotlib inline
     #priorfunc_z.plot()
-    priorfunc_offset = uniform(loc=0, scale=10) #something crazy while debugging
+    priorfunc_offset = uniform(loc=0, scale=10)
     priorfunc_absmag = uniform(loc=-25, scale=15)
+
     likefunc_offset = truncexpon(loc=0, scale=1, b=100)
     likefunc_absmag = SNRate_absmag(a=-23, b=-10)
 
-    #redshift likelihood depends on galaxy photo-zs, so can't be defined in advance!
+    priors = {'offset':priorfunc_offset, 'absmag':priorfunc_absmag, 'z':priorfunc_z}
+    likes = {'offset':likefunc_offset, 'absmag':likefunc_absmag}
 
-    # Create a list of tasks (one per transient)
-    tasks = [(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag)
-             for idx, row in sn_catalog.iterrows()]
-    #for idx, row in sn_catalog.iterrows():
-    #    if idx== 0:
-    #        continue
-    #    else:
-    #        associate_sample(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag)
-    #        if idx == 5:
-    #            break
 
-    # Run the association tasks in parallel
-    with Pool(processes=n_processes) as pool:
-        results = pool.starmap(associate_sample, tasks)
-        pool.close()
-        pool.join()  # Ensures that all resources are released
+    #set up properties of the run
+    verbose = True
+    parallel = False
+    save = False
+    debug = True
+    catalogs = ['panstarrs'] #options are (in order) GLADE, decals, panstarrs
 
-    print("Association of all transients is complete.")
+    debug_names = []
 
-    #TODO -- add information back to catalog
+    transient_coord_cols = ("RA", "Dec") #the name of the coord columns in the dataframe
+    transient_name_col = 'ZTFID'
+
+    transient_catalog = prepare_catalog(transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols, debug=debug, debug_names=debug_names)
+    transient_catalog = associate_sample(transient_catalog, priors=priors, likes=likes, catalogs=catalogs, parallel=parallel, verbose=verbose, save=save)

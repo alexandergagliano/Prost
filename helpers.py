@@ -1,22 +1,20 @@
-from astropy.io import ascii
-from astropy.table import Table
 import numpy as np
-from astropy.cosmology import LambdaCDM
-import astropy.cosmology.units as cu
-from astropy.coordinates import SkyCoord
-import astropy.units as u
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
 from dl import queryClient as qc
 from scipy import stats as st
 import time
-from astropy.coordinates import Angle
 from scipy.stats import norm, halfnorm, truncnorm, uniform, expon, truncexpon
 import matplotlib.pyplot as plt
 from scipy.integrate import quad, dblquad
+from astropy.io import ascii
+from astropy.table import Table
 from astropy.modeling.powerlaws import Schechter1D
-from astropy.cosmology import z_at_value
+from astropy.cosmology import z_at_value, LambdaCDM
+import astropy.cosmology.units as cu
+from astropy.coordinates import SkyCoord, Angle, match_coordinates_sky
+import astropy.units as u
 import os
 import pickle
 from multiprocessing import Pool, cpu_count
@@ -47,10 +45,10 @@ class GalaxyCatalog:
         self.data = data
         self.n_samples = n_samples
 
-    def get_candidates(self, transient, timequery=False):
-        search_rad = Angle(200*u.arcsec)
+    def get_candidates(self, transient, timequery=False, verbose=False):
+        search_rad = Angle(300*u.arcsec)
         if transient.redshift == transient.redshift:
-            search_rad = Angle(np.nanmax([100 / cosmo.angular_diameter_distance(row.redshift).to(u.kpc).value * 206265, base_radius.arcsec])*u.arcsec)
+            search_rad = Angle(np.nanmax([100 / cosmo.angular_diameter_distance(transient.redshift).to(u.kpc).value * 206265, search_rad.arcsec])*u.arcsec)
 
         self.search_rad = search_rad
         self.search_pos = transient.position
@@ -58,15 +56,15 @@ class GalaxyCatalog:
             start_time = time.time()
         if self.name == 'panstarrs':
             self.mlim = 26
-            self.galaxies = build_panstarrs_candidates(transient.name, transient.position, search_rad, n_samples=self.n_samples)
+            self.galaxies = build_panstarrs_candidates(transient.name, transient.position, search_rad, n_samples=self.n_samples, verbose=verbose, GLADE_catalog=self.data)
 
         elif self.name == 'decals':
             self.mlim = 26
-            self.galaxies = build_decals_candidates(transient.name, transient.position, search_rad, n_samples=self.n_samples)
+            self.galaxies = build_decals_candidates(transient.name, transient.position, search_rad, n_samples=self.n_samples, verbose=verbose)
         elif self.name == 'glade':
             self.mlim = 17
             if self.data is not None:
-                self.galaxies = build_glade_candidates(transient.name, transient.position, search_rad=search_rad, GLADE_catalog=self.data, n_samples=self.n_samples)
+                self.galaxies = build_glade_candidates(transient.name, transient.position, search_rad=search_rad, GLADE_catalog=self.data, n_samples=self.n_samples, verbose=verbose)
             else:
                 print("ERROR: Please provide GLADE catalog as 'data' when initializing GalaxyCatalog object.")
                 self.galaxies = np.array([])
@@ -280,7 +278,7 @@ class Transient:
         P_any_norm =  np.nansum(P_gals, axis=0) / P_tot
 
         P_gals_norm = P_gals / P_tot
-        P_offsets_norm = Prior_offsets * L_offsets/ P_tot
+        P_offsets_norm = Prior_offsets * L_offsets / P_tot
         P_z_norm = P_z / P_tot
         P_absmag_norm = Prior_absmag * L_absmag / P_tot
         P_outside_norm = P_outside / P_tot
@@ -293,8 +291,8 @@ class Transient:
         self.any_prob = np.nanmedian(P_any_norm)
         self.none_prob = np.nanmedian(P_none_norm)
 
-        if np.nanmedian(P_any_norm) > np.nanmedian(P_none_norm):
-            if verbose:
+        if self.any_prob > self.none_prob:
+            if verbose > 0:
                 print("Association successful!")
             #get best and second-best matches
             self.best_host = top_idxs[0]
@@ -303,16 +301,17 @@ class Transient:
         else:
             self.best_host = -1
             self.second_best_host = top_idxs[0] #set best host as second-best -- best is no host
-            if verbose:
+            if verbose > 0:
                 if np.nanmedian(P_outside_norm) > np.nanmedian(P_unobs_norm):
                     print("Association failed. Host is likely outside search cone.")
                 else:
                     print("Association failed. Host is likely missing from the catalog.")
 
-        galaxy_catalog.galaxies['z_prob'] = np.nanmedian(P_z_norm)
-        galaxy_catalog.galaxies['offset_prob'] = np.nanmedian(P_offsets_norm)
-        galaxy_catalog.galaxies['absmag_prob'] = np.nanmedian(P_absmag_norm)
-        galaxy_catalog.galaxies['total_prob'] = np.nanmedian(P_gals_norm)
+        #consolidate across samples
+        galaxy_catalog.galaxies['z_prob'] = np.nanmedian(P_z_norm, axis=1)
+        galaxy_catalog.galaxies['offset_prob'] = np.nanmedian(P_offsets_norm, axis=1)
+        galaxy_catalog.galaxies['absmag_prob'] = np.nanmedian(P_absmag_norm, axis=1)
+        galaxy_catalog.galaxies['total_prob'] = np.nanmedian(P_gals_norm, axis=1)
 
         return galaxy_catalog
 
@@ -348,7 +347,7 @@ class Transient:
             L_z = self.calc_like_redshift(z_best_mean, z_best_std, reduce=None)
             P_z = Prior_z * L_z
 
-        galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=0, scale=10)  # in kpc
+        galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=1., scale=10)  # in kpc
         galaxy_physical_radius_prior_std = 0.05*galaxy_physical_radius_prior_means
         galaxy_physical_radius_prior_samples = norm.rvs(loc=galaxy_physical_radius_prior_means[:, np.newaxis],
                                          scale=galaxy_physical_radius_prior_std[:, np.newaxis],
@@ -356,7 +355,7 @@ class Transient:
 
         sn_distance = self.luminosity_distance.to(u.pc).value  # in pc
 
-        min_phys_rad = 0
+        min_phys_rad = 1.
         max_phys_rad = (search_rad.arcsec / 206265) * sn_distance/1.e3  # in kpc
 
         physical_offset_mean = np.linspace(min_phys_rad, max_phys_rad, n_gals)
@@ -381,7 +380,7 @@ class Transient:
 
         prob_unobs = Prior_absmag * L_absmag * P_z * Prior_offset_unobs * L_offset_unobs
 
-        P_unobserved = np.nanmean(prob_unobs, axis=0)  # Sum over all galaxies
+        P_unobserved = np.nanmean(prob_unobs, axis=0)  # average over all galaxies
 
         return P_unobserved
 
@@ -629,7 +628,7 @@ def ps1search(table="mean",release="dr1",format="csv",columns=None,
 
     r = requests.get(url, params=data)
 
-    if verbose:
+    if verbose > 2:
         print(r.url)
     r.raise_for_status()
     if format == "json":
@@ -671,7 +670,7 @@ def parallel_monte_carlo(sn_redshift, transient_pos, galaxies, m_lim, cutout_rad
     end_time = time.time()
     elapsed = end_time - start_time
 
-    if verbose:
+    if verbose > 1:
         print(f"took a total of {elapsed:.2f}s internally to map everything.")
 
     any_prob = np.concatenate(any_prob_list)
@@ -690,13 +689,13 @@ def parallel_monte_carlo(sn_redshift, transient_pos, galaxies, m_lim, cutout_rad
     post_z_med = np.nanmedian(post_z, axis=1)
     post_absmag_med = np.nanmedian(post_absmag, axis=1)
 
-    if verbose:
+    if verbose > 1:
         print(f"Probability your true host is not in this catalog/cone: {none_prob_med:.4e}")
         print(f"Probability your true host is in this catalog: {any_prob_med:.4e}")
 
     return any_prob_med, none_prob_med, post_probs_med, post_offset_med, post_z_med, post_absmag_med
 
-def build_glade_candidates(transient_name, transient_pos, GLADE_catalog, search_rad=Angle(60*u.arcsec), n_samples=1000):
+def build_glade_candidates(transient_name, transient_pos, GLADE_catalog, search_rad=Angle(60*u.arcsec), n_samples=1000, verbose=False):
     candidate_hosts = GLADE_catalog[SkyCoord(GLADE_catalog['RAJ2000'].values*u.deg, GLADE_catalog['DEJ2000'].values*u.deg).separation(transient_pos).arcsec < search_rad.arcsec]
     n_galaxies = len(candidate_hosts)
 
@@ -749,14 +748,14 @@ def build_glade_candidates(transient_name, transient_pos, GLADE_catalog, search_
     #                        size=(len(candidate_hosts), n_samples)))
 
     # Convert distances to corresponding redshift (no sampling yet, just conversion)
-    z_best_mean = z_at_value(cosmo.luminosity_distance, candidate_hosts['Dist'].values * u.Mpc, zmin=1.e-15)
-    z_std = 0.3 * z_best_mean  # 30% uncertainty on redshift
+    #z_best_mean = z_at_value(cosmo.luminosity_distance, candidate_hosts['Dist'].values * u.Mpc, zmin=1.e-15)
+    z_best_mean = candidate_hosts['z_best'].values
+    z_std = candidate_hosts['z_best_std'].values
+    #z_std = 0.3 * z_best_mean  # 30% uncertainty on redshift
 
     z_best_samples = np.maximum(0.001, norm.rvs(loc=z_best_mean[:, np.newaxis],
                                                 scale=z_std[:, np.newaxis],
                                                 size=(len(candidate_hosts), n_samples)))
-
-    #z_best_samples = z_at_value(cosmo.luminosity_distance, dist_samples*u.Mpc, zmin=1.e-15)
 
     galaxy_a_over_b = 10**(candidate_hosts['logr25Hyp'].values)
     galaxy_a_over_b_std = galaxy_a_over_b * np.log(10) * candidate_hosts['e_logr25Hyp'].values
@@ -799,7 +798,7 @@ def build_glade_candidates(transient_name, transient_pos, GLADE_catalog, search_
 
     return galaxies
 
-def build_decals_candidates(transient_name, transient_pos, search_rad=60, n_samples=1000):
+def build_decals_candidates(transient_name, transient_pos, search_rad=60, n_samples=1000, verbose=False):
     rad_deg = search_rad.deg
 
     result = qc.query(sql=f"""SELECT
@@ -950,7 +949,7 @@ def build_decals_candidates(transient_name, transient_pos, search_rad=60, n_samp
 
     return galaxies
 
-def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(60*u.arcsec), n_samples=1000):
+def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(60*u.arcsec), n_samples=1000, verbose=False, GLADE_catalog=None):
     rad_deg = search_rad.deg
     start_query = time.time()
 
@@ -981,18 +980,20 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     candidate_hosts.sort_values(by=['distance'], inplace=True)
     candidate_hosts.reset_index(inplace=True, drop=True)
 
-
     #no good shape info?
     candidate_hosts['momentXX'] = candidate_hosts[['gmomentXX', 'rmomentXX', 'imomentXX', 'zmomentXX', 'ymomentXX']].median(axis=1)
     candidate_hosts['momentYY'] = candidate_hosts[['gmomentYY', 'rmomentYY', 'imomentYY', 'zmomentYY', 'ymomentYY']].median(axis=1)
     candidate_hosts['momentXY'] = candidate_hosts[['gmomentXY', 'rmomentXY', 'imomentXY', 'zmomentXY', 'ymomentXY']].median(axis=1)
 
     candidate_hosts = candidate_hosts[candidate_hosts['nDetections'] > 2] #some VERY basic filtering to say that it's confidently detected
+    candidate_hosts = candidate_hosts[candidate_hosts['primaryDetection'] == 1]
+
     candidate_hosts['KronRad'] = candidate_hosts[['gKronRad','rKronRad','iKronRad','zKronRad','yKronRad']].median(axis=1)
     candidate_hosts['KronMag'] = candidate_hosts[['gKronMag','rKronMag','iKronMag','zKronMag','yKronMag']].median(axis=1)
     candidate_hosts['KronMagErr'] = candidate_hosts[['gKronMagErr','rKronMagErr','iKronMagErr','zKronMagErr','yKronMagErr']].median(axis=1)
 
     candidate_hosts.dropna(subset=['raMean', 'decMean', 'momentXX', 'momentYY', 'momentYY','KronRad', 'KronMag'], inplace=True)
+    candidate_hosts.reset_index(drop=True, inplace=True)
 
     temp_sizes = candidate_hosts['KronRad'].values
     #temp_sizes[temp_sizes < 0.25] = 0.25 #1 pixel, at least for PS1
@@ -1030,7 +1031,7 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     #shred logic
     if len(candidate_hosts) > 1:
         print("Removing panstarrs shreds...")
-        shred_idxs = find_panstarrs_shreds(candidate_hosts['objID'].values, candidate_hosts['raMean'].values, candidate_hosts['decMean'].values, temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std, temp_mag_r)
+        shred_idxs = find_panstarrs_shreds(candidate_hosts['objID'].values, candidate_hosts['raMean'].values, candidate_hosts['decMean'].values, temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std, temp_mag_r, verbose=verbose)
         if len(shred_idxs) > 0:
             print(f"Removing {len(shred_idxs)} indices from tentative matches in panstarrs!")
             left_idxs = ~candidate_hosts.index.isin(shred_idxs)
@@ -1056,7 +1057,6 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
 
     #get photozs from Andrew Engel's code!
-    # TODO -- speedup this line!
     DEFAULT_MODEL_PATH = './MLP_lupton.hdf5'
     DEFAULT_DUST_PATH = '.'
 
@@ -1067,14 +1067,27 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     point_estimates[point_estimates < 0.001] = 0.001 #set photometric redshift floor
     point_estimates[point_estimates != point_estimates] = 0.001 #set photometric redshift floor
 
-    #5% uncertainty floor
-    err_bool = errors < 0.05*point_estimates
-    errors[err_bool] = 0.05*point_estimates[err_bool]
+    #30% uncertainty floor
+    err_bool = errors < 0.3*point_estimates
+    errors[err_bool] = 0.3*point_estimates[err_bool]
 
     # not QUITE the mean of the posterior, but we're assuming it's gaussian :/
     #TODO -- sample from the full posterior!
     galaxies['z_best_mean'] = point_estimates
     galaxies['z_best_std'] = np.abs(errors)
+
+    #if the source is within 1arcsec of a GLADE host, take that spec-z.
+    if GLADE_catalog is not None:
+        if verbose > 1:
+            print("Cross-matching with GLADE for redshifts...")
+        GLADE_coords = SkyCoord(GLADE_catalog['RAJ2000'], GLADE_catalog['DEJ2000'], unit=(u.deg, u.deg))
+        #seps = [np.nanmin(x.separation(GLADE_coords).arcsec) for x in galaxies_pos]
+        #sep_gal = [np.argmin(x.separation(GLADE_coords).arcsec) for x in galaxies_pos]
+        idx, seps, _ = match_coordinates_sky(galaxies_pos, GLADE_coords)
+        mask_within_1arcsec = seps.arcsec < 1
+
+        galaxies['z_best_mean'][mask_within_1arcsec] = GLADE_catalog['z_best'].values[idx[mask_within_1arcsec]]
+        galaxies['z_best_std'][mask_within_1arcsec] = GLADE_catalog['z_best_std'].values[idx[mask_within_1arcsec]]
 
     z_best_samples = norm.rvs(
         galaxies['z_best_mean'][:, np.newaxis],  # Shape (N, 1) to allow broadcasting
@@ -1083,7 +1096,6 @@ def build_panstarrs_candidates(transient_name, transient_pos, search_rad=Angle(6
     )
 
     z_best_samples[z_best_samples < 0.001] = 0.001 #set photometric redshift floor
-    #z_best_samples[z_best_samples != z_best_samples] = 0.001 #set photometric redshift floor
 
     absmag_samples = norm.rvs(loc=temp_mag_r[:, np.newaxis], scale=np.abs(temp_mag_r_std[:, np.newaxis]), size=(len(temp_mag_r), n_samples)) - cosmo.distmod(z_best_samples).value
 
@@ -1132,10 +1144,8 @@ def calc_DLR(transient_pos, galaxies_pos, a, a_std,
     return DLR
 
 
-
 def find_panstarrs_shreds(objIDs, ra_allgals, dec_allgals, size, size_std, a_over_b, a_over_b_std, phi, phi_std, appmag, verbose=False):
     #deprecated for now!
-
     dropidxs = []
 
     for i in np.arange(len(ra_allgals)):
@@ -1163,7 +1173,13 @@ def find_panstarrs_shreds(objIDs, ra_allgals, dec_allgals, size, size_std, a_ove
         seps = onegal_coord.separation(restgal_coord).arcsec
         min_idx = np.nanargmin(seps/DLR)
 
-        if verbose:
+        #if within the DLR of another galaxy, remove dimmer galaxy
+        if min_idx < i:
+            original_min_idx = min_idx
+        else:
+            original_min_idx = min_idx + 1  # Shift by 1 to account for the deletion at index i
+
+        if verbose == 3:
             print(f"Considering source at: {onegal_ra:.6f}, {onegal_dec:.6f}:")
             print("Next-closest galaxy (by fractional offset):")
             print(f"{restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
@@ -1178,22 +1194,16 @@ def find_panstarrs_shreds(objIDs, ra_allgals, dec_allgals, size, size_std, a_ove
             print("Fractional separation:")
             print(np.nanmin(seps/DLR))
 
-        #if within the DLR of another galaxy, remove dimmer galaxy
-        if min_idx < i:
-            original_min_idx = min_idx
-        else:
-            original_min_idx = min_idx + 1  # Shift by 1 to account for the deletion at index i
-
         # If within the DLR of another galaxy, remove the dimmer galaxy
         if ((seps/DLR)[min_idx] < 1):
             if restgal_appmag[min_idx] < appmag[i]:
-                dropidxs.append(i)  # The current galaxy is dimmer, drop it
-                if verbose:
+                dropidxs.append(i)  # The current galaxy is dimmer (meaning the other galaxy is brighter AND has a DLR that contains this galaxy), drop it
+                if verbose == 3:
                     print(f"Dropping objID {onegal_objid} with ra, dec= {onegal_ra:.6f},{onegal_dec:.6f}")
             else:
                 dropidxs.append(original_min_idx)  # The other galaxy is dimmer, drop it
-                if verbose:
+                if verbose == 3:
                     print(f"Dropping objID {objIDs[original_min_idx]} with ra, dec = {ra_allgals[original_min_idx]:.6f}, {dec_allgals[original_min_idx]:.6f}")
-        if verbose:
-            print("\n\n")
+        #if verbose:
+        #    print("\n\n")
     return np.array(dropidxs)

@@ -263,3 +263,56 @@ def find_glade_shreds(ra_allgals, dec_allgals, a_over_b, pa, size, appmag):
                 dropidxs.append(original_min_idx)  # The other galaxy is dimmer, drop it
 
     return np.array(dropidxs)
+
+#review associations
+if False: #debugging code
+    df1 = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/updated_transient_catalog_1728420461.csv")
+    df2 = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/updated_sn_catalog_ZTFBTS_1727848419_N500.csv")
+
+    df1.columns.values
+
+    df_comparison = df2.drop(columns=['prob_host_ra','prob_host_dec','prob_host_score']).merge(df1[['prob_host_ra','prob_host_dec','prob_host_score', 'name']])
+
+    df_comparison.columns.values
+
+    ghost_hosts = SkyCoord(df_comparison['ghost_host_ra'].values,df_comparison['ghost_host_dec'].values, unit=(u.deg, u.deg))
+    prost_hosts = SkyCoord(df_comparison['prob_host_ra'].values, df_comparison['prob_host_dec'].values, unit=(u.deg, u.deg))
+    transients = SkyCoord(df_comparison['RA'].values, df_comparison['Dec'].values, unit=(u.hourangle, u.deg))
+
+    anom_bool = np.abs(ghost_hosts.separation(transients).arcsec - prost_hosts.separation(transients).arcsec)/prost_hosts.separation(transients).arcsec > 0.5
+    df_disagree = df_comparison[anom_bool]
+
+    sns.set_context("talk")
+    plt.plot(ghost_hosts.separation(transients).arcsec, prost_hosts.separation(transients).arcsec, 'o', ms=10, mec='k')
+    plt.plot(ghost_hosts.separation(transients).arcsec[anom_bool], prost_hosts.separation(transients).arcsec[anom_bool], 'o', ms=10, mec='k')
+    plt.xlabel("GHOST separation (arcsec)")
+    plt.ylabel("Pröst separation (arcsec)")
+    plt.xscale("log")
+    plt.yscale("log")
+
+
+    #plot the matches for these disagreeing galaxies
+    for idx, row in df_disagree.iterrows():
+        best_ra = row.prob_host_ra
+        best_dec =row.prob_host_dec
+        ghost_ra = row.ghost_host_ra
+        ghost_dec = row.ghost_host_dec
+        transient_coord = SkyCoord(row.RA, row.Dec, unit=(u.hourangle, u.deg))
+        plotmatch([best_ra], [best_dec], ghost_ra, ghost_dec,
+            -9, -9,
+            transient_coord.ra.deg, transient_coord.dec.deg, row['name'], row.redshift, 0, f"{row['name']}_panstarrs_disagree")
+
+    a = ps1cone(185.7288697, 15.8235796, 10/3600)
+    if a:
+        df = ascii.read(a).to_pandas()
+    df[['raMean', 'decMean','rKronMag', 'objID']]
+    #true host is
+    #131332402794048829
+    #at ra, dec =
+    #240.279374	19.448561
+
+    #Transient has redshift of 0.01438
+    # 0.12500476 +/- 0.006
+    # spec-z has a host redshift of 0.01438
+
+    #df[['raMean','decMean']]

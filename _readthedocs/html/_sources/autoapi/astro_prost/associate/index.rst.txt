@@ -1,0 +1,104 @@
+astro_prost.associate
+=====================
+
+.. py:module:: astro_prost.associate
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   astro_prost.associate.associate_transient
+   astro_prost.associate.prepare_catalog
+   astro_prost.associate.associate_sample
+
+
+Module Contents
+---------------
+
+.. py:function:: associate_transient(idx, row, glade_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, cosmo, catalogs, cat_cols)
+
+   Short summary.
+
+   :param idx: Description of parameter `idx`.
+   :type idx: type
+   :param row: Description of parameter `row`.
+   :type row: type
+   :param glade_catalog: Description of parameter `glade_catalog`.
+   :type glade_catalog: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+   :param priorfunc_z: Description of parameter `priorfunc_z`.
+   :type priorfunc_z: type
+   :param priorfunc_offset: Description of parameter `priorfunc_offset`.
+   :type priorfunc_offset: type
+   :param priorfunc_absmag: Description of parameter `priorfunc_absmag`.
+   :type priorfunc_absmag: type
+   :param likefunc_offset: Description of parameter `likefunc_offset`.
+   :type likefunc_offset: type
+   :param likefunc_absmag: Description of parameter `likefunc_absmag`.
+   :type likefunc_absmag: type
+   :param cosmo: Description of parameter `cosmo`.
+   :type cosmo: type
+   :param catalogs: Description of parameter `catalogs`.
+   :type catalogs: type
+   :param cat_cols: Description of parameter `cat_cols`.
+   :type cat_cols: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: prepare_catalog(transient_catalog, debug_names, transient_name_col='name', transient_coord_cols=('ra', 'dec'), debug=False)
+
+   Short summary.
+
+   :param transient_catalog: Description of parameter `transient_catalog`.
+   :type transient_catalog: type
+   :param transient_name_col: Description of parameter `transient_name_col`.
+   :type transient_name_col: type
+   :param transient_coord_cols: Description of parameter `transient_coord_cols`.
+   :type transient_coord_cols: type
+   :param debug_names: Description of parameter `debug_names`.
+   :type debug_names: type
+   :param debug: Description of parameter `debug`.
+   :type debug: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: associate_sample(transient_catalog, catalogs, priors=None, likes=None, n_samples=1000, verbose=False, parallel=True, save=True, save_path='./', cat_cols=False, cosmology=None)
+
+   Short summary.
+
+   :param transient_catalog: Description of parameter `transient_catalog`.
+   :type transient_catalog: type
+   :param priors: Description of parameter `priors`.
+   :type priors: type
+   :param likes: Description of parameter `likes`.
+   :type likes: type
+   :param catalogs: Description of parameter `catalogs`.
+   :type catalogs: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+   :param parallel: Description of parameter `parallel`.
+   :type parallel: type
+   :param save: Description of parameter `save`.
+   :type save: type
+   :param save_path: Description of parameter `save_path`.
+   :type save_path: type
+   :param cat_cols: Description of parameter `cat_cols`.
+   :type cat_cols: type
+   :param cosmology: Description of parameter `cosmology`.
+   :type cosmology: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+

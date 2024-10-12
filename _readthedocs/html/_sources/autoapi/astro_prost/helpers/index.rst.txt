@@ -1,0 +1,793 @@
+astro_prost.helpers
+===================
+
+.. py:module:: astro_prost.helpers
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   astro_prost.helpers.GalaxyCatalog
+   astro_prost.helpers.Transient
+   astro_prost.helpers.PriorzObservedTransients
+   astro_prost.helpers.SnRateAbsmag
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   astro_prost.helpers.ps1cone
+   astro_prost.helpers.ps1search
+   astro_prost.helpers.build_glade_candidates
+   astro_prost.helpers.build_decals_candidates
+   astro_prost.helpers.build_panstarrs_candidates
+   astro_prost.helpers.calc_dlr
+   astro_prost.helpers.find_panstarrs_shreds
+
+
+Module Contents
+---------------
+
+.. py:class:: GalaxyCatalog(name, data=None, n_samples=1000)
+
+   Short summary.
+
+   :param name: Description of parameter `name`.
+   :type name: type
+   :param data: Description of parameter `data`.
+   :type data: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+
+   .. attribute:: name
+
+
+
+   .. attribute:: data
+
+
+
+   .. attribute:: n_samples
+
+
+
+
+   .. py:attribute:: name
+
+
+   .. py:attribute:: data
+
+
+   .. py:attribute:: n_samples
+
+
+   .. py:method:: get_candidates(transient, cosmo, timequery=False, verbose=False)
+
+      Short summary.
+
+      :param transient: Description of parameter `transient`.
+      :type transient: type
+      :param cosmo: Description of parameter `cosmo`.
+      :type cosmo: type
+      :param timequery: Description of parameter `timequery`.
+      :type timequery: type
+      :param verbose: Description of parameter `verbose`.
+      :type verbose: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+.. py:class:: Transient(name, position, redshift=np.nan, spec_class='', phot_class='', n_samples=1000)
+
+   Short summary.
+
+   :param name: Description of parameter `name`.
+   :type name: type
+   :param position: Description of parameter `position`.
+   :type position: type
+   :param redshift: Description of parameter `redshift`.
+   :type redshift: type
+   :param spec_class: Description of parameter `spec_class`.
+   :type spec_class: type
+   :param phot_class: Description of parameter `phot_class`.
+   :type phot_class: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+
+   .. attribute:: best_host
+
+      Description of attribute `best_host`.
+
+      :type: type
+
+   .. attribute:: second_best_host
+
+      Description of attribute `second_best_host`.
+
+      :type: type
+
+   .. attribute:: redshift_std
+
+      Description of attribute `redshift_std`.
+
+      :type: type
+
+   .. attribute:: gen_z_samples
+
+      Description of attribute `gen_z_samples`.
+
+      :type: type
+
+   .. attribute:: priors
+
+      Description of attribute `priors`.
+
+      :type: type
+
+   .. attribute:: likes
+
+      Description of attribute `likes`.
+
+      :type: type
+
+   .. attribute:: name
+
+
+
+   .. attribute:: position
+
+
+
+   .. attribute:: redshift
+
+
+
+   .. attribute:: spec_class
+
+
+
+   .. attribute:: phot_class
+
+
+
+   .. attribute:: n_samples
+
+
+
+
+   .. py:attribute:: name
+
+
+   .. py:attribute:: position
+
+
+   .. py:attribute:: redshift
+
+
+   .. py:attribute:: spec_class
+
+
+   .. py:attribute:: phot_class
+
+
+   .. py:attribute:: n_samples
+
+
+   .. py:attribute:: best_host
+
+
+   .. py:attribute:: second_best_host
+
+
+   .. py:attribute:: priors
+
+
+   .. py:attribute:: likes
+
+
+   .. py:method:: __str__()
+
+
+   .. py:method:: get_prior(type)
+
+      Short summary.
+
+      :param type: Description of parameter `type`.
+      :type type: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: get_likelihood(type)
+
+      Short summary.
+
+      :param type: Description of parameter `type`.
+      :type type: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: set_likelihood(type, func)
+
+      Short summary.
+
+      :param type: Description of parameter `type`.
+      :type type: type
+      :param func: Description of parameter `func`.
+      :type func: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: set_prior(type, func)
+
+      Short summary.
+
+      :param type: Description of parameter `type`.
+      :type type: type
+      :param func: Description of parameter `func`.
+      :type func: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: gen_z_samples(ret=False, n_samples=None)
+
+      Short summary.
+
+      :param ret: Description of parameter `ret`.
+      :type ret: type
+      :param n_samples: Description of parameter `n_samples`.
+      :type n_samples: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: calc_prior_redshift(z_best_samples, reduce='mean')
+
+      Short summary.
+
+      :param z_best_samples: Description of parameter `z_best_samples`.
+      :type z_best_samples: type
+      :param reduce: Description of parameter `reduce`.
+      :type reduce: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: calc_prior_offset(fractional_offset_samples, reduce='mean')
+
+      Short summary.
+
+      :param fractional_offset_samples: Description of parameter `fractional_offset_samples`.
+      :type fractional_offset_samples: type
+      :param reduce: Description of parameter `reduce`.
+      :type reduce: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: calc_prior_absmag(absmag_samples, reduce='mean')
+
+      Short summary.
+
+      :param absmag_samples: Description of parameter `absmag_samples`.
+      :type absmag_samples: type
+      :param reduce: Description of parameter `reduce`.
+      :type reduce: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: calc_like_redshift(z_best_mean, z_best_std, reduce='mean')
+
+      Short summary.
+
+      :param z_best_mean: Description of parameter `z_best_mean`.
+      :type z_best_mean: type
+      :param z_best_std: Description of parameter `z_best_std`.
+      :type z_best_std: type
+      :param reduce: Description of parameter `reduce`.
+      :type reduce: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: calc_like_offset(fractional_offset_samples, reduce='mean')
+
+      Short summary.
+
+      :param fractional_offset_samples: Description of parameter `fractional_offset_samples`.
+      :type fractional_offset_samples: type
+      :param reduce: Description of parameter `reduce`.
+      :type reduce: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: calc_like_absmag(absmag_samples, reduce='mean')
+
+      Short summary.
+
+      :param absmag_samples: Description of parameter `absmag_samples`.
+      :type absmag_samples: type
+      :param reduce: Description of parameter `reduce`.
+      :type reduce: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: associate(galaxy_catalog, cosmo, verbose=False)
+
+      Short summary.
+
+      :param galaxy_catalog: Description of parameter `galaxy_catalog`.
+      :type galaxy_catalog: type
+      :param cosmo: Description of parameter `cosmo`.
+      :type cosmo: type
+      :param verbose: Description of parameter `verbose`.
+      :type verbose: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: probability_of_unobserved_host(search_rad, cosmo, m_lim=30, verbose=False, n_samples=1000)
+
+      Short summary.
+
+      :param search_rad: Description of parameter `search_rad`.
+      :type search_rad: type
+      :param m_lim: Description of parameter `m_lim`.
+      :type m_lim: type
+      :param verbose: Description of parameter `verbose`.
+      :type verbose: type
+      :param n_samples: Description of parameter `n_samples`.
+      :type n_samples: type
+      :param cosmo: Description of parameter `cosmo`.
+      :type cosmo: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: probability_host_outside_cone(cosmo, cutout_rad=60, verbose=False, n_samples=1000)
+
+      Short summary.
+
+      :param cutout_rad: Description of parameter `cutout_rad`.
+      :type cutout_rad: type
+      :param verbose: Description of parameter `verbose`.
+      :type verbose: type
+      :param n_samples: Description of parameter `n_samples`.
+      :type n_samples: type
+      :param cosmo: Description of parameter `cosmo`.
+      :type cosmo: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+.. py:class:: PriorzObservedTransients(cosmo, z_min=0, z_max=1, n_bins=100, mag_cutoff=22, absmag_mean=-19, absmag_min=-24, absmag_max=-17, r_sn=1e-05, t_obs=1.0, **kwargs)
+
+   Bases: :py:obj:`scipy.stats.rv_continuous`
+
+
+   Short summary.
+
+   :param z_min: Description of parameter `z_min`.
+   :type z_min: type
+   :param z_max: Description of parameter `z_max`.
+   :type z_max: type
+   :param n_bins: Description of parameter `n_bins`.
+   :type n_bins: type
+   :param mag_cutoff: Description of parameter `mag_cutoff`.
+   :type mag_cutoff: type
+   :param absmag_mean: Description of parameter `absmag_mean`.
+   :type absmag_mean: type
+   :param absmag_min: Description of parameter `absmag_min`.
+   :type absmag_min: type
+   :param absmag_max: Description of parameter `absmag_max`.
+   :type absmag_max: type
+   :param r_sn: Description of parameter `r_sn`.
+   :type r_sn: type
+   :param t_obs: Description of parameter `t_obs`.
+   :type t_obs: type
+   :param \*\*kwargs: Description of parameter `**kwargs`.
+   :type \*\*kwargs: type
+
+   .. attribute:: cosmo
+
+      Description of attribute `cosmo`.
+
+      :type: type
+
+   .. attribute:: _generate_distribution
+
+      Description of attribute `_generate_distribution`.
+
+      :type: type
+
+   .. attribute:: z_min
+
+
+
+   .. attribute:: z_max
+
+
+
+   .. attribute:: n_bins
+
+
+
+   .. attribute:: mag_cutoff
+
+
+
+   .. attribute:: absmag_mean
+
+
+
+   .. attribute:: absmag_min
+
+
+
+   .. attribute:: absmag_max
+
+
+
+   .. attribute:: r_sn
+
+
+
+   .. attribute:: t_obs
+
+
+
+
+   .. py:attribute:: z_min
+
+
+   .. py:attribute:: z_max
+
+
+   .. py:attribute:: n_bins
+
+
+   .. py:attribute:: mag_cutoff
+
+
+   .. py:attribute:: absmag_mean
+
+
+   .. py:attribute:: absmag_min
+
+
+   .. py:attribute:: absmag_max
+
+
+   .. py:attribute:: r_sn
+
+
+   .. py:attribute:: t_obs
+
+
+   .. py:attribute:: cosmo
+
+
+   .. py:method:: _generate_distribution()
+
+      Short summary.
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: pdf(z)
+
+      Return the PDF (KDE) based on observed redshifts.
+      Handles 1D and 2D arrays.
+
+
+
+   .. py:method:: rvs(size=None, random_state=None)
+
+      Short summary.
+
+      :param size: Description of parameter `size`.
+      :type size: type
+      :param random_state: Description of parameter `random_state`.
+      :type random_state: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: plot()
+
+      Short summary.
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+.. py:class:: SnRateAbsmag(a, b, **kwargs)
+
+   Bases: :py:obj:`scipy.stats.rv_continuous`
+
+
+   Short summary.
+
+   :param a: Description of parameter `a`.
+   :type a: type
+   :param b: Description of parameter `b`.
+   :type b: type
+   :param \*\*kwargs: Description of parameter `**kwargs`.
+   :type \*\*kwargs: type
+
+   .. attribute:: normalization
+
+      Description of attribute `normalization`.
+
+      :type: type
+
+   .. attribute:: _calculate_normalization
+
+      Description of attribute `_calculate_normalization`.
+
+      :type: type
+
+
+   .. py:attribute:: normalization
+
+
+   .. py:method:: _calculate_normalization(a, b)
+
+      Short summary.
+
+      :param a: Description of parameter `a`.
+      :type a: type
+      :param b: Description of parameter `b`.
+      :type b: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: _unnormalized_pdf(abs_mag_samples)
+
+      Short summary.
+
+      :param abs_mag_samples: Description of parameter `abs_mag_samples`.
+      :type abs_mag_samples: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+   .. py:method:: _pdf(m_abs_samples)
+
+      Short summary.
+
+      :param m_abs_samples: Description of parameter `m_abs_samples`.
+      :type m_abs_samples: type
+
+      :returns: Description of returned object.
+      :rtype: type
+
+
+
+.. py:function:: ps1cone(ra, dec, radius, table='stack', release='dr2', format='csv', columns=None, baseurl='https://catalogs.mast.stsci.edu/api/v0.1/panstarrs', verbose=False, **kw)
+
+   Short summary.
+
+   :param ra: Description of parameter `ra`.
+   :type ra: type
+   :param dec: Description of parameter `dec`.
+   :type dec: type
+   :param radius: Description of parameter `radius`.
+   :type radius: type
+   :param table: Description of parameter `table`.
+   :type table: type
+   :param release: Description of parameter `release`.
+   :type release: type
+   :param format: Description of parameter `format`.
+   :type format: type
+   :param columns: Description of parameter `columns`.
+   :type columns: type
+   :param baseurl: Description of parameter `baseurl`.
+   :type baseurl: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+   :param \*\*kw: Description of parameter `**kw`.
+   :type \*\*kw: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: ps1search(table='mean', release='dr1', format='csv', columns=None, baseurl='https://catalogs.mast.stsci.edu/api/v0.1/panstarrs', verbose=False, **kw)
+
+   Short summary.
+
+   :param table: Description of parameter `table`.
+   :type table: type
+   :param release: Description of parameter `release`.
+   :type release: type
+   :param format: Description of parameter `format`.
+   :type format: type
+   :param columns: Description of parameter `columns`.
+   :type columns: type
+   :param baseurl: Description of parameter `baseurl`.
+   :type baseurl: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+   :param \*\*kw: Description of parameter `**kw`.
+   :type \*\*kw: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: build_glade_candidates(transient_name, transient_pos, glade_catalog, search_rad, cosmo, n_samples=1000, verbose=False)
+
+   Short summary.
+
+   :param transient_name: Description of parameter `transient_name`.
+   :type transient_name: type
+   :param transient_pos: Description of parameter `transient_pos`.
+   :type transient_pos: type
+   :param glade_catalog: Description of parameter `glade_catalog`.
+   :type glade_catalog: type
+   :param search_rad: Description of parameter `search_rad`.
+   :type search_rad: type
+   :param cosmo: Description of parameter `cosmo`.
+   :type cosmo: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: build_decals_candidates(transient_name, transient_pos, search_rad, cosmo, n_samples=1000, verbose=False)
+
+   Short summary.
+
+   :param transient_name: Description of parameter `transient_name`.
+   :type transient_name: type
+   :param transient_pos: Description of parameter `transient_pos`.
+   :type transient_pos: type
+   :param search_rad: Description of parameter `search_rad`.
+   :type search_rad: type
+   :param cosmo: Description of parameter `cosmo`.
+   :type cosmo: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: build_panstarrs_candidates(transient_name, transient_pos, search_rad, cosmo, n_samples=1000, verbose=False, glade_catalog=None)
+
+   Short summary.
+
+   :param transient_name: Description of parameter `transient_name`.
+   :type transient_name: type
+   :param transient_pos: Description of parameter `transient_pos`.
+   :type transient_pos: type
+   :param search_rad: Description of parameter `search_rad`.
+   :type search_rad: type
+   :param cosmo: Description of parameter `cosmo`.
+   :type cosmo: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+   :param glade_catalog: Description of parameter `glade_catalog`.
+   :type glade_catalog: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1000)
+
+   Short summary.
+
+   :param transient_pos: Description of parameter `transient_pos`.
+   :type transient_pos: type
+   :param galaxies_pos: Description of parameter `galaxies_pos`.
+   :type galaxies_pos: type
+   :param a: Description of parameter `a`.
+   :type a: type
+   :param a_std: Description of parameter `a_std`.
+   :type a_std: type
+   :param a_over_b: Description of parameter `a_over_b`.
+   :type a_over_b: type
+   :param a_over_b_std: Description of parameter `a_over_b_std`.
+   :type a_over_b_std: type
+   :param phi: Description of parameter `phi`.
+   :type phi: type
+   :param phi_std: Description of parameter `phi_std`.
+   :type phi_std: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: find_panstarrs_shreds(objids, ra_allgals, dec_allgals, size, size_std, a_over_b, a_over_b_std, phi, phi_std, appmag, verbose=False)
+
+   Short summary.
+
+   :param objids: Description of parameter `objids`.
+   :type objids: type
+   :param ra_allgals: Description of parameter `ra_allgals`.
+   :type ra_allgals: type
+   :param dec_allgals: Description of parameter `dec_allgals`.
+   :type dec_allgals: type
+   :param size: Description of parameter `size`.
+   :type size: type
+   :param size_std: Description of parameter `size_std`.
+   :type size_std: type
+   :param a_over_b: Description of parameter `a_over_b`.
+   :type a_over_b: type
+   :param a_over_b_std: Description of parameter `a_over_b_std`.
+   :type a_over_b_std: type
+   :param phi: Description of parameter `phi`.
+   :type phi: type
+   :param phi_std: Description of parameter `phi_std`.
+   :type phi_std: type
+   :param appmag: Description of parameter `appmag`.
+   :type appmag: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+

@@ -1,0 +1,552 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>astro_prost.diagnose &mdash; prost 0.1.dev0+d20241012 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8e33e34d"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=d07363f3"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            prost
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home page</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../autoapi/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../notebooks.html">Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">prost</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">astro_prost.diagnose</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for astro_prost.diagnose</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="kn">import</span> <span class="n">SkyCoord</span>
+
+<span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s2">&quot;Agg&quot;</span><span class="p">)</span>  <span class="c1"># Use the Agg backend for non-GUI rendering</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">astropy.io</span> <span class="kn">import</span> <span class="n">fits</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span>
+<span class="kn">from</span> <span class="nn">astropy.visualization</span> <span class="kn">import</span> <span class="n">make_lupton_rgb</span>
+<span class="kn">from</span> <span class="nn">astropy.wcs</span> <span class="kn">import</span> <span class="n">WCS</span>
+
+
+<div class="viewcode-block" id="getimages">
+<a class="viewcode-back" href="../../autoapi/astro_prost/diagnose/index.html#astro_prost.diagnose.getimages">[docs]</a>
+<span class="k">def</span> <span class="nf">getimages</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">240</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="s2">&quot;grizy&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;stack&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Query ps1filenames.py service to get a list of images.</span>
+
+<span class="sd">    :param ra: Right ascension of position, in degrees.</span>
+<span class="sd">    :type ra: float</span>
+<span class="sd">    :param dec: Declination of position, in degrees.</span>
+<span class="sd">    :type dec: float</span>
+<span class="sd">    :param size: The image size in pixels (0.25 arcsec/pixel)</span>
+<span class="sd">    :type size: int</span>
+<span class="sd">    :param filters: A string with the filters to include</span>
+<span class="sd">    :type filters: str</span>
+<span class="sd">    :return: The results of the search for relevant images.</span>
+<span class="sd">    :rtype: Astropy Table</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">service</span> <span class="o">=</span> <span class="s2">&quot;https://ps1images.stsci.edu/cgi-bin/ps1filenames.py&quot;</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;</span><span class="si">{service}</span><span class="s2">?ra=</span><span class="si">{ra}</span><span class="s2">&amp;dec=</span><span class="si">{dec}</span><span class="s2">&amp;size=</span><span class="si">{size}</span><span class="s2">&amp;format=fits&quot;</span> <span class="s2">&quot;&amp;filters=</span><span class="si">{filters}</span><span class="s2">&amp;type=</span><span class="si">{type}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="o">**</span><span class="nb">locals</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;ascii&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">table</span></div>
+
+
+
+<div class="viewcode-block" id="geturl">
+<a class="viewcode-back" href="../../autoapi/astro_prost/diagnose/index.html#astro_prost.diagnose.geturl">[docs]</a>
+<span class="k">def</span> <span class="nf">geturl</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">240</span><span class="p">,</span> <span class="n">output_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="s2">&quot;grizy&quot;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;jpg&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;stack&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the URL for images in the table.</span>
+
+<span class="sd">    :param ra: Right ascension of position, in degrees.</span>
+<span class="sd">    :type ra: float</span>
+<span class="sd">    :param dec: Declination of position, in degrees.</span>
+<span class="sd">    :type dec: float</span>
+<span class="sd">    :param size: The extracted image size in pixels (0.25 arcsec/pixel)</span>
+<span class="sd">    :type size: int</span>
+<span class="sd">    :param output_size: output (display) image size in pixels (default = size).</span>
+<span class="sd">        The output_size has no effect for fits format images.</span>
+<span class="sd">    :type output_size: int</span>
+<span class="sd">    :param filters: The string with filters to include.</span>
+<span class="sd">    :type filters: str</span>
+<span class="sd">    :param format: The data format (options are \\&quot;jpg\\&quot;, \\&quot;png&quot; or \\&quot;fits\\&quot;).</span>
+<span class="sd">    :type format: str</span>
+<span class="sd">    :param color: If True, creates a color image (only for jpg or png format).</span>
+<span class="sd">        If False, return a list of URLs for single-filter grayscale images.</span>
+<span class="sd">    :type color: bool, optional</span>
+<span class="sd">    :return: The url for the image to download.</span>
+<span class="sd">    :rtype: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">color</span> <span class="ow">and</span> <span class="nb">format</span> <span class="o">==</span> <span class="s2">&quot;fits&quot;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;color images are available only for jpg or png formats&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">format</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;jpg&quot;</span><span class="p">,</span> <span class="s2">&quot;png&quot;</span><span class="p">,</span> <span class="s2">&quot;fits&quot;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;format must be one of jpg, png, fits&quot;</span><span class="p">)</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">getimages</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">type</span><span class="p">)</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;https://ps1images.stsci.edu/cgi-bin/fitscut.cgi?&quot;</span> <span class="s2">&quot;ra=</span><span class="si">{ra}</span><span class="s2">&amp;dec=</span><span class="si">{dec}</span><span class="s2">&amp;size=</span><span class="si">{size}</span><span class="s2">&amp;format=</span><span class="si">{format}</span><span class="s2">&quot;</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="nb">locals</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">output_size</span><span class="p">:</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="n">url</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;&amp;output_size=</span><span class="si">{</span><span class="n">output_size</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="c1"># sort filters from red to blue</span>
+    <span class="n">flist</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;yzirg&quot;</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">table</span><span class="p">[</span><span class="s2">&quot;filter&quot;</span><span class="p">]]</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">flist</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">color</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="c1"># pick 3 filters</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="n">table</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">,</span> <span class="s2">&quot;blue&quot;</span><span class="p">]):</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="n">url</span> <span class="o">+</span> <span class="s2">&quot;&amp;</span><span class="si">{}</span><span class="s2">=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">table</span><span class="p">[</span><span class="s2">&quot;filename&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">urlbase</span> <span class="o">=</span> <span class="n">url</span> <span class="o">+</span> <span class="s2">&quot;&amp;red=&quot;</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">table</span><span class="p">[</span><span class="s2">&quot;filename&quot;</span><span class="p">]:</span>
+            <span class="n">url</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">urlbase</span> <span class="o">+</span> <span class="n">filename</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">url</span></div>
+
+
+
+<div class="viewcode-block" id="get_ps1_pic">
+<a class="viewcode-back" href="../../autoapi/astro_prost/diagnose/index.html#astro_prost.diagnose.get_ps1_pic">[docs]</a>
+<span class="k">def</span> <span class="nf">get_ps1_pic</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">objid</span><span class="p">,</span> <span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">band</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Downloads PS1 picture (in fits) centered at a given location.</span>
+
+<span class="sd">    :param path: The filepath where the fits file will be saved.</span>
+<span class="sd">    :type path: str</span>
+<span class="sd">    :param objid: The PS1 objid of the object of interest (to save as filename).</span>
+<span class="sd">    :type objid: int</span>
+<span class="sd">    :param ra: Right ascension of position, in degrees.</span>
+<span class="sd">    :type ra: float</span>
+<span class="sd">    :param dec: Declination of position, in degrees.</span>
+<span class="sd">    :type dec: float</span>
+<span class="sd">    :param size: The extracted image size in pixels (0.25 arcsec/pixel)</span>
+<span class="sd">    :type size: int</span>
+<span class="sd">    :param band: The PS1 band.</span>
+<span class="sd">    :type band: str</span>
+<span class="sd">    :param safe: If True, include the objid of the object of interest in the filename</span>
+<span class="sd">        (useful when saving multiple files at comparable positions).</span>
+<span class="sd">    :type safe: bool, optional</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">fitsurl</span> <span class="o">=</span> <span class="n">geturl</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;fits&quot;</span><span class="p">)</span>
+    <span class="n">fh</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">fitsurl</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">save</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">safe</span><span class="p">:</span>
+            <span class="n">fh</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/PS1_</span><span class="si">{</span><span class="n">objid</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">size</span><span class="o">*</span><span class="mf">0.25</span><span class="p">)</span><span class="si">}</span><span class="s2">arcsec_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">.fits&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fh</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;/PS1_ra=</span><span class="si">{</span><span class="n">ra</span><span class="si">}</span><span class="s2">_dec=</span><span class="si">{</span><span class="n">dec</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">size</span><span class="o">*</span><span class="mf">0.25</span><span class="p">)</span><span class="si">}</span><span class="s2">arcsec_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">.fits&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">fh</span></div>
+
+
+
+<div class="viewcode-block" id="find_all">
+<a class="viewcode-back" href="../../autoapi/astro_prost/diagnose/index.html#astro_prost.diagnose.find_all">[docs]</a>
+<span class="k">def</span> <span class="nf">find_all</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Crawls through a directory and all its sub-directories looking for a file matching</span>
+<span class="sd">       \\&#39;name\\&#39;. If found, it is returned.</span>
+
+<span class="sd">    :param name: The filename for which to search.</span>
+<span class="sd">    :type name: str</span>
+<span class="sd">    :param path: The directory to search.</span>
+<span class="sd">    :type path: str</span>
+<span class="sd">    :return: The list of absolute paths to all files called \\&#39;name\\&#39; in \\&#39;path\\&#39;.</span>
+<span class="sd">    :rtype: list</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+
+<div class="viewcode-block" id="plot_match">
+<a class="viewcode-back" href="../../autoapi/astro_prost/index.html#astro_prost.diagnose.plot_match">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_match</span><span class="p">(</span>
+    <span class="n">host_ra</span><span class="p">,</span>
+    <span class="n">host_dec</span><span class="p">,</span>
+    <span class="n">true_host_ra</span><span class="p">,</span>
+    <span class="n">true_host_dec</span><span class="p">,</span>
+    <span class="n">host_z_mean</span><span class="p">,</span>
+    <span class="n">host_z_std</span><span class="p">,</span>
+    <span class="n">sn_ra</span><span class="p">,</span>
+    <span class="n">sn_dec</span><span class="p">,</span>
+    <span class="n">sn_name</span><span class="p">,</span>
+    <span class="n">sn_z</span><span class="p">,</span>
+    <span class="n">bayesflag</span><span class="p">,</span>
+    <span class="n">fn</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Short summary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    host_ra : type</span>
+<span class="sd">        Description of parameter `host_ra`.</span>
+<span class="sd">    host_dec : type</span>
+<span class="sd">        Description of parameter `host_dec`.</span>
+<span class="sd">    true_host_ra : type</span>
+<span class="sd">        Description of parameter `true_host_ra`.</span>
+<span class="sd">    true_host_dec : type</span>
+<span class="sd">        Description of parameter `true_host_dec`.</span>
+<span class="sd">    host_z_mean : type</span>
+<span class="sd">        Description of parameter `host_z_mean`.</span>
+<span class="sd">    host_z_std : type</span>
+<span class="sd">        Description of parameter `host_z_std`.</span>
+<span class="sd">    sn_ra : type</span>
+<span class="sd">        Description of parameter `sn_ra`.</span>
+<span class="sd">    sn_dec : type</span>
+<span class="sd">        Description of parameter `sn_dec`.</span>
+<span class="sd">    sn_name : type</span>
+<span class="sd">        Description of parameter `sn_name`.</span>
+<span class="sd">    sn_z : type</span>
+<span class="sd">        Description of parameter `sn_z`.</span>
+<span class="sd">    bayesflag : type</span>
+<span class="sd">        Description of parameter `bayesflag`.</span>
+<span class="sd">    fn : type</span>
+<span class="sd">        Description of parameter `fn`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    type</span>
+<span class="sd">        Description of returned object.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cols</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="s2">&quot;#ff9f1c&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#2cda9d&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#f15946&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#da80dd&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#f4e76e&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#b87d4b&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#ff928b&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#c73e1d&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#58b09c&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;#e7e08b&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">bands</span> <span class="o">=</span> <span class="s2">&quot;zrg&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">host_ra</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">sep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span>
+            <span class="n">SkyCoord</span><span class="p">(</span><span class="n">host_ra</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">host_dec</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">separation</span><span class="p">(</span><span class="n">SkyCoord</span><span class="p">(</span><span class="n">sn_ra</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">sn_dec</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">arcsec</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">sep</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">true_host_ra</span><span class="p">:</span>
+        <span class="n">sep_true</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">SkyCoord</span><span class="p">(</span><span class="n">true_host_ra</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">true_host_dec</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">separation</span><span class="p">(</span><span class="n">SkyCoord</span><span class="p">(</span><span class="n">sn_ra</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">sn_dec</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">arcsec</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">true_host_ra</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">true_host_dec</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">sep_true</span> <span class="o">&gt;</span> <span class="n">sep</span><span class="p">):</span>
+            <span class="n">sep</span> <span class="o">=</span> <span class="n">sep_true</span>
+    <span class="n">rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">([</span><span class="mf">30.0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">sep</span><span class="p">])</span>  <span class="c1"># arcsec to pixels, scaled by 1.5x host-SN separation</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Getting img with size len </span><span class="si">{</span><span class="n">rad</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
+    <span class="n">pic_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">:</span>
+        <span class="n">get_ps1_pic</span><span class="p">(</span><span class="s2">&quot;./&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">sn_ra</span><span class="p">,</span> <span class="n">sn_dec</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">rad</span> <span class="o">*</span> <span class="mi">4</span><span class="p">),</span> <span class="n">band</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">find_all</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PS1_ra=</span><span class="si">{</span><span class="n">sn_ra</span><span class="si">}</span><span class="s2">_dec=</span><span class="si">{</span><span class="n">sn_dec</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">rad</span><span class="p">)</span><span class="si">}</span><span class="s2">arcsec_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">.fits&quot;</span><span class="p">,</span> <span class="s2">&quot;.&quot;</span><span class="p">)</span>
+        <span class="n">pixels</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">pixels</span> <span class="o">=</span> <span class="n">pixels</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;float32&quot;</span><span class="p">)</span>
+        <span class="c1"># normalize to the range 0-255</span>
+        <span class="n">pixels</span> <span class="o">*=</span> <span class="mi">255</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">pixels</span><span class="p">)</span>
+        <span class="c1"># plt.hist(pixels)</span>
+        <span class="n">pic_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pixels</span><span class="p">)</span>
+        <span class="n">hdu</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="n">lo_val</span><span class="p">,</span> <span class="n">up_val</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanpercentile</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pic_data</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">99.5</span><span class="p">)</span>
+    <span class="p">)</span>  <span class="c1"># Get the value of lower and upper 0.5% of all pixels</span>
+    <span class="n">stretch_val</span> <span class="o">=</span> <span class="n">up_val</span> <span class="o">-</span> <span class="n">lo_val</span>
+
+    <span class="n">rgb_default</span> <span class="o">=</span> <span class="n">make_lupton_rgb</span><span class="p">(</span>
+        <span class="n">pic_data</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pic_data</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">pic_data</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">minimum</span><span class="o">=</span><span class="n">lo_val</span><span class="p">,</span> <span class="n">stretch</span><span class="o">=</span><span class="n">stretch_val</span><span class="p">,</span> <span class="n">Q</span><span class="o">=</span><span class="mi">0</span>
+    <span class="p">)</span>
+    <span class="n">wcs</span> <span class="o">=</span> <span class="n">WCS</span><span class="p">(</span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">num</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">)</span>
+    <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="n">projection</span><span class="o">=</span><span class="n">wcs</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;RA&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;DEC&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+
+    <span class="c1"># really emphasize the supernova location</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rad</span> <span class="o">*</span> <span class="mi">2</span><span class="p">),</span> <span class="n">c</span><span class="o">=</span><span class="s2">&quot;tab:red&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rad</span> <span class="o">*</span> <span class="mi">2</span><span class="p">),</span> <span class="n">c</span><span class="o">=</span><span class="s2">&quot;tab:red&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">true_host_ra</span> <span class="ow">and</span> <span class="n">true_host_dec</span><span class="p">:</span>
+        <span class="n">true_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+            <span class="n">true_host_ra</span><span class="p">,</span>
+            <span class="n">true_host_dec</span><span class="p">,</span>
+            <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">get_transform</span><span class="p">(</span><span class="s2">&quot;fk5&quot;</span><span class="p">),</span>
+            <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;+&quot;</span><span class="p">,</span>
+            <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+            <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+            <span class="n">s</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+            <span class="n">color</span><span class="o">=</span><span class="s2">&quot;magenta&quot;</span><span class="p">,</span>
+            <span class="n">zorder</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">true_str</span> <span class="o">=</span> <span class="s2">&quot;(no true)&quot;</span>
+    <span class="n">bayesstr</span> <span class="o">=</span> <span class="s2">&quot;. &quot;</span>
+    <span class="k">if</span> <span class="n">bayesflag</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">bayesstr</span> <span class="o">+=</span> <span class="s2">&quot;Strong match!&quot;</span>
+        <span class="c1"># don&#39;t plot the second-best host</span>
+        <span class="n">host_ra</span> <span class="o">=</span> <span class="n">host_ra</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">host_dec</span> <span class="o">=</span> <span class="n">host_dec</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="n">bayesflag</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">bayesstr</span> <span class="o">+=</span> <span class="s2">&quot;Weak match.&quot;</span>
+    <span class="k">if</span> <span class="n">host_ra</span> <span class="ow">and</span> <span class="n">host_dec</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">host_ra</span><span class="p">)):</span>
+            <span class="c1"># print(f&quot;Plotting host {i}&quot;)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+                <span class="n">host_ra</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">host_dec</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">get_transform</span><span class="p">(</span><span class="s2">&quot;fk5&quot;</span><span class="p">),</span>
+                <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;o&quot;</span><span class="p">,</span>
+                <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+                <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                <span class="n">s</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+                <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span>
+                <span class="n">facecolor</span><span class="o">=</span><span class="n">cols</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">zorder</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">sn_z</span> <span class="o">==</span> <span class="n">sn_z</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">sn_name</span><span class="si">}</span><span class="s2">, z=</span><span class="si">{</span><span class="n">sn_z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">; Host Match,&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;z=</span><span class="si">{</span><span class="n">host_z_mean</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">+/-</span><span class="si">{</span><span class="n">host_z_std</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">true_str</span><span class="si">}{</span><span class="n">bayesstr</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">sn_name</span><span class="si">}</span><span class="s2">, no z; Host Match, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;z=</span><span class="si">{</span><span class="n">host_z_mean</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">+/-</span><span class="si">{</span><span class="n">host_z_std</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">true_str</span><span class="si">}{</span><span class="n">bayesstr</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">sn_z</span> <span class="o">==</span> <span class="n">sn_z</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">sn_name</span><span class="si">}</span><span class="s2">, z=</span><span class="si">{</span><span class="n">sn_z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">; No host found </span><span class="si">{</span><span class="n">true_str</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">sn_name</span><span class="si">}</span><span class="s2">, no z; No host found </span><span class="si">{</span><span class="n">true_str</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">rgb_default</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s2">&quot;lower&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="s2">&quot;off&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;./</span><span class="si">%s</span><span class="s2">.png&quot;</span> <span class="o">%</span> <span class="n">fn</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">&quot;tight&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+
+
+<span class="c1"># Function to diagnose the discrepancy when the top-ranked galaxy is not the true host</span>
+<div class="viewcode-block" id="diagnose_ranking">
+<a class="viewcode-back" href="../../autoapi/astro_prost/index.html#astro_prost.diagnose.diagnose_ranking">[docs]</a>
+<span class="k">def</span> <span class="nf">diagnose_ranking</span><span class="p">(</span>
+    <span class="n">true_index</span><span class="p">,</span>
+    <span class="n">post_probs</span><span class="p">,</span>
+    <span class="n">galaxy_catalog</span><span class="p">,</span>
+    <span class="n">post_offset</span><span class="p">,</span>
+    <span class="n">post_z</span><span class="p">,</span>
+    <span class="n">post_absmag</span><span class="p">,</span>
+    <span class="n">galaxy_ids</span><span class="p">,</span>
+    <span class="n">z_sn</span><span class="p">,</span>
+    <span class="n">sn_position</span><span class="p">,</span>
+    <span class="n">post_offset_true</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">post_z_true</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">post_absmag_true</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Short summary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    true_index : type</span>
+<span class="sd">        Description of parameter `true_index`.</span>
+<span class="sd">    post_probs : type</span>
+<span class="sd">        Description of parameter `post_probs`.</span>
+<span class="sd">    galaxy_catalog : type</span>
+<span class="sd">        Description of parameter `galaxy_catalog`.</span>
+<span class="sd">    post_offset : type</span>
+<span class="sd">        Description of parameter `post_offset`.</span>
+<span class="sd">    post_z : type</span>
+<span class="sd">        Description of parameter `post_z`.</span>
+<span class="sd">    post_absmag : type</span>
+<span class="sd">        Description of parameter `post_absmag`.</span>
+<span class="sd">    galaxy_ids : type</span>
+<span class="sd">        Description of parameter `galaxy_ids`.</span>
+<span class="sd">    z_sn : type</span>
+<span class="sd">        Description of parameter `z_sn`.</span>
+<span class="sd">    sn_position : type</span>
+<span class="sd">        Description of parameter `sn_position`.</span>
+<span class="sd">    post_offset_true : type</span>
+<span class="sd">        Description of parameter `post_offset_true`.</span>
+<span class="sd">    post_z_true : type</span>
+<span class="sd">        Description of parameter `post_z_true`.</span>
+<span class="sd">    post_absmag_true : type</span>
+<span class="sd">        Description of parameter `post_absmag_true`.</span>
+<span class="sd">    verbose : type</span>
+<span class="sd">        Description of parameter `verbose`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    type</span>
+<span class="sd">        Description of returned object.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">top_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">post_probs</span><span class="p">)[</span><span class="o">-</span><span class="mi">3</span><span class="p">:][::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Top 3 ranked galaxies</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">true_index</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;True Galaxy: </span><span class="si">{</span><span class="n">true_index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Check if the true galaxy is in the top 5</span>
+            <span class="k">if</span> <span class="n">true_index</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">top_indices</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: True Galaxy </span><span class="si">{</span><span class="n">true_index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> is not in the top 5!&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Print top 5 and compare with the true galaxy</span>
+        <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">top_indices</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">is_true</span> <span class="o">=</span> <span class="s2">&quot;(True Galaxy)&quot;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">true_index</span> <span class="ow">and</span> <span class="n">true_index</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Rank </span><span class="si">{</span><span class="n">rank</span><span class="si">}</span><span class="s2">: ID </span><span class="si">{</span><span class="n">galaxy_ids</span><span class="p">[</span><span class="n">top_indices</span><span class="p">[</span><span class="n">rank</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;has a Posterior probability of being the host: </span><span class="si">{</span><span class="n">post_probs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">is_true</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+    <span class="c1"># Detailed comparison of the top-ranked and true galaxy</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Coords (SN): </span><span class="si">{</span><span class="n">sn_position</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">deg</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">sn_position</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">deg</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">top_indices</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">top_gal</span> <span class="o">=</span> <span class="n">galaxy_catalog</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">top_theta</span> <span class="o">=</span> <span class="n">sn_position</span><span class="o">.</span><span class="n">separation</span><span class="p">(</span>
+            <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="o">=</span><span class="n">top_gal</span><span class="p">[</span><span class="s2">&quot;ra&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">dec</span><span class="o">=</span><span class="n">top_gal</span><span class="p">[</span><span class="s2">&quot;dec&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">arcsec</span>
+
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Redshift (SN): </span><span class="si">{</span><span class="n">z_sn</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Top Galaxy (Rank </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">): Coords: </span><span class="si">{</span><span class="n">top_gal</span><span class="p">[</span><span class="s1">&#39;ra&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">top_gal</span><span class="p">[</span><span class="s1">&#39;dec&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t\t\t</span><span class="s2">Redshift = </span><span class="si">{</span><span class="n">top_gal</span><span class="p">[</span><span class="s1">&#39;z_best_mean&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">+/-</span><span class="si">{</span><span class="n">top_gal</span><span class="p">[</span><span class="s1">&#39;z_best_std&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">,&quot;</span>
+                <span class="s2">&quot; Angular Size = </span><span class="si">{top_gal[&#39;angular_size_arcsec&#39;]:.4f}</span><span class="s2"> arcsec&quot;</span>
+            <span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t\t\t</span><span class="s2">Fractional Sep. = </span><span class="si">{</span><span class="n">top_theta</span><span class="o">/</span><span class="n">top_gal</span><span class="p">[</span><span class="s1">&#39;angular_size_arcsec&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> host radii&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="se">\t\t\t</span><span class="s1">Angular Sep. (&quot;): </span><span class="si">{</span><span class="n">top_theta</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t\t\t</span><span class="s2">Redshift Posterior = </span><span class="si">{</span><span class="n">post_z</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">,&quot;</span> <span class="s2">&quot; Offset Posterior = </span><span class="si">{post_offset[i]:.4e}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t\t\t</span><span class="s2">Absolute mag Posterior = </span><span class="si">{</span><span class="n">post_absmag</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">verbose</span> <span class="ow">and</span> <span class="n">true_index</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">true_gal</span> <span class="o">=</span> <span class="n">galaxy_catalog</span><span class="p">[</span><span class="n">true_index</span><span class="p">]</span>
+        <span class="n">true_theta</span> <span class="o">=</span> <span class="n">sn_position</span><span class="o">.</span><span class="n">separation</span><span class="p">(</span>
+            <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="o">=</span><span class="n">true_gal</span><span class="p">[</span><span class="s2">&quot;ra&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">dec</span><span class="o">=</span><span class="n">true_gal</span><span class="p">[</span><span class="s2">&quot;dec&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">arcsec</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;True Galaxy: Fractional Sep. = </span><span class="si">{</span><span class="n">true_theta</span><span class="o">/</span><span class="n">true_gal</span><span class="p">[</span><span class="s1">&#39;angular_size_arcsec&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> host radii&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t\t\t</span><span class="s2">Redshift = </span><span class="si">{</span><span class="n">true_gal</span><span class="p">[</span><span class="s1">&#39;redshift&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Angular Size = </span><span class="si">{</span><span class="n">true_gal</span><span class="p">[</span><span class="s1">&#39;angular_size_arcsec&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t\t\t</span><span class="s2">Redshift Posterior = </span><span class="si">{</span><span class="n">post_z_true</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">, Offset Posterior = </span><span class="si">{</span><span class="n">post_offset_true</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">true_index</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">post_offset_true</span> <span class="o">=</span> <span class="n">post_offset</span><span class="p">[</span><span class="n">true_index</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">true_index</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">post_z_true</span> <span class="o">=</span> <span class="n">post_z</span><span class="p">[</span><span class="n">true_index</span><span class="p">]</span>
+
+    <span class="n">ranked_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">post_probs</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Find the position of the true galaxy&#39;s index in the ranked list</span>
+    <span class="n">true_rank</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">ranked_indices</span> <span class="o">==</span> <span class="n">true_index</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">true_index</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+
+    <span class="c1"># Return the rank (0-based index) of the true galaxy</span>
+    <span class="k">return</span> <span class="n">true_rank</span><span class="p">,</span> <span class="n">post_probs</span><span class="p">[</span><span class="n">true_index</span><span class="p">]</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Alex Gagliano.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

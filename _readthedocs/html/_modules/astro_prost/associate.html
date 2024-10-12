@@ -1,0 +1,528 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>astro_prost.associate &mdash; prost 0.1.dev0+d20241012 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8e33e34d"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=d07363f3"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            prost
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home page</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../autoapi/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../notebooks.html">Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">prost</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">astro_prost.associate</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for astro_prost.associate</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pathlib</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">time</span>
+<span class="kn">from</span> <span class="nn">urllib.error</span> <span class="kn">import</span> <span class="n">HTTPError</span>
+
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="kn">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">astropy.cosmology</span> <span class="kn">import</span> <span class="n">LambdaCDM</span>
+
+<span class="kn">from</span> <span class="nn">.diagnose</span> <span class="kn">import</span> <span class="n">plot_match</span>
+<span class="kn">from</span> <span class="nn">.helpers</span> <span class="kn">import</span> <span class="n">GalaxyCatalog</span><span class="p">,</span> <span class="n">Transient</span>
+
+
+<div class="viewcode-block" id="associate_transient">
+<a class="viewcode-back" href="../../autoapi/astro_prost/index.html#astro_prost.associate.associate_transient">[docs]</a>
+<span class="k">def</span> <span class="nf">associate_transient</span><span class="p">(</span>
+    <span class="n">idx</span><span class="p">,</span>
+    <span class="n">row</span><span class="p">,</span>
+    <span class="n">glade_catalog</span><span class="p">,</span>
+    <span class="n">n_samples</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="p">,</span>
+    <span class="n">priorfunc_z</span><span class="p">,</span>
+    <span class="n">priorfunc_offset</span><span class="p">,</span>
+    <span class="n">priorfunc_absmag</span><span class="p">,</span>
+    <span class="n">likefunc_offset</span><span class="p">,</span>
+    <span class="n">likefunc_absmag</span><span class="p">,</span>
+    <span class="n">cosmo</span><span class="p">,</span>
+    <span class="n">catalogs</span><span class="p">,</span>
+    <span class="n">cat_cols</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Short summary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    idx : type</span>
+<span class="sd">        Description of parameter `idx`.</span>
+<span class="sd">    row : type</span>
+<span class="sd">        Description of parameter `row`.</span>
+<span class="sd">    glade_catalog : type</span>
+<span class="sd">        Description of parameter `glade_catalog`.</span>
+<span class="sd">    n_samples : type</span>
+<span class="sd">        Description of parameter `n_samples`.</span>
+<span class="sd">    verbose : type</span>
+<span class="sd">        Description of parameter `verbose`.</span>
+<span class="sd">    priorfunc_z : type</span>
+<span class="sd">        Description of parameter `priorfunc_z`.</span>
+<span class="sd">    priorfunc_offset : type</span>
+<span class="sd">        Description of parameter `priorfunc_offset`.</span>
+<span class="sd">    priorfunc_absmag : type</span>
+<span class="sd">        Description of parameter `priorfunc_absmag`.</span>
+<span class="sd">    likefunc_offset : type</span>
+<span class="sd">        Description of parameter `likefunc_offset`.</span>
+<span class="sd">    likefunc_absmag : type</span>
+<span class="sd">        Description of parameter `likefunc_absmag`.</span>
+<span class="sd">    cosmo : type</span>
+<span class="sd">        Description of parameter `cosmo`.</span>
+<span class="sd">    catalogs : type</span>
+<span class="sd">        Description of parameter `catalogs`.</span>
+<span class="sd">    cat_cols : type</span>
+<span class="sd">        Description of parameter `cat_cols`.</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    type</span>
+<span class="sd">        Description of returned object.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">transient</span> <span class="o">=</span> <span class="n">Transient</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span>
+            <span class="n">position</span><span class="o">=</span><span class="n">SkyCoord</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">ra</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">row</span><span class="o">.</span><span class="n">dec</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span>
+            <span class="n">redshift</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">redshift</span><span class="p">),</span>
+            <span class="n">n_samples</span><span class="o">=</span><span class="n">n_samples</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+        <span class="n">transient</span> <span class="o">=</span> <span class="n">Transient</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span> <span class="n">position</span><span class="o">=</span><span class="n">SkyCoord</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">ra</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">row</span><span class="o">.</span><span class="n">dec</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span> <span class="n">n_samples</span><span class="o">=</span><span class="n">n_samples</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Associating for </span><span class="si">{</span><span class="n">transient</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> at RA, DEC = &quot;</span>
+            <span class="s2">&quot;</span><span class="si">{transient.position.ra.deg:.6f}</span><span class="s2">, </span><span class="si">{transient.position.dec.deg:.6f}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">transient</span><span class="o">.</span><span class="n">set_prior</span><span class="p">(</span><span class="s2">&quot;redshift&quot;</span><span class="p">,</span> <span class="n">priorfunc_z</span><span class="p">)</span>
+    <span class="n">transient</span><span class="o">.</span><span class="n">set_prior</span><span class="p">(</span><span class="s2">&quot;offset&quot;</span><span class="p">,</span> <span class="n">priorfunc_offset</span><span class="p">)</span>
+    <span class="n">transient</span><span class="o">.</span><span class="n">set_prior</span><span class="p">(</span><span class="s2">&quot;absmag&quot;</span><span class="p">,</span> <span class="n">priorfunc_absmag</span><span class="p">)</span>
+
+    <span class="n">transient</span><span class="o">.</span><span class="n">set_likelihood</span><span class="p">(</span><span class="s2">&quot;offset&quot;</span><span class="p">,</span> <span class="n">likefunc_offset</span><span class="p">)</span>
+    <span class="n">transient</span><span class="o">.</span><span class="n">set_likelihood</span><span class="p">(</span><span class="s2">&quot;absmag&quot;</span><span class="p">,</span> <span class="n">likefunc_absmag</span><span class="p">)</span>
+
+    <span class="n">best_prob</span><span class="p">,</span> <span class="n">best_ra</span><span class="p">,</span> <span class="n">best_dec</span><span class="p">,</span> <span class="n">query_time</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="p">)</span>  <span class="c1"># Default values when no good host is found</span>
+    <span class="n">best_cat</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="n">cat_name</span> <span class="ow">in</span> <span class="n">catalogs</span><span class="p">:</span>
+        <span class="n">cat</span> <span class="o">=</span> <span class="n">GalaxyCatalog</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">cat_name</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">glade_catalog</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cat</span><span class="o">.</span><span class="n">get_candidates</span><span class="p">(</span><span class="n">transient</span><span class="p">,</span> <span class="n">timequery</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span> <span class="n">cosmo</span><span class="o">=</span><span class="n">cosmo</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">HTTPError</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Candidate retrieval failed for </span><span class="si">{</span><span class="n">transient</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> in catalog </span><span class="si">{</span><span class="n">cat_name</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">cat</span><span class="o">.</span><span class="n">ngals</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">cat</span> <span class="o">=</span> <span class="n">transient</span><span class="o">.</span><span class="n">associate</span><span class="p">(</span><span class="n">cat</span><span class="p">,</span> <span class="n">cosmo</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">transient</span><span class="o">.</span><span class="n">best_host</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">best_idx</span> <span class="o">=</span> <span class="n">transient</span><span class="o">.</span><span class="n">best_host</span>
+                <span class="n">second_best_idx</span> <span class="o">=</span> <span class="n">transient</span><span class="o">.</span><span class="n">second_best_host</span>
+
+                <span class="k">if</span> <span class="n">verbose</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">print_cols</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="s2">&quot;objID&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;z_prob&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;offset_prob&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;absmag_prob&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;total_prob&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;ra&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;dec&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;offset_arcsec&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;z_best_mean&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;z_best_std&quot;</span><span class="p">,</span>
+                    <span class="p">]</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Properties of best host:&quot;</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">print_cols</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">best_idx</span><span class="p">])</span>
+
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Properties of second best host:&quot;</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">print_cols</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">second_best_idx</span><span class="p">])</span>
+
+                <span class="n">best_objid</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;objID&quot;</span><span class="p">][</span><span class="n">best_idx</span><span class="p">]</span>
+                <span class="n">best_prob</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;total_prob&quot;</span><span class="p">][</span><span class="n">best_idx</span><span class="p">]</span>
+                <span class="n">best_ra</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;ra&quot;</span><span class="p">][</span><span class="n">best_idx</span><span class="p">]</span>
+                <span class="n">best_dec</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;dec&quot;</span><span class="p">][</span><span class="n">best_idx</span><span class="p">]</span>
+
+                <span class="n">second_best_objid</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;objID&quot;</span><span class="p">][</span><span class="n">second_best_idx</span><span class="p">]</span>
+                <span class="n">second_best_prob</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;total_prob&quot;</span><span class="p">][</span><span class="n">second_best_idx</span><span class="p">]</span>
+                <span class="n">second_best_ra</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;ra&quot;</span><span class="p">][</span><span class="n">second_best_idx</span><span class="p">]</span>
+                <span class="n">second_best_dec</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;dec&quot;</span><span class="p">][</span><span class="n">second_best_idx</span><span class="p">]</span>
+
+                <span class="n">best_cat</span> <span class="o">=</span> <span class="n">cat_name</span>
+                <span class="n">query_time</span> <span class="o">=</span> <span class="n">cat</span><span class="o">.</span><span class="n">query_time</span>
+
+                <span class="k">if</span> <span class="n">cat_cols</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WARNING! cat_cols not implemented yet.&quot;</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found a good host in </span><span class="si">{</span><span class="n">cat_name</span><span class="si">}</span><span class="s2">!&quot;</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Chosen galaxy has catalog ID of </span><span class="si">{</span><span class="n">best_objid</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="s2">&quot;and RA, DEC = </span><span class="si">{best_ra:.6f}</span><span class="s2">, </span><span class="si">{best_dec:.6f}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">plot_match</span><span class="p">(</span>
+                            <span class="p">[</span><span class="n">best_ra</span><span class="p">],</span>
+                            <span class="p">[</span><span class="n">best_dec</span><span class="p">],</span>
+                            <span class="kc">None</span><span class="p">,</span>
+                            <span class="kc">None</span><span class="p">,</span>
+                            <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;z_best_mean&quot;</span><span class="p">][</span><span class="n">best_idx</span><span class="p">],</span>
+                            <span class="n">cat</span><span class="o">.</span><span class="n">galaxies</span><span class="p">[</span><span class="s2">&quot;z_best_std&quot;</span><span class="p">][</span><span class="n">best_idx</span><span class="p">],</span>
+                            <span class="n">transient</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+                            <span class="n">transient</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+                            <span class="n">transient</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                            <span class="n">transient</span><span class="o">.</span><span class="n">redshift</span><span class="p">,</span>
+                            <span class="mi">0</span><span class="p">,</span>
+                            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">transient</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">cat_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="k">except</span> <span class="n">HTTPError</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t get an image. Waiting 60s before moving on.&quot;</span><span class="p">)</span>
+                        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span>
+                        <span class="k">continue</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">transient</span><span class="o">.</span><span class="n">best_host</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No good host found!&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">idx</span><span class="p">,</span>
+        <span class="n">best_objid</span><span class="p">,</span>
+        <span class="n">best_prob</span><span class="p">,</span>
+        <span class="n">best_ra</span><span class="p">,</span>
+        <span class="n">best_dec</span><span class="p">,</span>
+        <span class="n">second_best_objid</span><span class="p">,</span>
+        <span class="n">second_best_prob</span><span class="p">,</span>
+        <span class="n">second_best_ra</span><span class="p">,</span>
+        <span class="n">second_best_dec</span><span class="p">,</span>
+        <span class="n">query_time</span><span class="p">,</span>
+        <span class="n">best_cat</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="prepare_catalog">
+<a class="viewcode-back" href="../../autoapi/astro_prost/index.html#astro_prost.associate.prepare_catalog">[docs]</a>
+<span class="k">def</span> <span class="nf">prepare_catalog</span><span class="p">(</span>
+    <span class="n">transient_catalog</span><span class="p">,</span>
+    <span class="n">debug_names</span><span class="p">,</span>
+    <span class="n">transient_name_col</span><span class="o">=</span><span class="s2">&quot;name&quot;</span><span class="p">,</span>
+    <span class="n">transient_coord_cols</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;ra&quot;</span><span class="p">,</span> <span class="s2">&quot;dec&quot;</span><span class="p">),</span>
+    <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Short summary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    transient_catalog : type</span>
+<span class="sd">        Description of parameter `transient_catalog`.</span>
+<span class="sd">    transient_name_col : type</span>
+<span class="sd">        Description of parameter `transient_name_col`.</span>
+<span class="sd">    transient_coord_cols : type</span>
+<span class="sd">        Description of parameter `transient_coord_cols`.</span>
+<span class="sd">    debug_names : type</span>
+<span class="sd">        Description of parameter `debug_names`.</span>
+<span class="sd">    debug : type</span>
+<span class="sd">        Description of parameter `debug`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    type</span>
+<span class="sd">        Description of returned object.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">association_fields</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">&quot;host_id&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;host_ra&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;host_dec&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;host_prob&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;host_2_id&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;host_2_ra&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;host_2_dec&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;host_2_prob&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;smallcone_prob&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;missedcat_prob&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;sn_ra_deg&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;sn_dec_deg&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;prob_association_time&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">association_fields</span><span class="p">:</span>
+        <span class="n">transient_catalog</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+    <span class="n">transient_catalog</span><span class="p">[</span><span class="s2">&quot;prob_host_flag&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># debugging with just the ones we got wrong</span>
+    <span class="k">if</span> <span class="n">debug</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">debug_names</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">transient_catalog</span> <span class="o">=</span> <span class="n">transient_catalog</span><span class="p">[</span><span class="n">transient_catalog</span><span class="p">[</span><span class="n">transient_name_col</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">debug_names</span><span class="p">)]</span>
+
+    <span class="c1"># convert coords if needed</span>
+    <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">transient_catalog</span><span class="p">[</span><span class="n">transient_coord_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="n">ra</span> <span class="o">=</span> <span class="n">transient_catalog</span><span class="p">[</span><span class="n">transient_coord_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">dec</span> <span class="o">=</span> <span class="n">transient_catalog</span><span class="p">[</span><span class="n">transient_coord_cols</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">transient_coords</span> <span class="o">=</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">hourangle</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># try parsing as a float</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ra</span> <span class="o">=</span> <span class="n">transient_catalog</span><span class="p">[</span><span class="n">transient_coord_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;float&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values</span>
+            <span class="n">dec</span> <span class="o">=</span> <span class="n">transient_catalog</span><span class="p">[</span><span class="n">transient_coord_cols</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;float&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values</span>
+            <span class="n">transient_coords</span> <span class="o">=</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ERROR: I could not understand your provided coordinates.&quot;</span><span class="p">)</span> <span class="kn">from</span> <span class="nn">err</span>
+
+    <span class="n">transient_catalog</span><span class="p">[</span><span class="s2">&quot;ra&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">transient_coords</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">deg</span>
+    <span class="n">transient_catalog</span><span class="p">[</span><span class="s2">&quot;dec&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">transient_coords</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">deg</span>
+
+    <span class="n">transient_catalog</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="n">transient_name_col</span><span class="p">:</span> <span class="s2">&quot;name&quot;</span><span class="p">},</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># randomly shuffle</span>
+    <span class="n">transient_catalog</span> <span class="o">=</span> <span class="n">transient_catalog</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">frac</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">transient_catalog</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">transient_catalog</span></div>
+
+
+
+<div class="viewcode-block" id="associate_sample">
+<a class="viewcode-back" href="../../autoapi/astro_prost/associate/index.html#astro_prost.associate.associate_sample">[docs]</a>
+<span class="k">def</span> <span class="nf">associate_sample</span><span class="p">(</span>
+    <span class="n">transient_catalog</span><span class="p">,</span>
+    <span class="n">catalogs</span><span class="p">,</span>
+    <span class="n">priors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">likes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">n_samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">parallel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">save</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">save_path</span><span class="o">=</span><span class="s2">&quot;./&quot;</span><span class="p">,</span>
+    <span class="n">cat_cols</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">cosmology</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Short summary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    transient_catalog : type</span>
+<span class="sd">        Description of parameter `transient_catalog`.</span>
+<span class="sd">    priors : type</span>
+<span class="sd">        Description of parameter `priors`.</span>
+<span class="sd">    likes : type</span>
+<span class="sd">        Description of parameter `likes`.</span>
+<span class="sd">    catalogs : type</span>
+<span class="sd">        Description of parameter `catalogs`.</span>
+<span class="sd">    n_samples : type</span>
+<span class="sd">        Description of parameter `n_samples`.</span>
+<span class="sd">    verbose : type</span>
+<span class="sd">        Description of parameter `verbose`.</span>
+<span class="sd">    parallel : type</span>
+<span class="sd">        Description of parameter `parallel`.</span>
+<span class="sd">    save : type</span>
+<span class="sd">        Description of parameter `save`.</span>
+<span class="sd">    save_path : type</span>
+<span class="sd">        Description of parameter `save_path`.</span>
+<span class="sd">    cat_cols : type</span>
+<span class="sd">        Description of parameter `cat_cols`.</span>
+<span class="sd">    cosmology : type</span>
+<span class="sd">        Description of parameter `cosmology`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    type</span>
+<span class="sd">        Description of returned object.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cosmology</span><span class="p">:</span>
+        <span class="n">cosmo</span> <span class="o">=</span> <span class="n">LambdaCDM</span><span class="p">(</span><span class="n">H0</span><span class="o">=</span><span class="mi">70</span><span class="p">,</span> <span class="n">Om0</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">Ode0</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;offset&quot;</span><span class="p">,</span> <span class="s2">&quot;absmag&quot;</span><span class="p">,</span> <span class="s2">&quot;z&quot;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">priors</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ERROR: Please set a prior function for </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">likes</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">key</span> <span class="o">!=</span> <span class="s2">&quot;z&quot;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ERROR: Please set a likelihood function for </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># always load GLADE -- we now use it for spec-zs.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">glade_catalog</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;GLADE+_HyperLedaSizes_mod_withz.csv&quot;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="n">glade_catalog</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># unpack priors and likelihoods</span>
+    <span class="n">priorfunc_z</span> <span class="o">=</span> <span class="n">priors</span><span class="p">[</span><span class="s2">&quot;z&quot;</span><span class="p">]</span>
+    <span class="n">priorfunc_offset</span> <span class="o">=</span> <span class="n">priors</span><span class="p">[</span><span class="s2">&quot;offset&quot;</span><span class="p">]</span>
+    <span class="n">priorfunc_absmag</span> <span class="o">=</span> <span class="n">priors</span><span class="p">[</span><span class="s2">&quot;absmag&quot;</span><span class="p">]</span>
+
+    <span class="n">likefunc_offset</span> <span class="o">=</span> <span class="n">likes</span><span class="p">[</span><span class="s2">&quot;offset&quot;</span><span class="p">]</span>
+    <span class="n">likefunc_absmag</span> <span class="o">=</span> <span class="n">likes</span><span class="p">[</span><span class="s2">&quot;absmag&quot;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">parallel</span><span class="p">:</span>
+        <span class="n">n_processes</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">5</span>
+
+        <span class="c1"># Create a list of tasks (one per transient)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;parallelizing...&quot;</span><span class="p">)</span>
+        <span class="n">tasks</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span>
+                <span class="n">idx</span><span class="p">,</span>
+                <span class="n">row</span><span class="p">,</span>
+                <span class="n">glade_catalog</span><span class="p">,</span>
+                <span class="n">n_samples</span><span class="p">,</span>
+                <span class="n">verbose</span><span class="p">,</span>
+                <span class="n">priorfunc_z</span><span class="p">,</span>
+                <span class="n">priorfunc_offset</span><span class="p">,</span>
+                <span class="n">priorfunc_absmag</span><span class="p">,</span>
+                <span class="n">likefunc_offset</span><span class="p">,</span>
+                <span class="n">likefunc_absmag</span><span class="p">,</span>
+                <span class="n">cosmo</span><span class="p">,</span>
+                <span class="n">catalogs</span><span class="p">,</span>
+                <span class="n">cat_cols</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">transient_catalog</span><span class="o">.</span><span class="n">iterrows</span><span class="p">()</span>
+        <span class="p">]</span>
+
+        <span class="c1"># Run the association tasks in parallel</span>
+        <span class="k">with</span> <span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">n_processes</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">starmap</span><span class="p">(</span><span class="n">associate_transient</span><span class="p">,</span> <span class="n">tasks</span><span class="p">)</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>  <span class="c1"># Ensures that all resources are released</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">transient_catalog</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+            <span class="n">event</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">idx</span><span class="p">,</span>
+                <span class="n">row</span><span class="p">,</span>
+                <span class="n">glade_catalog</span><span class="p">,</span>
+                <span class="n">n_samples</span><span class="p">,</span>
+                <span class="n">verbose</span><span class="p">,</span>
+                <span class="n">priorfunc_z</span><span class="p">,</span>
+                <span class="n">priorfunc_offset</span><span class="p">,</span>
+                <span class="n">priorfunc_absmag</span><span class="p">,</span>
+                <span class="n">likefunc_offset</span><span class="p">,</span>
+                <span class="n">likefunc_absmag</span><span class="p">,</span>
+                <span class="n">cosmo</span><span class="p">,</span>
+                <span class="n">catalogs</span><span class="p">,</span>
+                <span class="n">cat_cols</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">associate_transient</span><span class="p">(</span><span class="o">*</span><span class="n">event</span><span class="p">))</span>
+    <span class="c1"># Update transient_catalog with results</span>
+    <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+        <span class="n">idx</span><span class="p">,</span> <span class="n">best_prob</span><span class="p">,</span> <span class="n">best_ra</span><span class="p">,</span> <span class="n">best_dec</span><span class="p">,</span> <span class="n">query_time</span><span class="p">,</span> <span class="n">best_cat</span> <span class="o">=</span> <span class="n">result</span>
+        <span class="n">transient_catalog</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="s2">&quot;prob_host_ra&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">best_ra</span>
+        <span class="n">transient_catalog</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="s2">&quot;prob_host_dec&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">best_dec</span>
+        <span class="n">transient_catalog</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="s2">&quot;prob_host_score&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">best_prob</span>
+        <span class="n">transient_catalog</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="s2">&quot;prob_query_time&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">query_time</span>
+        <span class="n">transient_catalog</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="s2">&quot;prob_best_cat&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">best_cat</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Association of all transients is complete.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Save the updated catalog</span>
+    <span class="k">if</span> <span class="n">save</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span>
+        <span class="n">save_name</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;associated_transient_catalog_</span><span class="si">{</span><span class="n">ts</span><span class="si">}</span><span class="s2">.csv&quot;</span><span class="p">)</span>
+        <span class="n">transient_catalog</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">save_name</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">transient_catalog</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Alex Gagliano.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

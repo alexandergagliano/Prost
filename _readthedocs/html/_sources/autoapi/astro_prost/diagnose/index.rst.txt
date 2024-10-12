@@ -1,0 +1,164 @@
+astro_prost.diagnose
+====================
+
+.. py:module:: astro_prost.diagnose
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   astro_prost.diagnose.getimages
+   astro_prost.diagnose.geturl
+   astro_prost.diagnose.get_ps1_pic
+   astro_prost.diagnose.find_all
+   astro_prost.diagnose.plot_match
+   astro_prost.diagnose.diagnose_ranking
+
+
+Module Contents
+---------------
+
+.. py:function:: getimages(ra, dec, size=240, filters='grizy', type='stack')
+
+   Query ps1filenames.py service to get a list of images.
+
+   :param ra: Right ascension of position, in degrees.
+   :type ra: float
+   :param dec: Declination of position, in degrees.
+   :type dec: float
+   :param size: The image size in pixels (0.25 arcsec/pixel)
+   :type size: int
+   :param filters: A string with the filters to include
+   :type filters: str
+   :return: The results of the search for relevant images.
+   :rtype: Astropy Table
+
+
+.. py:function:: geturl(ra, dec, size=240, output_size=None, filters='grizy', format='jpg', color=False, type='stack')
+
+   Get the URL for images in the table.
+
+   :param ra: Right ascension of position, in degrees.
+   :type ra: float
+   :param dec: Declination of position, in degrees.
+   :type dec: float
+   :param size: The extracted image size in pixels (0.25 arcsec/pixel)
+   :type size: int
+   :param output_size: output (display) image size in pixels (default = size).
+       The output_size has no effect for fits format images.
+   :type output_size: int
+   :param filters: The string with filters to include.
+   :type filters: str
+   :param format: The data format (options are \"jpg\", \"png" or \"fits\").
+   :type format: str
+   :param color: If True, creates a color image (only for jpg or png format).
+       If False, return a list of URLs for single-filter grayscale images.
+   :type color: bool, optional
+   :return: The url for the image to download.
+   :rtype: str
+
+
+.. py:function:: get_ps1_pic(path, objid, ra, dec, size, band, safe=False, save=False)
+
+   Downloads PS1 picture (in fits) centered at a given location.
+
+   :param path: The filepath where the fits file will be saved.
+   :type path: str
+   :param objid: The PS1 objid of the object of interest (to save as filename).
+   :type objid: int
+   :param ra: Right ascension of position, in degrees.
+   :type ra: float
+   :param dec: Declination of position, in degrees.
+   :type dec: float
+   :param size: The extracted image size in pixels (0.25 arcsec/pixel)
+   :type size: int
+   :param band: The PS1 band.
+   :type band: str
+   :param safe: If True, include the objid of the object of interest in the filename
+       (useful when saving multiple files at comparable positions).
+   :type safe: bool, optional
+
+
+.. py:function:: find_all(name, path)
+
+   Crawls through a directory and all its sub-directories looking for a file matching
+      \'name\'. If found, it is returned.
+
+   :param name: The filename for which to search.
+   :type name: str
+   :param path: The directory to search.
+   :type path: str
+   :return: The list of absolute paths to all files called \'name\' in \'path\'.
+   :rtype: list
+
+
+.. py:function:: plot_match(host_ra, host_dec, true_host_ra, true_host_dec, host_z_mean, host_z_std, sn_ra, sn_dec, sn_name, sn_z, bayesflag, fn)
+
+   Short summary.
+
+   :param host_ra: Description of parameter `host_ra`.
+   :type host_ra: type
+   :param host_dec: Description of parameter `host_dec`.
+   :type host_dec: type
+   :param true_host_ra: Description of parameter `true_host_ra`.
+   :type true_host_ra: type
+   :param true_host_dec: Description of parameter `true_host_dec`.
+   :type true_host_dec: type
+   :param host_z_mean: Description of parameter `host_z_mean`.
+   :type host_z_mean: type
+   :param host_z_std: Description of parameter `host_z_std`.
+   :type host_z_std: type
+   :param sn_ra: Description of parameter `sn_ra`.
+   :type sn_ra: type
+   :param sn_dec: Description of parameter `sn_dec`.
+   :type sn_dec: type
+   :param sn_name: Description of parameter `sn_name`.
+   :type sn_name: type
+   :param sn_z: Description of parameter `sn_z`.
+   :type sn_z: type
+   :param bayesflag: Description of parameter `bayesflag`.
+   :type bayesflag: type
+   :param fn: Description of parameter `fn`.
+   :type fn: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: diagnose_ranking(true_index, post_probs, galaxy_catalog, post_offset, post_z, post_absmag, galaxy_ids, z_sn, sn_position, post_offset_true=None, post_z_true=None, post_absmag_true=None, verbose=False)
+
+   Short summary.
+
+   :param true_index: Description of parameter `true_index`.
+   :type true_index: type
+   :param post_probs: Description of parameter `post_probs`.
+   :type post_probs: type
+   :param galaxy_catalog: Description of parameter `galaxy_catalog`.
+   :type galaxy_catalog: type
+   :param post_offset: Description of parameter `post_offset`.
+   :type post_offset: type
+   :param post_z: Description of parameter `post_z`.
+   :type post_z: type
+   :param post_absmag: Description of parameter `post_absmag`.
+   :type post_absmag: type
+   :param galaxy_ids: Description of parameter `galaxy_ids`.
+   :type galaxy_ids: type
+   :param z_sn: Description of parameter `z_sn`.
+   :type z_sn: type
+   :param sn_position: Description of parameter `sn_position`.
+   :type sn_position: type
+   :param post_offset_true: Description of parameter `post_offset_true`.
+   :type post_offset_true: type
+   :param post_z_true: Description of parameter `post_z_true`.
+   :type post_z_true: type
+   :param post_absmag_true: Description of parameter `post_absmag_true`.
+   :type post_absmag_true: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+

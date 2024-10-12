@@ -1,0 +1,824 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>astro_prost.photoz_helpers &mdash; prost 0.1.dev0+d20241012 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8e33e34d"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=d07363f3"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            prost
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home page</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../autoapi/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../notebooks.html">Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">prost</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">astro_prost.photoz_helpers</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for astro_prost.photoz_helpers</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">codecs</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">tarfile</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">tensorflow</span> <span class="k">as</span> <span class="nn">tf</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span>
+<span class="kn">from</span> <span class="nn">sfdmap2</span> <span class="kn">import</span> <span class="n">sfdmap</span>
+
+<div class="viewcode-block" id="default_model_path">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.default_model_path">[docs]</a>
+<span class="n">default_model_path</span> <span class="o">=</span> <span class="s2">&quot;./MLP_lupton.hdf5&quot;</span></div>
+
+<div class="viewcode-block" id="default_dust_path">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.default_dust_path">[docs]</a>
+<span class="n">default_dust_path</span> <span class="o">=</span> <span class="s2">&quot;.&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="build_sfd_dir">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.build_sfd_dir">[docs]</a>
+<span class="k">def</span> <span class="nf">build_sfd_dir</span><span class="p">(</span><span class="n">file_path</span><span class="o">=</span><span class="s2">&quot;./sfddata-master.tar.gz&quot;</span><span class="p">,</span> <span class="n">data_dir</span><span class="o">=</span><span class="n">default_dust_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Downloads directory of Galactic dust maps for extinction correction.</span>
+<span class="sd">       [Schlegel, Finkbeiner and Davis (1998)](http://adsabs.harvard.edu/abs/1998ApJ...500..525S).</span>
+
+<span class="sd">    :param fname: Filename for dustmaps archive file.</span>
+<span class="sd">    :type fname: str</span>
+<span class="sd">    :param data_path: Target directory in which to extract &#39;sfddata-master&#39; directory from archive file.</span>
+<span class="sd">    :type data_path: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">target_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_dir</span><span class="p">,</span> <span class="s2">&quot;sfddata-master&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">target_dir</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;Dust map data directory &quot;</span><span class="si">{</span><span class="n">target_dir</span><span class="si">}</span><span class="s2">&quot; already exists.&quot;&quot;&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="c1"># Download the data archive file if it is not present</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://github.com/kbarbary/sfddata/archive/master.tar.gz&quot;</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">raw</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+    <span class="c1"># Extract the data files</span>
+    <span class="n">tar</span> <span class="o">=</span> <span class="n">tarfile</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+    <span class="n">tar</span><span class="o">.</span><span class="n">extractall</span><span class="p">(</span><span class="n">data_dir</span><span class="p">)</span>
+    <span class="n">tar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="c1"># Delete archive file</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Done creating dust directory.&quot;</span><span class="p">)</span>
+    <span class="k">return</span></div>
+
+
+
+<div class="viewcode-block" id="get_photoz_weights">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.get_photoz_weights">[docs]</a>
+<span class="k">def</span> <span class="nf">get_photoz_weights</span><span class="p">(</span><span class="n">file_path</span><span class="o">=</span><span class="n">default_model_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get weights for MLP photo-z model.</span>
+
+<span class="sd">    :param fname: Filename of saved MLP weights.</span>
+<span class="sd">    :type fname: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;photo-z weights file &quot;</span><span class="si">{</span><span class="n">file_path</span><span class="si">}</span><span class="s2">&quot; already exists.&quot;&quot;&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://uofi.box.com/shared/static/n1yiy818mv5b5riy2h3dg5yk2by3swos.hdf5&quot;</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">raw</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Done getting photo-z weights.&quot;</span><span class="p">)</span>
+    <span class="k">return</span></div>
+
+
+
+<div class="viewcode-block" id="ps1objidsearch">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.ps1objidsearch">[docs]</a>
+<span class="k">def</span> <span class="nf">ps1objidsearch</span><span class="p">(</span>
+    <span class="n">objid</span><span class="p">,</span>
+    <span class="n">table</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span>
+    <span class="n">release</span><span class="o">=</span><span class="s2">&quot;dr1&quot;</span><span class="p">,</span>
+    <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;csv&quot;</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">baseurl</span><span class="o">=</span><span class="s2">&quot;https://catalogs.mast.stsci.edu/api/v0.1/panstarrs&quot;</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kw</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Do an object lookup by objid.</span>
+
+<span class="sd">    :param objid: list of objids (or dictionary?)</span>
+<span class="sd">    :type objid: List of objids</span>
+<span class="sd">    :param table: Can be \\&#39;mean\\&#39;, \\&#39;stack\\&#39;, or \\&#39;detection\\&#39;.</span>
+<span class="sd">    :type table: str</span>
+<span class="sd">    :param release: Can be &#39;dr1&#39; or &#39;dr2&#39;.</span>
+<span class="sd">    :type release: str</span>
+<span class="sd">    :param format: Can be &#39;csv&#39;, &#39;votable&#39;, or &#39;json&#39;</span>
+<span class="sd">    :type format: str</span>
+<span class="sd">    :param columns: list of column names to include (None means use defaults)</span>
+<span class="sd">    :type columns: arrray-like</span>
+<span class="sd">    :param baseurl: base URL for the request</span>
+<span class="sd">    :type baseurl: str</span>
+<span class="sd">    :param verbose: print info about request</span>
+<span class="sd">    :type verbose: bool,optional</span>
+<span class="sd">    :param \\*\\*kw: other parameters (e.g., &#39;nDetections.min&#39;:2)</span>
+<span class="sd">    :type \\*\\*kw: dictionary</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># this is a dictionary... we want a list of dictionaries</span>
+    <span class="n">objid</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">objid</span><span class="p">)</span>
+
+    <span class="n">data_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">kw</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">objid</span><span class="p">))]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_list</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">objid</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data_list</span><span class="p">)):</span>
+        <span class="n">data_list</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s2">&quot;objid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">objid</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+    <span class="n">datas</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">objid</span><span class="p">)):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">ps1search</span><span class="p">(</span>
+            <span class="n">table</span><span class="o">=</span><span class="n">table</span><span class="p">,</span>
+            <span class="n">release</span><span class="o">=</span><span class="n">release</span><span class="p">,</span>
+            <span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span>
+            <span class="n">baseurl</span><span class="o">=</span><span class="n">baseurl</span><span class="p">,</span>
+            <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">data_list</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+        <span class="p">)</span>
+
+        <span class="n">datas</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">datas</span></div>
+
+
+
+<div class="viewcode-block" id="fetch_information_serially">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.fetch_information_serially">[docs]</a>
+<span class="k">def</span> <span class="nf">fetch_information_serially</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;csv&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A helper function called by serial_objid_search-- Queries PanStarrs API for data.</span>
+
+<span class="sd">    :param url: Remote PS1 url.</span>
+<span class="sd">    :type url: str</span>
+<span class="sd">    :param data: List of objids requesting</span>
+<span class="sd">    :type data: list</span>
+<span class="sd">    :param verbose: If True,</span>
+<span class="sd">    :type verbose: bool, optional</span>
+<span class="sd">    :param format: Can be \\&#39;csv\\&#39;, \\&#39;json\\&#39;, or \\&#39;votable\\&#39;.</span>
+<span class="sd">    :type format: str</span>
+<span class="sd">    :return:</span>
+<span class="sd">    :rtype: str in format given by \\&#39;format\\&#39;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">url</span><span class="p">)):</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">params</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+        <span class="n">r</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">format</span> <span class="o">==</span> <span class="s2">&quot;json&quot;</span><span class="p">:</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">results</span></div>
+
+
+
+<div class="viewcode-block" id="checklegal">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.checklegal">[docs]</a>
+<span class="k">def</span> <span class="nf">checklegal</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">release</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Checks if this combination of table and release is acceptable.</span>
+<span class="sd">       Raises a ValueError exception if there is problem.</span>
+
+<span class="sd">    :param table: Table type. Can be \\&#39;mean\\&#39;, \\&#39;stack\\&#39;, or \\&#39;detection\\&#39;</span>
+<span class="sd">    :type table: str</span>
+<span class="sd">    :param release: The Pan-STARRS data release. Can be \\&#39;dr1\\&#39; or \\&#39;dr2\\&#39;.</span>
+<span class="sd">    :type release: str</span>
+<span class="sd">    :raises ValueError: Raises error if table and release combination are invalid.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">releaselist</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;dr1&quot;</span><span class="p">,</span> <span class="s2">&quot;dr2&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">release</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;dr1&quot;</span><span class="p">,</span> <span class="s2">&quot;dr2&quot;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Bad value for release (must be one of </span><span class="si">{}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">releaselist</span><span class="p">)))</span>
+    <span class="n">tablelist</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;stack&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">release</span> <span class="o">==</span> <span class="s2">&quot;dr1&quot;</span> <span class="k">else</span> <span class="p">(</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;stack&quot;</span><span class="p">,</span> <span class="s2">&quot;detection&quot;</span><span class="p">,</span> <span class="s2">&quot;forced_mean&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">table</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tablelist</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Bad value for table (for </span><span class="si">{}</span><span class="s2"> must be one of </span><span class="si">{}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">release</span><span class="p">,</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tablelist</span><span class="p">))</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ps1search">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.ps1search">[docs]</a>
+<span class="k">def</span> <span class="nf">ps1search</span><span class="p">(</span>
+    <span class="n">table</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span>
+    <span class="n">release</span><span class="o">=</span><span class="s2">&quot;dr1&quot;</span><span class="p">,</span>
+    <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;csv&quot;</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">baseurl</span><span class="o">=</span><span class="s2">&quot;https://catalogs.mast.stsci.edu/api/v0.1/panstarrs&quot;</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kw</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Do a general search of the PS1 catalog (possibly without ra/dec/radius).</span>
+
+<span class="sd">    :param table: Table type. Can be \\&#39;mean\\&#39;, \\&#39;stack\\&#39;, or \\&#39;detection\\&#39;</span>
+<span class="sd">    :type table: str</span>
+<span class="sd">    :param release: The Pan-STARRS data release. Can be \\&#39;dr1\\&#39; or &#39;dr2\\&#39;.</span>
+<span class="sd">    :type release: str</span>
+<span class="sd">    :param format: Can be \\&#39;csv\\&#39;, \\&#39;votable\\&#39;, or \\&#39;json\\&#39;.</span>
+<span class="sd">    :type format: str</span>
+<span class="sd">    :param columns: Column names to include (None means use defaults).</span>
+<span class="sd">    :type columns: str</span>
+<span class="sd">    :param baseurl: Base URL for the request.</span>
+<span class="sd">    :type baseurl: str</span>
+<span class="sd">    :param verbose: If true, print info about request.</span>
+<span class="sd">    :type verbose: bool</span>
+<span class="sd">    :param \\*\\*kw: Other parameters (e.g., \\&#39;nDetections.min\\&#39;:2).  Note that this is required!</span>
+<span class="sd">    :type \\*\\*kw: dictionary</span>
+<span class="sd">    :return: Result of PS1 query, in \\&#39;csv\\&#39;, \\&#39;votable\\&#39;, or \\&#39;json\\&#39; format.</span>
+<span class="sd">    :rtype: Same as \\&#39;format\\&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">kw</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You must specify some parameters for search&quot;</span><span class="p">)</span>
+    <span class="n">checklegal</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">release</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">format</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;csv&quot;</span><span class="p">,</span> <span class="s2">&quot;votable&quot;</span><span class="p">,</span> <span class="s2">&quot;json&quot;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Bad value for format&quot;</span><span class="p">)</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{baseurl}</span><span class="s2">/</span><span class="si">{release}</span><span class="s2">/</span><span class="si">{table}</span><span class="s2">.</span><span class="si">{format}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="nb">locals</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">columns</span><span class="p">:</span>
+        <span class="c1"># check that column values are legal</span>
+        <span class="c1"># create a dictionary to speed this up</span>
+        <span class="n">dcols</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">ps1metadata</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">release</span><span class="p">)[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span>
+            <span class="n">dcols</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">lower</span><span class="p">()]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">badcols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dcols</span><span class="p">:</span>
+                <span class="n">badcols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">badcols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Some columns not found in table: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">badcols</span><span class="p">)))</span>
+        <span class="c1"># two different ways to specify a list of column values in the API</span>
+        <span class="n">data</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;[</span><span class="si">{}</span><span class="s2">]&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">columns</span><span class="p">))</span>
+
+    <span class="c1"># either get or post works</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+    <span class="n">r</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">format</span> <span class="o">==</span> <span class="s2">&quot;json&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">r</span><span class="o">.</span><span class="n">text</span></div>
+
+
+
+<div class="viewcode-block" id="ps1metadata">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.ps1metadata">[docs]</a>
+<span class="k">def</span> <span class="nf">ps1metadata</span><span class="p">(</span><span class="n">table</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="s2">&quot;dr1&quot;</span><span class="p">,</span> <span class="n">baseurl</span><span class="o">=</span><span class="s2">&quot;https://catalogs.mast.stsci.edu/api/v0.1/panstarrs&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return metadata for the specified catalog and table. Snagged from the</span>
+<span class="sd">       wonderful API at https://ps1images.stsci.edu/ps1_dr2_api.html.</span>
+
+<span class="sd">    :param table: Table type. Can be \\&#39;mean\\&#39;, \\&#39;stack\\&#39;, or \\&#39;detection\\&#39;</span>
+<span class="sd">    :type table: str</span>
+<span class="sd">    :param release: The Pan-STARRS data release. Can be \\&#39;dr1\\&#39; or \\&#39;dr2\\&#39;.</span>
+<span class="sd">    :type release: str</span>
+<span class="sd">    :param baseurl: Base URL for the request.</span>
+<span class="sd">    :type baseurl: str</span>
+<span class="sd">    :return: Table with columns name, type, description.</span>
+<span class="sd">    :rtype: Astropy Table</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">checklegal</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">release</span><span class="p">)</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">baseurl</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">release</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">table</span><span class="si">}</span><span class="s2">/metadata&quot;</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="n">r</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="c1"># convert to astropy table</span>
+    <span class="n">tab</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span>
+        <span class="n">rows</span><span class="o">=</span><span class="p">[(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="s2">&quot;description&quot;</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">v</span><span class="p">],</span> <span class="n">names</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">tab</span></div>
+
+
+
+<div class="viewcode-block" id="post_url_serial">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.post_url_serial">[docs]</a>
+<span class="k">def</span> <span class="nf">post_url_serial</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">yse_id</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A helper function called by serial_objid_search.</span>
+<span class="sd">       Post-processes the data retrieved from PS1 Servers into a pandas.DataFrame object.</span>
+
+<span class="sd">    :param results: The string resulting from PS1 query.</span>
+<span class="sd">    :type results: str</span>
+<span class="sd">    :param yse_id: local integer used for as an index tracking user objects vs retrived objects.</span>
+<span class="sd">    :type yse_id: int</span>
+<span class="sd">    :return: DataFrame object of the retrieved data from PS1 servers</span>
+<span class="sd">    :rtype: pandas.DataFrame</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">codecs</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="s2">&quot;UTF-8&quot;</span><span class="p">)</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\r\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">]</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">columns</span><span class="o">=</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
+    <span class="n">df</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">))</span> <span class="o">*</span> <span class="n">yse_id</span>
+    <span class="k">return</span> <span class="n">df</span></div>
+
+
+
+<div class="viewcode-block" id="serial_objid_search">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.serial_objid_search">[docs]</a>
+<span class="k">def</span> <span class="nf">serial_objid_search</span><span class="p">(</span>
+    <span class="n">objids</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;forced_mean&quot;</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="s2">&quot;dr2&quot;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">constraints</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a list of ObjIDs, queries the PS1 server these object&#39;s Forced Mean Photometry,</span>
+<span class="sd">        then returns matches as a pandas.DataFrame.</span>
+
+<span class="sd">    :param objids: list of PS1 objids for objects user would like to query</span>
+<span class="sd">    :type objids: list</span>
+<span class="sd">    :param table: Which table to perform the query on. Default &#39;forced_mean&#39;</span>
+<span class="sd">    :type table: str</span>
+<span class="sd">    :param release: Which release to perform the query on. Default &#39;dr2&#39;</span>
+<span class="sd">    :type release: str</span>
+<span class="sd">    :param columns: list of what data fields to include; None means use default columns. Default None</span>
+<span class="sd">    :type columns: list or None</span>
+<span class="sd">    :param verbose: boolean setting level of feedback user received. default False</span>
+<span class="sd">    :type verbose: bool</span>
+<span class="sd">    :param \\*\\*constraints: Keyword dictionary with an additional constraints for the PS1 query</span>
+<span class="sd">    :type \\*\\*constraints: dict</span>
+<span class="sd">    :return: list of pd.DataFrame objects. If a match was found, then the Dataframe contains data,</span>
+<span class="sd">              else it only contains a local integer.</span>
+<span class="sd">    :rtype: pd.DataFrame</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">match</span> <span class="o">=</span> <span class="n">ps1objidsearch</span><span class="p">(</span>
+        <span class="n">objid</span><span class="o">=</span><span class="n">objids</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;forced_mean&quot;</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="n">release</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span> <span class="o">**</span><span class="n">constraints</span>
+    <span class="p">)</span>
+    <span class="c1"># Return = fetch_information_serially(URLS,DATAS)</span>
+    <span class="n">dfs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">match</span><span class="p">)):</span>
+        <span class="n">dfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">post_url_serial</span><span class="p">(</span><span class="n">match</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">i</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">dfs</span></div>
+
+
+
+<div class="viewcode-block" id="get_common_constraints_columns">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.get_common_constraints_columns">[docs]</a>
+<span class="k">def</span> <span class="nf">get_common_constraints_columns</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper function that returns a dictionary of constraints used for the</span>
+<span class="sd">       matching objects in PS1 archive, and the columns of data we requre.</span>
+
+<span class="sd">    :return: dictionary with our constaint that we must have more than one detection</span>
+<span class="sd">    :rtype: dict</span>
+<span class="sd">    :return: List of PS1 fields required for matching and NN inputs</span>
+<span class="sd">    :rtype: list</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">constraints</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;nDetections.gt&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+    <span class="c1"># objects with n_detection=1 sometimes just an artifact.</span>
+    <span class="c1"># strip blanks and weed out blank and commented-out values</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;objid, raMean, decMean, gFKronFlux, rFKronFlux, iFKronFlux, zFKronFlux, yFKronFlux,</span>
+<span class="s2">    gFPSFFlux, rFPSFFlux, iFPSFFlux, zFPSFFlux, yFPSFFlux,</span>
+<span class="s2">    gFApFlux, rFApFlux, iFApFlux, zFApFlux, yFApFlux,</span>
+<span class="s2">    gFmeanflxR5, rFmeanflxR5, iFmeanflxR5, zFmeanflxR5, yFmeanflxR5,</span>
+<span class="s2">    gFmeanflxR6, rFmeanflxR6, iFmeanflxR6, zFmeanflxR6, yFmeanflxR6,</span>
+<span class="s2">    gFmeanflxR7, rFmeanflxR7, iFmeanflxR7, zFmeanflxR7, yFmeanflxR7&quot;&quot;&quot;</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">columns</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;#&quot;</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="n">constraints</span><span class="p">,</span> <span class="n">columns</span></div>
+
+
+
+<div class="viewcode-block" id="preprocess">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.preprocess">[docs]</a>
+<span class="k">def</span> <span class="nf">preprocess</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;../data/sfddata-master/&quot;</span><span class="p">,</span> <span class="n">ebv</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Preprocesses the data inside pandas.DataFrame object</span>
+<span class="sd">       returned by serial_objid_search to the space of inputs of our Neural Network.</span>
+
+<span class="sd">    :param df: Dataframe object containing the data for each matched objid</span>
+<span class="sd">    :type df: pandas DataFrame</span>
+<span class="sd">    :param path: string path to extinction maps data</span>
+<span class="sd">    :type path: str</span>
+<span class="sd">    :param ebv: boolean for lookup of extinction data. If False, all extinctions set to 0.</span>
+<span class="sd">    :type ebv: False</span>
+<span class="sd">    :return: Preprocessed inputs ready to be used as input to NN</span>
+<span class="sd">    :rtype: numpy ndarray</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">ebv</span><span class="p">:</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">sfdmap</span><span class="o">.</span><span class="n">SFDMap</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="s2">&quot;raMean&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="s2">&quot;decMean&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">),</span> <span class="p">(</span>
+            <span class="s2">&quot;DustMap query failed because the expected coordinates didnt&quot;</span>
+            <span class="s2">&quot;exist in df, likely the match of any Hosts into PanStarrs failed&quot;</span>
+        <span class="p">)</span>
+        <span class="n">ebv</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">ebv</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;raMean&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;decMean&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span>
+
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;ebv&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ebv</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;ebv&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+    <span class="k">def</span> <span class="nf">convert_flux_to_luptitude</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">f_0</span><span class="o">=</span><span class="mi">3631</span><span class="p">):</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mf">2.5</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arcsinh</span><span class="p">((</span><span class="n">f</span> <span class="o">/</span> <span class="n">f_0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">b</span><span class="p">))</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
+
+    <span class="n">b_g</span> <span class="o">=</span> <span class="mf">1.7058474723241624e-09</span>
+    <span class="n">b_r</span> <span class="o">=</span> <span class="mf">4.65521985283191e-09</span>
+    <span class="n">b_i</span> <span class="o">=</span> <span class="mf">1.2132217745483221e-08</span>
+    <span class="n">b_z</span> <span class="o">=</span> <span class="mf">2.013446972858555e-08</span>
+    <span class="n">b_y</span> <span class="o">=</span> <span class="mf">5.0575501316874416e-08</span>
+
+    <span class="n">means</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="mf">18.70654578</span><span class="p">,</span>
+            <span class="mf">17.77948707</span><span class="p">,</span>
+            <span class="mf">17.34226094</span><span class="p">,</span>
+            <span class="mf">17.1227873</span><span class="p">,</span>
+            <span class="mf">16.92087669</span><span class="p">,</span>
+            <span class="mf">19.73947441</span><span class="p">,</span>
+            <span class="mf">18.89279411</span><span class="p">,</span>
+            <span class="mf">18.4077393</span><span class="p">,</span>
+            <span class="mf">18.1311733</span><span class="p">,</span>
+            <span class="mf">17.64741402</span><span class="p">,</span>
+            <span class="mf">19.01595669</span><span class="p">,</span>
+            <span class="mf">18.16447837</span><span class="p">,</span>
+            <span class="mf">17.73199409</span><span class="p">,</span>
+            <span class="mf">17.50486095</span><span class="p">,</span>
+            <span class="mf">17.20389615</span><span class="p">,</span>
+            <span class="mf">19.07834251</span><span class="p">,</span>
+            <span class="mf">18.16996592</span><span class="p">,</span>
+            <span class="mf">17.71492073</span><span class="p">,</span>
+            <span class="mf">17.44861273</span><span class="p">,</span>
+            <span class="mf">17.15508793</span><span class="p">,</span>
+            <span class="mf">18.79100201</span><span class="p">,</span>
+            <span class="mf">17.89569908</span><span class="p">,</span>
+            <span class="mf">17.45774026</span><span class="p">,</span>
+            <span class="mf">17.20338482</span><span class="p">,</span>
+            <span class="mf">16.93640741</span><span class="p">,</span>
+            <span class="mf">18.62759241</span><span class="p">,</span>
+            <span class="mf">17.7453392</span><span class="p">,</span>
+            <span class="mf">17.31341498</span><span class="p">,</span>
+            <span class="mf">17.06194499</span><span class="p">,</span>
+            <span class="mf">16.79030564</span><span class="p">,</span>
+            <span class="mf">0.02543223</span><span class="p">,</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">stds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="mf">1.7657395</span><span class="p">,</span>
+            <span class="mf">1.24853534</span><span class="p">,</span>
+            <span class="mf">1.08151972</span><span class="p">,</span>
+            <span class="mf">1.03490545</span><span class="p">,</span>
+            <span class="mf">0.87252421</span><span class="p">,</span>
+            <span class="mf">1.32486758</span><span class="p">,</span>
+            <span class="mf">0.9222839</span><span class="p">,</span>
+            <span class="mf">0.73701807</span><span class="p">,</span>
+            <span class="mf">0.65002723</span><span class="p">,</span>
+            <span class="mf">0.41779001</span><span class="p">,</span>
+            <span class="mf">1.51554956</span><span class="p">,</span>
+            <span class="mf">1.05734494</span><span class="p">,</span>
+            <span class="mf">0.89939638</span><span class="p">,</span>
+            <span class="mf">0.82754093</span><span class="p">,</span>
+            <span class="mf">0.63381611</span><span class="p">,</span>
+            <span class="mf">1.48411417</span><span class="p">,</span>
+            <span class="mf">1.05425943</span><span class="p">,</span>
+            <span class="mf">0.89979008</span><span class="p">,</span>
+            <span class="mf">0.83934385</span><span class="p">,</span>
+            <span class="mf">0.64990996</span><span class="p">,</span>
+            <span class="mf">1.54735158</span><span class="p">,</span>
+            <span class="mf">1.10985163</span><span class="p">,</span>
+            <span class="mf">0.96460099</span><span class="p">,</span>
+            <span class="mf">0.90685922</span><span class="p">,</span>
+            <span class="mf">0.74507053</span><span class="p">,</span>
+            <span class="mf">1.57813401</span><span class="p">,</span>
+            <span class="mf">1.14290345</span><span class="p">,</span>
+            <span class="mf">1.00162105</span><span class="p">,</span>
+            <span class="mf">0.94634726</span><span class="p">,</span>
+            <span class="mf">0.80124359</span><span class="p">,</span>
+            <span class="mf">0.01687839</span><span class="p">,</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">data_columns</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">&quot;gFKronFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;rFKronFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;iFKronFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;zFKronFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;yFKronFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;gFPSFFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;rFPSFFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;iFPSFFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;zFPSFFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;yFPSFFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;gFApFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;rFApFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;iFApFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;zFApFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;yFApFlux&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;gFmeanflxR5&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;rFmeanflxR5&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;iFmeanflxR5&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;zFmeanflxR5&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;yFmeanflxR5&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;gFmeanflxR6&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;rFmeanflxR6&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;iFmeanflxR6&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;zFmeanflxR6&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;yFmeanflxR6&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;gFmeanflxR7&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;rFmeanflxR7&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;iFmeanflxR7&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;zFmeanflxR7&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;yFmeanflxR7&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;ebv&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">data_columns</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_flux_to_luptitude</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">],</span> <span class="n">b</span><span class="o">=</span><span class="n">b_g</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_flux_to_luptitude</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">],</span> <span class="n">b</span><span class="o">=</span><span class="n">b_r</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_flux_to_luptitude</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">],</span> <span class="n">b</span><span class="o">=</span><span class="n">b_i</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_flux_to_luptitude</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">],</span> <span class="n">b</span><span class="o">=</span><span class="n">b_z</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_flux_to_luptitude</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">5</span><span class="p">],</span> <span class="n">b</span><span class="o">=</span><span class="n">b_y</span><span class="p">)</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">means</span><span class="p">)</span> <span class="o">/</span> <span class="n">stds</span>
+    <span class="n">x</span><span class="p">[</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">20</span><span class="p">]</span> <span class="o">=</span> <span class="mi">20</span>
+    <span class="n">x</span><span class="p">[</span><span class="n">x</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mi">20</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">20</span>
+    <span class="n">x</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">x</span><span class="p">)]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">20</span>
+
+    <span class="k">return</span> <span class="n">x</span></div>
+
+
+
+<div class="viewcode-block" id="load_lupton_model">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.load_lupton_model">[docs]</a>
+<span class="k">def</span> <span class="nf">load_lupton_model</span><span class="p">(</span><span class="n">model_path</span><span class="o">=</span><span class="n">default_model_path</span><span class="p">,</span> <span class="n">dust_path</span><span class="o">=</span><span class="n">default_dust_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper function that defines and loads the weights of our NN model and the output space of the NN.</span>
+
+<span class="sd">    :param model_path: path to the model weights.</span>
+<span class="sd">    :type model_path: str</span>
+<span class="sd">    :param dust_path: path to dust map data files.</span>
+<span class="sd">    :type dust_path: str</span>
+<span class="sd">    :return: Trained photo-z MLP.</span>
+<span class="sd">    :rtype: tensorflow keras Model</span>
+<span class="sd">    :return: Array of binned redshift space corresponding to the output space of the NN</span>
+<span class="sd">    :rtype: numpy ndarray</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">build_sfd_dir</span><span class="p">(</span><span class="n">data_dir</span><span class="o">=</span><span class="n">dust_path</span><span class="p">)</span>
+    <span class="n">get_photoz_weights</span><span class="p">(</span><span class="n">file_path</span><span class="o">=</span><span class="n">model_path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">model</span><span class="p">():</span>
+        <span class="nb">input</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">input</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">31</span><span class="p">,))</span>
+
+        <span class="n">dense1</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span>
+            <span class="mi">256</span><span class="p">,</span>
+            <span class="n">activation</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+            <span class="n">kernel_initializer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">he_normal</span><span class="p">(),</span>
+            <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">regularizers</span><span class="o">.</span><span class="n">l2</span><span class="p">(</span><span class="mf">1e-5</span><span class="p">),</span>
+        <span class="p">)(</span><span class="nb">input</span><span class="p">)</span>
+        <span class="n">drop1</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)(</span><span class="n">dense1</span><span class="p">)</span>
+
+        <span class="n">dense2</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span>
+            <span class="mi">1024</span><span class="p">,</span>
+            <span class="n">activation</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+            <span class="n">kernel_initializer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">he_normal</span><span class="p">(),</span>
+            <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">regularizers</span><span class="o">.</span><span class="n">l2</span><span class="p">(</span><span class="mf">1e-5</span><span class="p">),</span>
+        <span class="p">)(</span><span class="n">drop1</span><span class="p">)</span>
+        <span class="n">drop2</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)(</span><span class="n">dense2</span><span class="p">)</span>
+
+        <span class="n">dense3</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span>
+            <span class="mi">1024</span><span class="p">,</span>
+            <span class="n">activation</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+            <span class="n">kernel_initializer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">he_normal</span><span class="p">(),</span>
+            <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">regularizers</span><span class="o">.</span><span class="n">l2</span><span class="p">(</span><span class="mf">1e-5</span><span class="p">),</span>
+        <span class="p">)(</span><span class="n">drop2</span><span class="p">)</span>
+        <span class="n">drop3</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)(</span><span class="n">dense3</span><span class="p">)</span>
+
+        <span class="n">dense4</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span>
+            <span class="mi">1024</span><span class="p">,</span>
+            <span class="n">activation</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+            <span class="n">kernel_initializer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">he_normal</span><span class="p">(),</span>
+            <span class="n">kernel_regularizer</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">regularizers</span><span class="o">.</span><span class="n">l2</span><span class="p">(</span><span class="mf">1e-5</span><span class="p">),</span>
+        <span class="p">)(</span><span class="n">drop3</span><span class="p">)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span><span class="mi">360</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">activations</span><span class="o">.</span><span class="n">softmax</span><span class="p">)(</span><span class="n">dense4</span><span class="p">)</span>
+
+        <span class="n">model</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">keras</span><span class="o">.</span><span class="n">Model</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">model</span>
+
+    <span class="n">mymodel</span> <span class="o">=</span> <span class="n">model</span><span class="p">()</span>
+    <span class="n">mymodel</span><span class="o">.</span><span class="n">load_weights</span><span class="p">(</span><span class="n">model_path</span><span class="p">)</span>
+
+    <span class="n">nb_bins</span> <span class="o">=</span> <span class="mi">360</span>
+    <span class="n">zmin</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">zmax</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">range_z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">zmin</span><span class="p">,</span> <span class="n">zmax</span><span class="p">,</span> <span class="n">nb_bins</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)[:</span><span class="n">nb_bins</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">mymodel</span><span class="p">,</span> <span class="n">range_z</span></div>
+
+
+
+<div class="viewcode-block" id="evaluate">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.evaluate">[docs]</a>
+<span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">mymodel</span><span class="p">,</span> <span class="n">range_z</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate the MLP for a set of PS1 inputs, and return predictions.</span>
+
+<span class="sd">    :param x: PS1 properties of associated hosts.</span>
+<span class="sd">    :type x: array-like</span>
+<span class="sd">    :param mymodel: MLP model for photo-z estimation.</span>
+<span class="sd">    :type mymodel: tensorflow keras Model</span>
+<span class="sd">    :param range_z: Grid over which to evaluate the posterior distribution of photo-zs.</span>
+<span class="sd">    :type range_z: array-like</span>
+
+<span class="sd">    :return: Posterior distributions for the grid of redshifts defined as</span>
+<span class="sd">        \\`np.linspace(0, 1, n)\\`</span>
+<span class="sd">    :rtype: numpy ndarray shape of (df.shape[0], n)</span>
+<span class="sd">    :return: means</span>
+<span class="sd">    :rtype: numpy ndarray shape of (df.shape[0],)</span>
+<span class="sd">    :return: Standard deviations</span>
+<span class="sd">    :rtype: numpy ndarray shape of (df.shape[0],)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">posteriors</span> <span class="o">=</span> <span class="n">mymodel</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">point_estimates</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">posteriors</span> <span class="o">*</span> <span class="n">range_z</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">posteriors</span><span class="p">)):</span>
+        <span class="n">posteriors</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">posteriors</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">errors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">posteriors</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">posteriors</span><span class="p">)):</span>
+        <span class="n">errors</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="n">range_z</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">posteriors</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">replace</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">posteriors</span><span class="p">,</span> <span class="n">point_estimates</span><span class="p">,</span> <span class="n">errors</span></div>
+
+
+
+<span class="c1">#&#39;id&#39; column in df is the 0th ordered index of hosts. missing rows are therefore signalled</span>
+<span class="c1">#    by skipped numbers in index</span>
+<div class="viewcode-block" id="calc_photoz">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.calc_photoz">[docs]</a>
+<span class="k">def</span> <span class="nf">calc_photoz</span><span class="p">(</span><span class="n">hosts</span><span class="p">,</span> <span class="n">dust_path</span><span class="o">=</span><span class="n">default_dust_path</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="n">default_model_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;PhotoZ beta: not tested for missing objids.</span>
+<span class="sd">       photo-z uses a artificial neural network to estimate P(Z) in range Z = (0 - 1)</span>
+<span class="sd">       range_z is the value of z</span>
+<span class="sd">       posterior is an estimate PDF of the probability of z</span>
+<span class="sd">       point estimate uses the mean to find a single value estimate</span>
+<span class="sd">       error is an array that uses sampling from the posterior to estimate a std dev.</span>
+<span class="sd">       Relies upon the sfdmap package, (which is compatible with both unix and windows),</span>
+<span class="sd">       found at https://github.com/kbarbary/sfdmap.</span>
+
+<span class="sd">    :param hosts: The matched hosts from GHOST.</span>
+<span class="sd">    :type hosts: pandas DataFrame</span>
+<span class="sd">    :return: The matched hosts from GHOST, with photo-z point estimates and uncertainties.</span>
+<span class="sd">    :rtype: pandas DataFrame</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">nansum</span><span class="p">(</span><span class="n">hosts</span><span class="p">[</span><span class="s2">&quot;decMean&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mi">30</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="s2">&quot;ERROR! Photo-z estimator has not yet been implemented for southern-hemisphere sources.&quot;</span>
+            <span class="s2">&quot;Please remove sources below dec=-30d and try again.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">hosts</span>
+    <span class="n">objids</span> <span class="o">=</span> <span class="n">hosts</span><span class="p">[</span><span class="s2">&quot;objid&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">constraints</span><span class="p">,</span> <span class="n">columns</span> <span class="o">=</span> <span class="n">get_common_constraints_columns</span><span class="p">()</span>
+    <span class="n">dfs</span> <span class="o">=</span> <span class="n">serial_objid_search</span><span class="p">(</span><span class="n">objids</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="o">**</span><span class="n">constraints</span><span class="p">)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">dfs</span><span class="p">)</span>
+
+    <span class="n">posteriors</span><span class="p">,</span> <span class="n">point_estimates</span><span class="p">,</span> <span class="n">errors</span> <span class="o">=</span> <span class="n">get_photoz</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">dust_path</span><span class="o">=</span><span class="n">dust_path</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="n">model_path</span><span class="p">)</span>
+    <span class="n">successids</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;objid&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">hosts</span><span class="p">[</span><span class="s2">&quot;objid&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">successids</span><span class="p">)</span>
+
+    <span class="c1"># Map successids to point_estimates and errors using pandas&#39; Series and set these values</span>
+    <span class="n">id_to_point</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">point_estimates</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">successids</span><span class="p">)</span>
+    <span class="n">id_to_error</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">errors</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">successids</span><span class="p">)</span>
+
+    <span class="c1"># Use the mask to update values in &#39;z_phot_point&#39; and &#39;z_phot_err&#39; columns</span>
+    <span class="n">hosts</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="s2">&quot;z_phot_point&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hosts</span><span class="p">[</span><span class="s2">&quot;objid&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">id_to_point</span><span class="p">)</span>
+    <span class="n">hosts</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="s2">&quot;z_phot_err&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hosts</span><span class="p">[</span><span class="s2">&quot;objid&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">id_to_error</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">successids</span><span class="p">,</span> <span class="n">hosts</span><span class="p">,</span> <span class="n">posteriors</span></div>
+
+
+
+<div class="viewcode-block" id="get_photoz">
+<a class="viewcode-back" href="../../autoapi/astro_prost/photoz_helpers/index.html#astro_prost.photoz_helpers.get_photoz">[docs]</a>
+<span class="k">def</span> <span class="nf">get_photoz</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">dust_path</span><span class="o">=</span><span class="n">default_dust_path</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="n">default_model_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate photo-z model for Pan-STARRS forced photometry.</span>
+
+<span class="sd">    :param df: Pan-STARRS forced mean photometry data, you can get it using</span>
+<span class="sd">        \\`ps1objidsearch\\` from this module, Pan-STARRS web-portal or via</span>
+<span class="sd">        astroquery i.e., \\`astroquery.mast.Catalogs.query_{criteria,region}(...,</span>
+<span class="sd">        catalog=\\&#39;Panstarrs\\&#39;,table=\\&#39;forced_mean\\&#39;)\\`</span>
+<span class="sd">    :type df: pandas DataFrame</span>
+<span class="sd">    :param dust_path: Path to dust map data files</span>
+<span class="sd">    :type dust_path: str</span>
+<span class="sd">    :param model_path: path to the data file with weights for MLP photo-z model</span>
+<span class="sd">    :type model_path: str</span>
+<span class="sd">    :return: Posterior distributions for the grid of redshifts defined as</span>
+<span class="sd">        \\`np.linspace(0, 1, n)\\`</span>
+<span class="sd">    :rtype: numpy ndarray shape of (df.shape[0], n)</span>
+<span class="sd">    :return: means</span>
+<span class="sd">    :rtype: numpy ndarray shape of (df.shape[0],)</span>
+<span class="sd">    :return: Standard deviations</span>
+<span class="sd">    :rtype: numpy ndarray shape of (df.shape[0],)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># The function load_lupton_model downloads the necessary dust models and</span>
+    <span class="c1"># weights from the ghost server.</span>
+
+    <span class="n">model</span><span class="p">,</span> <span class="n">range_z</span> <span class="o">=</span> <span class="n">load_lupton_model</span><span class="p">(</span><span class="n">model_path</span><span class="o">=</span><span class="n">model_path</span><span class="p">,</span> <span class="n">dust_path</span><span class="o">=</span><span class="n">dust_path</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">preprocess</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dust_path</span><span class="p">,</span> <span class="s2">&quot;sfddata-master&quot;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">range_z</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Alex Gagliano.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

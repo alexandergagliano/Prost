@@ -1,0 +1,1173 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>astro_prost.helpers &mdash; prost 0.1.dev0+d20241012 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=8e33e34d"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=d07363f3"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="astro_prost.photoz_helpers" href="../photoz_helpers/index.html" />
+    <link rel="prev" title="astro_prost.diagnose" href="../diagnose/index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            prost
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Home page</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">astro_prost</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../index.html#submodules">Submodules</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="../associate/index.html">astro_prost.associate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../demo/index.html">astro_prost.demo</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnose/index.html">astro_prost.diagnose</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">astro_prost.helpers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../photoz_helpers/index.html">astro_prost.photoz_helpers</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../index.html#functions">Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../index.html#package-contents">Package Contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../notebooks.html">Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">prost</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">API Reference</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">astro_prost</a></li>
+      <li class="breadcrumb-item active">astro_prost.helpers</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-astro_prost.helpers">
+<span id="astro-prost-helpers"></span><h1>astro_prost.helpers<a class="headerlink" href="#module-astro_prost.helpers" title="Link to this heading"></a></h1>
+<section id="classes">
+<h2>Classes<a class="headerlink" href="#classes" title="Link to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.helpers.GalaxyCatalog" title="astro_prost.helpers.GalaxyCatalog"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GalaxyCatalog</span></code></a></p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#astro_prost.helpers.Transient" title="astro_prost.helpers.Transient"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Transient</span></code></a></p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.helpers.PriorzObservedTransients" title="astro_prost.helpers.PriorzObservedTransients"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PriorzObservedTransients</span></code></a></p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#astro_prost.helpers.SnRateAbsmag" title="astro_prost.helpers.SnRateAbsmag"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SnRateAbsmag</span></code></a></p></td>
+<td><p>Short summary.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.helpers.ps1cone" title="astro_prost.helpers.ps1cone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ps1cone</span></code></a>(ra, dec, radius[, table, release, format, ...])</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#astro_prost.helpers.ps1search" title="astro_prost.helpers.ps1search"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ps1search</span></code></a>([table, release, format, columns, baseurl, ...])</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.helpers.build_glade_candidates" title="astro_prost.helpers.build_glade_candidates"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_glade_candidates</span></code></a>(transient_name, transient_pos, ...)</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#astro_prost.helpers.build_decals_candidates" title="astro_prost.helpers.build_decals_candidates"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_decals_candidates</span></code></a>(transient_name, transient_pos, ...)</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.helpers.build_panstarrs_candidates" title="astro_prost.helpers.build_panstarrs_candidates"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_panstarrs_candidates</span></code></a>(transient_name, ...[, ...])</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#astro_prost.helpers.calc_dlr" title="astro_prost.helpers.calc_dlr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">calc_dlr</span></code></a>(transient_pos, galaxies_pos, a, a_std, ...[, ...])</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.helpers.find_panstarrs_shreds" title="astro_prost.helpers.find_panstarrs_shreds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_panstarrs_shreds</span></code></a>(objids, ra_allgals, dec_allgals, ...)</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="astro_prost.helpers.GalaxyCatalog">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">GalaxyCatalog</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.GalaxyCatalog" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>type</em>) – Description of parameter <cite>name</cite>.</p></li>
+<li><p><strong>data</strong> (<em>type</em>) – Description of parameter <cite>data</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.GalaxyCatalog.name">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog.name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.GalaxyCatalog.name" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.GalaxyCatalog.data">
+<span class="sig-name descname"><span class="pre">data</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog.data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.GalaxyCatalog.data" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.GalaxyCatalog.n_samples">
+<span class="sig-name descname"><span class="pre">n_samples</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog.n_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.GalaxyCatalog.n_samples" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog.name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id0" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">data</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog.data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id1" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">n_samples</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog.n_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id2" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.GalaxyCatalog.get_candidates">
+<span class="sig-name descname"><span class="pre">get_candidates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transient</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timequery</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#GalaxyCatalog.get_candidates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.GalaxyCatalog.get_candidates" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transient</strong> (<em>type</em>) – Description of parameter <cite>transient</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+<li><p><strong>timequery</strong> (<em>type</em>) – Description of parameter <cite>timequery</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Transient</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">redshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">np.nan</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spec_class</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phot_class</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>type</em>) – Description of parameter <cite>name</cite>.</p></li>
+<li><p><strong>position</strong> (<em>type</em>) – Description of parameter <cite>position</cite>.</p></li>
+<li><p><strong>redshift</strong> (<em>type</em>) – Description of parameter <cite>redshift</cite>.</p></li>
+<li><p><strong>spec_class</strong> (<em>type</em>) – Description of parameter <cite>spec_class</cite>.</p></li>
+<li><p><strong>phot_class</strong> (<em>type</em>) – Description of parameter <cite>phot_class</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.best_host">
+<span class="sig-name descname"><span class="pre">best_host</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.best_host"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.best_host" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>best_host</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.second_best_host">
+<span class="sig-name descname"><span class="pre">second_best_host</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.second_best_host"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.second_best_host" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>second_best_host</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.redshift_std">
+<span class="sig-name descname"><span class="pre">redshift_std</span></span><a class="headerlink" href="#astro_prost.helpers.Transient.redshift_std" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>redshift_std</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.gen_z_samples">
+<span class="sig-name descname"><span class="pre">gen_z_samples</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.gen_z_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.gen_z_samples" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>gen_z_samples</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.priors">
+<span class="sig-name descname"><span class="pre">priors</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.priors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.priors" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>priors</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.likes">
+<span class="sig-name descname"><span class="pre">likes</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.likes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.likes" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>likes</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.name">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.name" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.position">
+<span class="sig-name descname"><span class="pre">position</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.position"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.position" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.redshift">
+<span class="sig-name descname"><span class="pre">redshift</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.redshift"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.redshift" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.spec_class">
+<span class="sig-name descname"><span class="pre">spec_class</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.spec_class"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.spec_class" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.phot_class">
+<span class="sig-name descname"><span class="pre">phot_class</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.phot_class"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.phot_class" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.n_samples">
+<span class="sig-name descname"><span class="pre">n_samples</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.n_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.n_samples" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id3" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">position</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.position"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id4" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">redshift</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.redshift"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id5" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">spec_class</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.spec_class"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id6" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">phot_class</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.phot_class"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id7" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">n_samples</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.n_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id8" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">best_host</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.best_host"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id9" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">second_best_host</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.second_best_host"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id10" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">priors</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.priors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id11" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">likes</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.likes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id12" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.__str__">
+<span class="sig-name descname"><span class="pre">__str__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.__str__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.__str__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.get_prior">
+<span class="sig-name descname"><span class="pre">get_prior</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.get_prior"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.get_prior" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>type</strong> (<em>type</em>) – Description of parameter <cite>type</cite>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.get_likelihood">
+<span class="sig-name descname"><span class="pre">get_likelihood</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.get_likelihood"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.get_likelihood" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>type</strong> (<em>type</em>) – Description of parameter <cite>type</cite>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.set_likelihood">
+<span class="sig-name descname"><span class="pre">set_likelihood</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.set_likelihood"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.set_likelihood" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>type</strong> (<em>type</em>) – Description of parameter <cite>type</cite>.</p></li>
+<li><p><strong>func</strong> (<em>type</em>) – Description of parameter <cite>func</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.set_prior">
+<span class="sig-name descname"><span class="pre">set_prior</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.set_prior"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.set_prior" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>type</strong> (<em>type</em>) – Description of parameter <cite>type</cite>.</p></li>
+<li><p><strong>func</strong> (<em>type</em>) – Description of parameter <cite>func</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">gen_z_samples</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ret</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.gen_z_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id13" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ret</strong> (<em>type</em>) – Description of parameter <cite>ret</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.calc_prior_redshift">
+<span class="sig-name descname"><span class="pre">calc_prior_redshift</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z_best_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reduce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.calc_prior_redshift"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.calc_prior_redshift" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>z_best_samples</strong> (<em>type</em>) – Description of parameter <cite>z_best_samples</cite>.</p></li>
+<li><p><strong>reduce</strong> (<em>type</em>) – Description of parameter <cite>reduce</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.calc_prior_offset">
+<span class="sig-name descname"><span class="pre">calc_prior_offset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fractional_offset_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reduce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.calc_prior_offset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.calc_prior_offset" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fractional_offset_samples</strong> (<em>type</em>) – Description of parameter <cite>fractional_offset_samples</cite>.</p></li>
+<li><p><strong>reduce</strong> (<em>type</em>) – Description of parameter <cite>reduce</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.calc_prior_absmag">
+<span class="sig-name descname"><span class="pre">calc_prior_absmag</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">absmag_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reduce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.calc_prior_absmag"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.calc_prior_absmag" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>absmag_samples</strong> (<em>type</em>) – Description of parameter <cite>absmag_samples</cite>.</p></li>
+<li><p><strong>reduce</strong> (<em>type</em>) – Description of parameter <cite>reduce</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.calc_like_redshift">
+<span class="sig-name descname"><span class="pre">calc_like_redshift</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z_best_mean</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_best_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reduce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.calc_like_redshift"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.calc_like_redshift" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>z_best_mean</strong> (<em>type</em>) – Description of parameter <cite>z_best_mean</cite>.</p></li>
+<li><p><strong>z_best_std</strong> (<em>type</em>) – Description of parameter <cite>z_best_std</cite>.</p></li>
+<li><p><strong>reduce</strong> (<em>type</em>) – Description of parameter <cite>reduce</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.calc_like_offset">
+<span class="sig-name descname"><span class="pre">calc_like_offset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fractional_offset_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reduce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.calc_like_offset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.calc_like_offset" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fractional_offset_samples</strong> (<em>type</em>) – Description of parameter <cite>fractional_offset_samples</cite>.</p></li>
+<li><p><strong>reduce</strong> (<em>type</em>) – Description of parameter <cite>reduce</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.calc_like_absmag">
+<span class="sig-name descname"><span class="pre">calc_like_absmag</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">absmag_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reduce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.calc_like_absmag"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.calc_like_absmag" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>absmag_samples</strong> (<em>type</em>) – Description of parameter <cite>absmag_samples</cite>.</p></li>
+<li><p><strong>reduce</strong> (<em>type</em>) – Description of parameter <cite>reduce</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.associate">
+<span class="sig-name descname"><span class="pre">associate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">galaxy_catalog</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.associate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.associate" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>galaxy_catalog</strong> (<em>type</em>) – Description of parameter <cite>galaxy_catalog</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.probability_of_unobserved_host">
+<span class="sig-name descname"><span class="pre">probability_of_unobserved_host</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">search_rad</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m_lim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.probability_of_unobserved_host"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.probability_of_unobserved_host" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>search_rad</strong> (<em>type</em>) – Description of parameter <cite>search_rad</cite>.</p></li>
+<li><p><strong>m_lim</strong> (<em>type</em>) – Description of parameter <cite>m_lim</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.Transient.probability_host_outside_cone">
+<span class="sig-name descname"><span class="pre">probability_host_outside_cone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutout_rad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#Transient.probability_host_outside_cone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.Transient.probability_host_outside_cone" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cutout_rad</strong> (<em>type</em>) – Description of parameter <cite>cutout_rad</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">PriorzObservedTransients</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_min</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_max</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mag_cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">22</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">absmag_mean</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-19</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">absmag_min</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-24</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">absmag_max</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-17</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r_sn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_obs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">scipy.stats.rv_continuous</span></code></p>
+<p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>z_min</strong> (<em>type</em>) – Description of parameter <cite>z_min</cite>.</p></li>
+<li><p><strong>z_max</strong> (<em>type</em>) – Description of parameter <cite>z_max</cite>.</p></li>
+<li><p><strong>n_bins</strong> (<em>type</em>) – Description of parameter <cite>n_bins</cite>.</p></li>
+<li><p><strong>mag_cutoff</strong> (<em>type</em>) – Description of parameter <cite>mag_cutoff</cite>.</p></li>
+<li><p><strong>absmag_mean</strong> (<em>type</em>) – Description of parameter <cite>absmag_mean</cite>.</p></li>
+<li><p><strong>absmag_min</strong> (<em>type</em>) – Description of parameter <cite>absmag_min</cite>.</p></li>
+<li><p><strong>absmag_max</strong> (<em>type</em>) – Description of parameter <cite>absmag_max</cite>.</p></li>
+<li><p><strong>r_sn</strong> (<em>type</em>) – Description of parameter <cite>r_sn</cite>.</p></li>
+<li><p><strong>t_obs</strong> (<em>type</em>) – Description of parameter <cite>t_obs</cite>.</p></li>
+<li><p><strong>**kwargs</strong> (<em>type</em>) – Description of parameter <cite>**kwargs</cite>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.cosmo">
+<span class="sig-name descname"><span class="pre">cosmo</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.cosmo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.cosmo" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>cosmo</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients._generate_distribution">
+<span class="sig-name descname"><span class="pre">_generate_distribution</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients._generate_distribution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients._generate_distribution" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>_generate_distribution</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.z_min">
+<span class="sig-name descname"><span class="pre">z_min</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.z_min"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.z_min" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.z_max">
+<span class="sig-name descname"><span class="pre">z_max</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.z_max"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.z_max" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.n_bins">
+<span class="sig-name descname"><span class="pre">n_bins</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.n_bins"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.n_bins" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.mag_cutoff">
+<span class="sig-name descname"><span class="pre">mag_cutoff</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.mag_cutoff"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.mag_cutoff" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.absmag_mean">
+<span class="sig-name descname"><span class="pre">absmag_mean</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.absmag_mean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.absmag_mean" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.absmag_min">
+<span class="sig-name descname"><span class="pre">absmag_min</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.absmag_min"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.absmag_min" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.absmag_max">
+<span class="sig-name descname"><span class="pre">absmag_max</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.absmag_max"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.absmag_max" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.r_sn">
+<span class="sig-name descname"><span class="pre">r_sn</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.r_sn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.r_sn" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.t_obs">
+<span class="sig-name descname"><span class="pre">t_obs</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.t_obs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.t_obs" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id14">
+<span class="sig-name descname"><span class="pre">z_min</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.z_min"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id14" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id15">
+<span class="sig-name descname"><span class="pre">z_max</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.z_max"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id15" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id16">
+<span class="sig-name descname"><span class="pre">n_bins</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.n_bins"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id16" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id17">
+<span class="sig-name descname"><span class="pre">mag_cutoff</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.mag_cutoff"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id17" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id18">
+<span class="sig-name descname"><span class="pre">absmag_mean</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.absmag_mean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id18" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id19">
+<span class="sig-name descname"><span class="pre">absmag_min</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.absmag_min"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id19" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id20">
+<span class="sig-name descname"><span class="pre">absmag_max</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.absmag_max"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id20" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id21">
+<span class="sig-name descname"><span class="pre">r_sn</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.r_sn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id21" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id22">
+<span class="sig-name descname"><span class="pre">t_obs</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.t_obs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id22" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id23">
+<span class="sig-name descname"><span class="pre">cosmo</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.cosmo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id23" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id24">
+<span class="sig-name descname"><span class="pre">_generate_distribution</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients._generate_distribution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id24" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Description of returned object.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.pdf">
+<span class="sig-name descname"><span class="pre">pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.pdf" title="Link to this definition"></a></dt>
+<dd><p>Return the PDF (KDE) based on observed redshifts.
+Handles 1D and 2D arrays.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.rvs">
+<span class="sig-name descname"><span class="pre">rvs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.rvs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.rvs" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>size</strong> (<em>type</em>) – Description of parameter <cite>size</cite>.</p></li>
+<li><p><strong>random_state</strong> (<em>type</em>) – Description of parameter <cite>random_state</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.PriorzObservedTransients.plot">
+<span class="sig-name descname"><span class="pre">plot</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#PriorzObservedTransients.plot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.PriorzObservedTransients.plot" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Description of returned object.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="astro_prost.helpers.SnRateAbsmag">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">SnRateAbsmag</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#SnRateAbsmag"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.SnRateAbsmag" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">scipy.stats.rv_continuous</span></code></p>
+<p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>a</strong> (<em>type</em>) – Description of parameter <cite>a</cite>.</p></li>
+<li><p><strong>b</strong> (<em>type</em>) – Description of parameter <cite>b</cite>.</p></li>
+<li><p><strong>**kwargs</strong> (<em>type</em>) – Description of parameter <cite>**kwargs</cite>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.SnRateAbsmag.normalization">
+<span class="sig-name descname"><span class="pre">normalization</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#SnRateAbsmag.normalization"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.SnRateAbsmag.normalization" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>normalization</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="astro_prost.helpers.SnRateAbsmag._calculate_normalization">
+<span class="sig-name descname"><span class="pre">_calculate_normalization</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#SnRateAbsmag._calculate_normalization"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.SnRateAbsmag._calculate_normalization" title="Link to this definition"></a></dt>
+<dd><p>Description of attribute <cite>_calculate_normalization</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id25">
+<span class="sig-name descname"><span class="pre">normalization</span></span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#SnRateAbsmag.normalization"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id25" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id26">
+<span class="sig-name descname"><span class="pre">_calculate_normalization</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#SnRateAbsmag._calculate_normalization"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id26" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>a</strong> (<em>type</em>) – Description of parameter <cite>a</cite>.</p></li>
+<li><p><strong>b</strong> (<em>type</em>) – Description of parameter <cite>b</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.SnRateAbsmag._unnormalized_pdf">
+<span class="sig-name descname"><span class="pre">_unnormalized_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">abs_mag_samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#SnRateAbsmag._unnormalized_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.SnRateAbsmag._unnormalized_pdf" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>abs_mag_samples</strong> (<em>type</em>) – Description of parameter <cite>abs_mag_samples</cite>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="astro_prost.helpers.SnRateAbsmag._pdf">
+<span class="sig-name descname"><span class="pre">_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">m_abs_samples</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#SnRateAbsmag._pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.SnRateAbsmag._pdf" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>m_abs_samples</strong> (<em>type</em>) – Description of parameter <cite>m_abs_samples</cite>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.helpers.ps1cone">
+<span class="sig-name descname"><span class="pre">ps1cone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ra</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'stack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">release</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'dr2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">baseurl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'https://catalogs.mast.stsci.edu/api/v0.1/panstarrs'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kw</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#ps1cone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.ps1cone" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ra</strong> (<em>type</em>) – Description of parameter <cite>ra</cite>.</p></li>
+<li><p><strong>dec</strong> (<em>type</em>) – Description of parameter <cite>dec</cite>.</p></li>
+<li><p><strong>radius</strong> (<em>type</em>) – Description of parameter <cite>radius</cite>.</p></li>
+<li><p><strong>table</strong> (<em>type</em>) – Description of parameter <cite>table</cite>.</p></li>
+<li><p><strong>release</strong> (<em>type</em>) – Description of parameter <cite>release</cite>.</p></li>
+<li><p><strong>format</strong> (<em>type</em>) – Description of parameter <cite>format</cite>.</p></li>
+<li><p><strong>columns</strong> (<em>type</em>) – Description of parameter <cite>columns</cite>.</p></li>
+<li><p><strong>baseurl</strong> (<em>type</em>) – Description of parameter <cite>baseurl</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+<li><p><strong>**kw</strong> (<em>type</em>) – Description of parameter <cite>**kw</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.helpers.ps1search">
+<span class="sig-name descname"><span class="pre">ps1search</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">release</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'dr1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">baseurl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'https://catalogs.mast.stsci.edu/api/v0.1/panstarrs'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kw</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#ps1search"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.ps1search" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>table</strong> (<em>type</em>) – Description of parameter <cite>table</cite>.</p></li>
+<li><p><strong>release</strong> (<em>type</em>) – Description of parameter <cite>release</cite>.</p></li>
+<li><p><strong>format</strong> (<em>type</em>) – Description of parameter <cite>format</cite>.</p></li>
+<li><p><strong>columns</strong> (<em>type</em>) – Description of parameter <cite>columns</cite>.</p></li>
+<li><p><strong>baseurl</strong> (<em>type</em>) – Description of parameter <cite>baseurl</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+<li><p><strong>**kw</strong> (<em>type</em>) – Description of parameter <cite>**kw</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.helpers.build_glade_candidates">
+<span class="sig-name descname"><span class="pre">build_glade_candidates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transient_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transient_pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">glade_catalog</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_rad</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#build_glade_candidates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.build_glade_candidates" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transient_name</strong> (<em>type</em>) – Description of parameter <cite>transient_name</cite>.</p></li>
+<li><p><strong>transient_pos</strong> (<em>type</em>) – Description of parameter <cite>transient_pos</cite>.</p></li>
+<li><p><strong>glade_catalog</strong> (<em>type</em>) – Description of parameter <cite>glade_catalog</cite>.</p></li>
+<li><p><strong>search_rad</strong> (<em>type</em>) – Description of parameter <cite>search_rad</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.helpers.build_decals_candidates">
+<span class="sig-name descname"><span class="pre">build_decals_candidates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transient_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transient_pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_rad</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#build_decals_candidates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.build_decals_candidates" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transient_name</strong> (<em>type</em>) – Description of parameter <cite>transient_name</cite>.</p></li>
+<li><p><strong>transient_pos</strong> (<em>type</em>) – Description of parameter <cite>transient_pos</cite>.</p></li>
+<li><p><strong>search_rad</strong> (<em>type</em>) – Description of parameter <cite>search_rad</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.helpers.build_panstarrs_candidates">
+<span class="sig-name descname"><span class="pre">build_panstarrs_candidates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transient_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transient_pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_rad</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">glade_catalog</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#build_panstarrs_candidates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.build_panstarrs_candidates" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transient_name</strong> (<em>type</em>) – Description of parameter <cite>transient_name</cite>.</p></li>
+<li><p><strong>transient_pos</strong> (<em>type</em>) – Description of parameter <cite>transient_pos</cite>.</p></li>
+<li><p><strong>search_rad</strong> (<em>type</em>) – Description of parameter <cite>search_rad</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+<li><p><strong>glade_catalog</strong> (<em>type</em>) – Description of parameter <cite>glade_catalog</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.helpers.calc_dlr">
+<span class="sig-name descname"><span class="pre">calc_dlr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transient_pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">galaxies_pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_over_b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_over_b_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phi_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#calc_dlr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.calc_dlr" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transient_pos</strong> (<em>type</em>) – Description of parameter <cite>transient_pos</cite>.</p></li>
+<li><p><strong>galaxies_pos</strong> (<em>type</em>) – Description of parameter <cite>galaxies_pos</cite>.</p></li>
+<li><p><strong>a</strong> (<em>type</em>) – Description of parameter <cite>a</cite>.</p></li>
+<li><p><strong>a_std</strong> (<em>type</em>) – Description of parameter <cite>a_std</cite>.</p></li>
+<li><p><strong>a_over_b</strong> (<em>type</em>) – Description of parameter <cite>a_over_b</cite>.</p></li>
+<li><p><strong>a_over_b_std</strong> (<em>type</em>) – Description of parameter <cite>a_over_b_std</cite>.</p></li>
+<li><p><strong>phi</strong> (<em>type</em>) – Description of parameter <cite>phi</cite>.</p></li>
+<li><p><strong>phi_std</strong> (<em>type</em>) – Description of parameter <cite>phi_std</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.helpers.find_panstarrs_shreds">
+<span class="sig-name descname"><span class="pre">find_panstarrs_shreds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">objids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ra_allgals</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_allgals</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">size_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_over_b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_over_b_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phi_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">appmag</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/astro_prost/helpers.html#find_panstarrs_shreds"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.helpers.find_panstarrs_shreds" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>objids</strong> (<em>type</em>) – Description of parameter <cite>objids</cite>.</p></li>
+<li><p><strong>ra_allgals</strong> (<em>type</em>) – Description of parameter <cite>ra_allgals</cite>.</p></li>
+<li><p><strong>dec_allgals</strong> (<em>type</em>) – Description of parameter <cite>dec_allgals</cite>.</p></li>
+<li><p><strong>size</strong> (<em>type</em>) – Description of parameter <cite>size</cite>.</p></li>
+<li><p><strong>size_std</strong> (<em>type</em>) – Description of parameter <cite>size_std</cite>.</p></li>
+<li><p><strong>a_over_b</strong> (<em>type</em>) – Description of parameter <cite>a_over_b</cite>.</p></li>
+<li><p><strong>a_over_b_std</strong> (<em>type</em>) – Description of parameter <cite>a_over_b_std</cite>.</p></li>
+<li><p><strong>phi</strong> (<em>type</em>) – Description of parameter <cite>phi</cite>.</p></li>
+<li><p><strong>phi_std</strong> (<em>type</em>) – Description of parameter <cite>phi_std</cite>.</p></li>
+<li><p><strong>appmag</strong> (<em>type</em>) – Description of parameter <cite>appmag</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../diagnose/index.html" class="btn btn-neutral float-left" title="astro_prost.diagnose" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../photoz_helpers/index.html" class="btn btn-neutral float-right" title="astro_prost.photoz_helpers" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Alex Gagliano.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

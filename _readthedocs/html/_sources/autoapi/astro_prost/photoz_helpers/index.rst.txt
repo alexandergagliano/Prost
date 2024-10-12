@@ -1,0 +1,288 @@
+astro_prost.photoz_helpers
+==========================
+
+.. py:module:: astro_prost.photoz_helpers
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   astro_prost.photoz_helpers.default_model_path
+   astro_prost.photoz_helpers.default_dust_path
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   astro_prost.photoz_helpers.build_sfd_dir
+   astro_prost.photoz_helpers.get_photoz_weights
+   astro_prost.photoz_helpers.ps1objidsearch
+   astro_prost.photoz_helpers.fetch_information_serially
+   astro_prost.photoz_helpers.checklegal
+   astro_prost.photoz_helpers.ps1search
+   astro_prost.photoz_helpers.ps1metadata
+   astro_prost.photoz_helpers.post_url_serial
+   astro_prost.photoz_helpers.serial_objid_search
+   astro_prost.photoz_helpers.get_common_constraints_columns
+   astro_prost.photoz_helpers.preprocess
+   astro_prost.photoz_helpers.load_lupton_model
+   astro_prost.photoz_helpers.evaluate
+   astro_prost.photoz_helpers.calc_photoz
+   astro_prost.photoz_helpers.get_photoz
+
+
+Module Contents
+---------------
+
+.. py:data:: default_model_path
+   :value: './MLP_lupton.hdf5'
+
+
+.. py:data:: default_dust_path
+   :value: '.'
+
+
+.. py:function:: build_sfd_dir(file_path='./sfddata-master.tar.gz', data_dir=default_dust_path)
+
+   Downloads directory of Galactic dust maps for extinction correction.
+      [Schlegel, Finkbeiner and Davis (1998)](http://adsabs.harvard.edu/abs/1998ApJ...500..525S).
+
+   :param fname: Filename for dustmaps archive file.
+   :type fname: str
+   :param data_path: Target directory in which to extract 'sfddata-master' directory from archive file.
+   :type data_path: str
+
+
+.. py:function:: get_photoz_weights(file_path=default_model_path)
+
+   Get weights for MLP photo-z model.
+
+   :param fname: Filename of saved MLP weights.
+   :type fname: str
+
+
+.. py:function:: ps1objidsearch(objid, table='mean', release='dr1', format='csv', columns=None, baseurl='https://catalogs.mast.stsci.edu/api/v0.1/panstarrs', verbose=False, **kw)
+
+   Do an object lookup by objid.
+
+   :param objid: list of objids (or dictionary?)
+   :type objid: List of objids
+   :param table: Can be \'mean\', \'stack\', or \'detection\'.
+   :type table: str
+   :param release: Can be 'dr1' or 'dr2'.
+   :type release: str
+   :param format: Can be 'csv', 'votable', or 'json'
+   :type format: str
+   :param columns: list of column names to include (None means use defaults)
+   :type columns: arrray-like
+   :param baseurl: base URL for the request
+   :type baseurl: str
+   :param verbose: print info about request
+   :type verbose: bool,optional
+   :param \*\*kw: other parameters (e.g., 'nDetections.min':2)
+   :type \*\*kw: dictionary
+
+
+.. py:function:: fetch_information_serially(url, data, verbose=False, format='csv')
+
+   A helper function called by serial_objid_search-- Queries PanStarrs API for data.
+
+   :param url: Remote PS1 url.
+   :type url: str
+   :param data: List of objids requesting
+   :type data: list
+   :param verbose: If True,
+   :type verbose: bool, optional
+   :param format: Can be \'csv\', \'json\', or \'votable\'.
+   :type format: str
+   :return:
+   :rtype: str in format given by \'format\'.
+
+
+.. py:function:: checklegal(table, release)
+
+   Checks if this combination of table and release is acceptable.
+      Raises a ValueError exception if there is problem.
+
+   :param table: Table type. Can be \'mean\', \'stack\', or \'detection\'
+   :type table: str
+   :param release: The Pan-STARRS data release. Can be \'dr1\' or \'dr2\'.
+   :type release: str
+   :raises ValueError: Raises error if table and release combination are invalid.
+
+
+.. py:function:: ps1search(table='mean', release='dr1', format='csv', columns=None, baseurl='https://catalogs.mast.stsci.edu/api/v0.1/panstarrs', verbose=False, **kw)
+
+   Do a general search of the PS1 catalog (possibly without ra/dec/radius).
+
+   :param table: Table type. Can be \'mean\', \'stack\', or \'detection\'
+   :type table: str
+   :param release: The Pan-STARRS data release. Can be \'dr1\' or 'dr2\'.
+   :type release: str
+   :param format: Can be \'csv\', \'votable\', or \'json\'.
+   :type format: str
+   :param columns: Column names to include (None means use defaults).
+   :type columns: str
+   :param baseurl: Base URL for the request.
+   :type baseurl: str
+   :param verbose: If true, print info about request.
+   :type verbose: bool
+   :param \*\*kw: Other parameters (e.g., \'nDetections.min\':2).  Note that this is required!
+   :type \*\*kw: dictionary
+   :return: Result of PS1 query, in \'csv\', \'votable\', or \'json\' format.
+   :rtype: Same as \'format\'
+
+
+.. py:function:: ps1metadata(table='mean', release='dr1', baseurl='https://catalogs.mast.stsci.edu/api/v0.1/panstarrs')
+
+   Return metadata for the specified catalog and table. Snagged from the
+      wonderful API at https://ps1images.stsci.edu/ps1_dr2_api.html.
+
+   :param table: Table type. Can be \'mean\', \'stack\', or \'detection\'
+   :type table: str
+   :param release: The Pan-STARRS data release. Can be \'dr1\' or \'dr2\'.
+   :type release: str
+   :param baseurl: Base URL for the request.
+   :type baseurl: str
+   :return: Table with columns name, type, description.
+   :rtype: Astropy Table
+
+
+.. py:function:: post_url_serial(results, yse_id)
+
+   A helper function called by serial_objid_search.
+      Post-processes the data retrieved from PS1 Servers into a pandas.DataFrame object.
+
+   :param results: The string resulting from PS1 query.
+   :type results: str
+   :param yse_id: local integer used for as an index tracking user objects vs retrived objects.
+   :type yse_id: int
+   :return: DataFrame object of the retrieved data from PS1 servers
+   :rtype: pandas.DataFrame
+
+
+.. py:function:: serial_objid_search(objids, table='forced_mean', release='dr2', columns=None, verbose=False, **constraints)
+
+   Given a list of ObjIDs, queries the PS1 server these object's Forced Mean Photometry,
+       then returns matches as a pandas.DataFrame.
+
+   :param objids: list of PS1 objids for objects user would like to query
+   :type objids: list
+   :param table: Which table to perform the query on. Default 'forced_mean'
+   :type table: str
+   :param release: Which release to perform the query on. Default 'dr2'
+   :type release: str
+   :param columns: list of what data fields to include; None means use default columns. Default None
+   :type columns: list or None
+   :param verbose: boolean setting level of feedback user received. default False
+   :type verbose: bool
+   :param \*\*constraints: Keyword dictionary with an additional constraints for the PS1 query
+   :type \*\*constraints: dict
+   :return: list of pd.DataFrame objects. If a match was found, then the Dataframe contains data,
+             else it only contains a local integer.
+   :rtype: pd.DataFrame
+
+
+.. py:function:: get_common_constraints_columns()
+
+   Helper function that returns a dictionary of constraints used for the
+      matching objects in PS1 archive, and the columns of data we requre.
+
+   :return: dictionary with our constaint that we must have more than one detection
+   :rtype: dict
+   :return: List of PS1 fields required for matching and NN inputs
+   :rtype: list
+
+
+.. py:function:: preprocess(df, path='../data/sfddata-master/', ebv=True)
+
+   Preprocesses the data inside pandas.DataFrame object
+      returned by serial_objid_search to the space of inputs of our Neural Network.
+
+   :param df: Dataframe object containing the data for each matched objid
+   :type df: pandas DataFrame
+   :param path: string path to extinction maps data
+   :type path: str
+   :param ebv: boolean for lookup of extinction data. If False, all extinctions set to 0.
+   :type ebv: False
+   :return: Preprocessed inputs ready to be used as input to NN
+   :rtype: numpy ndarray
+
+
+.. py:function:: load_lupton_model(model_path=default_model_path, dust_path=default_dust_path)
+
+   Helper function that defines and loads the weights of our NN model and the output space of the NN.
+
+   :param model_path: path to the model weights.
+   :type model_path: str
+   :param dust_path: path to dust map data files.
+   :type dust_path: str
+   :return: Trained photo-z MLP.
+   :rtype: tensorflow keras Model
+   :return: Array of binned redshift space corresponding to the output space of the NN
+   :rtype: numpy ndarray
+
+
+.. py:function:: evaluate(x, mymodel, range_z)
+
+   Evaluate the MLP for a set of PS1 inputs, and return predictions.
+
+   :param x: PS1 properties of associated hosts.
+   :type x: array-like
+   :param mymodel: MLP model for photo-z estimation.
+   :type mymodel: tensorflow keras Model
+   :param range_z: Grid over which to evaluate the posterior distribution of photo-zs.
+   :type range_z: array-like
+
+   :return: Posterior distributions for the grid of redshifts defined as
+       \`np.linspace(0, 1, n)\`
+   :rtype: numpy ndarray shape of (df.shape[0], n)
+   :return: means
+   :rtype: numpy ndarray shape of (df.shape[0],)
+   :return: Standard deviations
+   :rtype: numpy ndarray shape of (df.shape[0],)
+
+
+.. py:function:: calc_photoz(hosts, dust_path=default_dust_path, model_path=default_model_path)
+
+   PhotoZ beta: not tested for missing objids.
+      photo-z uses a artificial neural network to estimate P(Z) in range Z = (0 - 1)
+      range_z is the value of z
+      posterior is an estimate PDF of the probability of z
+      point estimate uses the mean to find a single value estimate
+      error is an array that uses sampling from the posterior to estimate a std dev.
+      Relies upon the sfdmap package, (which is compatible with both unix and windows),
+      found at https://github.com/kbarbary/sfdmap.
+
+   :param hosts: The matched hosts from GHOST.
+   :type hosts: pandas DataFrame
+   :return: The matched hosts from GHOST, with photo-z point estimates and uncertainties.
+   :rtype: pandas DataFrame
+
+
+.. py:function:: get_photoz(df, dust_path=default_dust_path, model_path=default_model_path)
+
+   Evaluate photo-z model for Pan-STARRS forced photometry.
+
+   :param df: Pan-STARRS forced mean photometry data, you can get it using
+       \`ps1objidsearch\` from this module, Pan-STARRS web-portal or via
+       astroquery i.e., \`astroquery.mast.Catalogs.query_{criteria,region}(...,
+       catalog=\'Panstarrs\',table=\'forced_mean\')\`
+   :type df: pandas DataFrame
+   :param dust_path: Path to dust map data files
+   :type dust_path: str
+   :param model_path: path to the data file with weights for MLP photo-z model
+   :type model_path: str
+   :return: Posterior distributions for the grid of redshifts defined as
+       \`np.linspace(0, 1, n)\`
+   :rtype: numpy ndarray shape of (df.shape[0], n)
+   :return: means
+   :rtype: numpy ndarray shape of (df.shape[0],)
+   :return: Standard deviations
+   :rtype: numpy ndarray shape of (df.shape[0],)
+
+

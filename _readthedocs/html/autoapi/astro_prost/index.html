@@ -1,0 +1,285 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>astro_prost &mdash; prost 0.1.dev0+d20241012 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8e33e34d"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=d07363f3"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="astro_prost.associate" href="associate/index.html" />
+    <link rel="prev" title="API Reference" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            prost
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home page</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">astro_prost</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="associate/index.html">astro_prost.associate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="demo/index.html">astro_prost.demo</a></li>
+<li class="toctree-l4"><a class="reference internal" href="diagnose/index.html">astro_prost.diagnose</a></li>
+<li class="toctree-l4"><a class="reference internal" href="helpers/index.html">astro_prost.helpers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="photoz_helpers/index.html">astro_prost.photoz_helpers</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#functions">Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#package-contents">Package Contents</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#astro_prost.associate_transient"><code class="docutils literal notranslate"><span class="pre">associate_transient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#astro_prost.prepare_catalog"><code class="docutils literal notranslate"><span class="pre">prepare_catalog()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#astro_prost.diagnose_ranking"><code class="docutils literal notranslate"><span class="pre">diagnose_ranking()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#astro_prost.plot_match"><code class="docutils literal notranslate"><span class="pre">plot_match()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../notebooks.html">Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">prost</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API Reference</a></li>
+      <li class="breadcrumb-item active">astro_prost</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-astro_prost">
+<span id="astro-prost"></span><h1>astro_prost<a class="headerlink" href="#module-astro_prost" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="associate/index.html">astro_prost.associate</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demo/index.html">astro_prost.demo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnose/index.html">astro_prost.diagnose</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers/index.html">astro_prost.helpers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="photoz_helpers/index.html">astro_prost.photoz_helpers</a></li>
+</ul>
+</div>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.associate_transient" title="astro_prost.associate_transient"><code class="xref py py-obj docutils literal notranslate"><span class="pre">associate_transient</span></code></a>(idx, row, glade_catalog, ...)</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#astro_prost.prepare_catalog" title="astro_prost.prepare_catalog"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prepare_catalog</span></code></a>(transient_catalog, debug_names[, ...])</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#astro_prost.diagnose_ranking" title="astro_prost.diagnose_ranking"><code class="xref py py-obj docutils literal notranslate"><span class="pre">diagnose_ranking</span></code></a>(true_index, post_probs, ...[, ...])</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#astro_prost.plot_match" title="astro_prost.plot_match"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_match</span></code></a>(host_ra, host_dec, true_host_ra, ...)</p></td>
+<td><p>Short summary.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="package-contents">
+<h2>Package Contents<a class="headerlink" href="#package-contents" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.associate_transient">
+<span class="sig-name descname"><span class="pre">associate_transient</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">glade_catalog</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">priorfunc_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">priorfunc_offset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">priorfunc_absmag</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">likefunc_offset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">likefunc_absmag</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">catalogs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat_cols</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/astro_prost/associate.html#associate_transient"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.associate_transient" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>idx</strong> (<em>type</em>) – Description of parameter <cite>idx</cite>.</p></li>
+<li><p><strong>row</strong> (<em>type</em>) – Description of parameter <cite>row</cite>.</p></li>
+<li><p><strong>glade_catalog</strong> (<em>type</em>) – Description of parameter <cite>glade_catalog</cite>.</p></li>
+<li><p><strong>n_samples</strong> (<em>type</em>) – Description of parameter <cite>n_samples</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+<li><p><strong>priorfunc_z</strong> (<em>type</em>) – Description of parameter <cite>priorfunc_z</cite>.</p></li>
+<li><p><strong>priorfunc_offset</strong> (<em>type</em>) – Description of parameter <cite>priorfunc_offset</cite>.</p></li>
+<li><p><strong>priorfunc_absmag</strong> (<em>type</em>) – Description of parameter <cite>priorfunc_absmag</cite>.</p></li>
+<li><p><strong>likefunc_offset</strong> (<em>type</em>) – Description of parameter <cite>likefunc_offset</cite>.</p></li>
+<li><p><strong>likefunc_absmag</strong> (<em>type</em>) – Description of parameter <cite>likefunc_absmag</cite>.</p></li>
+<li><p><strong>cosmo</strong> (<em>type</em>) – Description of parameter <cite>cosmo</cite>.</p></li>
+<li><p><strong>catalogs</strong> (<em>type</em>) – Description of parameter <cite>catalogs</cite>.</p></li>
+<li><p><strong>cat_cols</strong> (<em>type</em>) – Description of parameter <cite>cat_cols</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.prepare_catalog">
+<span class="sig-name descname"><span class="pre">prepare_catalog</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transient_catalog</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transient_name_col</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'name'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transient_coord_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">('ra',</span> <span class="pre">'dec')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/astro_prost/associate.html#prepare_catalog"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.prepare_catalog" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transient_catalog</strong> (<em>type</em>) – Description of parameter <cite>transient_catalog</cite>.</p></li>
+<li><p><strong>transient_name_col</strong> (<em>type</em>) – Description of parameter <cite>transient_name_col</cite>.</p></li>
+<li><p><strong>transient_coord_cols</strong> (<em>type</em>) – Description of parameter <cite>transient_coord_cols</cite>.</p></li>
+<li><p><strong>debug_names</strong> (<em>type</em>) – Description of parameter <cite>debug_names</cite>.</p></li>
+<li><p><strong>debug</strong> (<em>type</em>) – Description of parameter <cite>debug</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.diagnose_ranking">
+<span class="sig-name descname"><span class="pre">diagnose_ranking</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">true_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_probs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">galaxy_catalog</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_offset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_absmag</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">galaxy_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_sn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sn_position</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_offset_true</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_z_true</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_absmag_true</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/astro_prost/diagnose.html#diagnose_ranking"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.diagnose_ranking" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>true_index</strong> (<em>type</em>) – Description of parameter <cite>true_index</cite>.</p></li>
+<li><p><strong>post_probs</strong> (<em>type</em>) – Description of parameter <cite>post_probs</cite>.</p></li>
+<li><p><strong>galaxy_catalog</strong> (<em>type</em>) – Description of parameter <cite>galaxy_catalog</cite>.</p></li>
+<li><p><strong>post_offset</strong> (<em>type</em>) – Description of parameter <cite>post_offset</cite>.</p></li>
+<li><p><strong>post_z</strong> (<em>type</em>) – Description of parameter <cite>post_z</cite>.</p></li>
+<li><p><strong>post_absmag</strong> (<em>type</em>) – Description of parameter <cite>post_absmag</cite>.</p></li>
+<li><p><strong>galaxy_ids</strong> (<em>type</em>) – Description of parameter <cite>galaxy_ids</cite>.</p></li>
+<li><p><strong>z_sn</strong> (<em>type</em>) – Description of parameter <cite>z_sn</cite>.</p></li>
+<li><p><strong>sn_position</strong> (<em>type</em>) – Description of parameter <cite>sn_position</cite>.</p></li>
+<li><p><strong>post_offset_true</strong> (<em>type</em>) – Description of parameter <cite>post_offset_true</cite>.</p></li>
+<li><p><strong>post_z_true</strong> (<em>type</em>) – Description of parameter <cite>post_z_true</cite>.</p></li>
+<li><p><strong>post_absmag_true</strong> (<em>type</em>) – Description of parameter <cite>post_absmag_true</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>type</em>) – Description of parameter <cite>verbose</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="astro_prost.plot_match">
+<span class="sig-name descname"><span class="pre">plot_match</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">host_ra</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host_dec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">true_host_ra</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">true_host_dec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host_z_mean</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host_z_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sn_ra</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sn_dec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sn_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sn_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bayesflag</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fn</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/astro_prost/diagnose.html#plot_match"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#astro_prost.plot_match" title="Link to this definition"></a></dt>
+<dd><p>Short summary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>host_ra</strong> (<em>type</em>) – Description of parameter <cite>host_ra</cite>.</p></li>
+<li><p><strong>host_dec</strong> (<em>type</em>) – Description of parameter <cite>host_dec</cite>.</p></li>
+<li><p><strong>true_host_ra</strong> (<em>type</em>) – Description of parameter <cite>true_host_ra</cite>.</p></li>
+<li><p><strong>true_host_dec</strong> (<em>type</em>) – Description of parameter <cite>true_host_dec</cite>.</p></li>
+<li><p><strong>host_z_mean</strong> (<em>type</em>) – Description of parameter <cite>host_z_mean</cite>.</p></li>
+<li><p><strong>host_z_std</strong> (<em>type</em>) – Description of parameter <cite>host_z_std</cite>.</p></li>
+<li><p><strong>sn_ra</strong> (<em>type</em>) – Description of parameter <cite>sn_ra</cite>.</p></li>
+<li><p><strong>sn_dec</strong> (<em>type</em>) – Description of parameter <cite>sn_dec</cite>.</p></li>
+<li><p><strong>sn_name</strong> (<em>type</em>) – Description of parameter <cite>sn_name</cite>.</p></li>
+<li><p><strong>sn_z</strong> (<em>type</em>) – Description of parameter <cite>sn_z</cite>.</p></li>
+<li><p><strong>bayesflag</strong> (<em>type</em>) – Description of parameter <cite>bayesflag</cite>.</p></li>
+<li><p><strong>fn</strong> (<em>type</em>) – Description of parameter <cite>fn</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Description of returned object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>type</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="associate/index.html" class="btn btn-neutral float-right" title="astro_prost.associate" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Alex Gagliano.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

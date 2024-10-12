@@ -1,0 +1,155 @@
+astro_prost
+===========
+
+.. py:module:: astro_prost
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/astro_prost/associate/index
+   /autoapi/astro_prost/demo/index
+   /autoapi/astro_prost/diagnose/index
+   /autoapi/astro_prost/helpers/index
+   /autoapi/astro_prost/photoz_helpers/index
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   astro_prost.associate_transient
+   astro_prost.prepare_catalog
+   astro_prost.diagnose_ranking
+   astro_prost.plot_match
+
+
+Package Contents
+----------------
+
+.. py:function:: associate_transient(idx, row, glade_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, cosmo, catalogs, cat_cols)
+
+   Short summary.
+
+   :param idx: Description of parameter `idx`.
+   :type idx: type
+   :param row: Description of parameter `row`.
+   :type row: type
+   :param glade_catalog: Description of parameter `glade_catalog`.
+   :type glade_catalog: type
+   :param n_samples: Description of parameter `n_samples`.
+   :type n_samples: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+   :param priorfunc_z: Description of parameter `priorfunc_z`.
+   :type priorfunc_z: type
+   :param priorfunc_offset: Description of parameter `priorfunc_offset`.
+   :type priorfunc_offset: type
+   :param priorfunc_absmag: Description of parameter `priorfunc_absmag`.
+   :type priorfunc_absmag: type
+   :param likefunc_offset: Description of parameter `likefunc_offset`.
+   :type likefunc_offset: type
+   :param likefunc_absmag: Description of parameter `likefunc_absmag`.
+   :type likefunc_absmag: type
+   :param cosmo: Description of parameter `cosmo`.
+   :type cosmo: type
+   :param catalogs: Description of parameter `catalogs`.
+   :type catalogs: type
+   :param cat_cols: Description of parameter `cat_cols`.
+   :type cat_cols: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: prepare_catalog(transient_catalog, debug_names, transient_name_col='name', transient_coord_cols=('ra', 'dec'), debug=False)
+
+   Short summary.
+
+   :param transient_catalog: Description of parameter `transient_catalog`.
+   :type transient_catalog: type
+   :param transient_name_col: Description of parameter `transient_name_col`.
+   :type transient_name_col: type
+   :param transient_coord_cols: Description of parameter `transient_coord_cols`.
+   :type transient_coord_cols: type
+   :param debug_names: Description of parameter `debug_names`.
+   :type debug_names: type
+   :param debug: Description of parameter `debug`.
+   :type debug: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: diagnose_ranking(true_index, post_probs, galaxy_catalog, post_offset, post_z, post_absmag, galaxy_ids, z_sn, sn_position, post_offset_true=None, post_z_true=None, post_absmag_true=None, verbose=False)
+
+   Short summary.
+
+   :param true_index: Description of parameter `true_index`.
+   :type true_index: type
+   :param post_probs: Description of parameter `post_probs`.
+   :type post_probs: type
+   :param galaxy_catalog: Description of parameter `galaxy_catalog`.
+   :type galaxy_catalog: type
+   :param post_offset: Description of parameter `post_offset`.
+   :type post_offset: type
+   :param post_z: Description of parameter `post_z`.
+   :type post_z: type
+   :param post_absmag: Description of parameter `post_absmag`.
+   :type post_absmag: type
+   :param galaxy_ids: Description of parameter `galaxy_ids`.
+   :type galaxy_ids: type
+   :param z_sn: Description of parameter `z_sn`.
+   :type z_sn: type
+   :param sn_position: Description of parameter `sn_position`.
+   :type sn_position: type
+   :param post_offset_true: Description of parameter `post_offset_true`.
+   :type post_offset_true: type
+   :param post_z_true: Description of parameter `post_z_true`.
+   :type post_z_true: type
+   :param post_absmag_true: Description of parameter `post_absmag_true`.
+   :type post_absmag_true: type
+   :param verbose: Description of parameter `verbose`.
+   :type verbose: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+
+.. py:function:: plot_match(host_ra, host_dec, true_host_ra, true_host_dec, host_z_mean, host_z_std, sn_ra, sn_dec, sn_name, sn_z, bayesflag, fn)
+
+   Short summary.
+
+   :param host_ra: Description of parameter `host_ra`.
+   :type host_ra: type
+   :param host_dec: Description of parameter `host_dec`.
+   :type host_dec: type
+   :param true_host_ra: Description of parameter `true_host_ra`.
+   :type true_host_ra: type
+   :param true_host_dec: Description of parameter `true_host_dec`.
+   :type true_host_dec: type
+   :param host_z_mean: Description of parameter `host_z_mean`.
+   :type host_z_mean: type
+   :param host_z_std: Description of parameter `host_z_std`.
+   :type host_z_std: type
+   :param sn_ra: Description of parameter `sn_ra`.
+   :type sn_ra: type
+   :param sn_dec: Description of parameter `sn_dec`.
+   :type sn_dec: type
+   :param sn_name: Description of parameter `sn_name`.
+   :type sn_name: type
+   :param sn_z: Description of parameter `sn_z`.
+   :type sn_z: type
+   :param bayesflag: Description of parameter `bayesflag`.
+   :type bayesflag: type
+   :param fn: Description of parameter `fn`.
+   :type fn: type
+
+   :returns: Description of returned object.
+   :rtype: type
+
+

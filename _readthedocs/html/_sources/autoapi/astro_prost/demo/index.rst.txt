@@ -1,0 +1,81 @@
+astro_prost.demo
+================
+
+.. py:module:: astro_prost.demo
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   astro_prost.demo.source
+   astro_prost.demo.transient_catalog
+   astro_prost.demo.priorfunc_z
+   astro_prost.demo.priorfunc_offset
+   astro_prost.demo.priorfunc_absmag
+   astro_prost.demo.likefunc_offset
+   astro_prost.demo.likefunc_absmag
+   astro_prost.demo.priors
+   astro_prost.demo.likes
+   astro_prost.demo.verbose
+   astro_prost.demo.parallel
+   astro_prost.demo.save
+   astro_prost.demo.catalogs
+   astro_prost.demo.transient_coord_cols
+   astro_prost.demo.transient_name_col
+   astro_prost.demo.transient_catalog
+   astro_prost.demo.transient_catalog
+
+
+Module Contents
+---------------
+
+.. py:data:: source
+   :value: 'ZTF BTS'
+
+
+.. py:data:: transient_catalog
+
+.. py:data:: priorfunc_z
+
+.. py:data:: priorfunc_offset
+
+.. py:data:: priorfunc_absmag
+
+.. py:data:: likefunc_offset
+
+.. py:data:: likefunc_absmag
+
+.. py:data:: priors
+
+.. py:data:: likes
+
+.. py:data:: verbose
+   :value: 0
+
+
+.. py:data:: parallel
+   :value: True
+
+
+.. py:data:: save
+   :value: False
+
+
+.. py:data:: catalogs
+   :value: ['panstarrs']
+
+
+.. py:data:: transient_coord_cols
+   :value: ('ra', 'dec')
+
+
+.. py:data:: transient_name_col
+   :value: 'name'
+
+
+.. py:data:: transient_catalog
+
+.. py:data:: transient_catalog
+

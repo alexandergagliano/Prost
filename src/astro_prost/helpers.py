@@ -1,5 +1,6 @@
 import os
 import time
+import importlib.resources
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -1788,10 +1789,10 @@ def build_panstarrs_candidates(
     galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
 
     # get photozs from Andrew Engel's code!
-    default_model_path = "./MLp_lupton.hdf5"
     default_dust_path = "."
 
-    model, range_z = load_lupton_model(model_path=default_model_path, dust_path=default_dust_path)
+    with importlib.resources.path('astro_prost.data', 'MLP_lupton.hdf5') as model_path:
+        model, range_z = load_lupton_model(model_path=model_path, dust_path=default_dust_path)
 
     x = preprocess(candidate_hosts, PATH=os.path.join(default_dust_path, "sfddata-master"))
     posteriors, point_estimates, errors = evaluate(x, model, range_z)

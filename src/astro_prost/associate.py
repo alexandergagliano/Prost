@@ -1,5 +1,6 @@
 import os
 import pathlib
+import importlib.resources
 from multiprocessing import Pool
 from time import time
 from urllib.error import HTTPError
@@ -333,7 +334,8 @@ def associate_sample(
 
     # always load GLADE -- we now use it for spec-zs.
     try:
-        glade_catalog = pd.read_csv("GLADE+_HyperLedaSizes_mod_withz.csv")
+        with importlib.resources.open_text('astro_prost.data', 'GLADE+_HyperLedaSizes_mod_withz.csv') as csvfile:
+            glade_catalog = pd.read_csv(csvfile)
     except FileNotFoundError:
         glade_catalog = None
 

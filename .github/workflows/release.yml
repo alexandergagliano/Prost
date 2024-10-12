@@ -1,49 +1,33 @@
+name: Upload Python Package to PyPI
+
 on:
   release:
-    types:
-      - published
-
-name: release
+    types: 
+      - published  # Trigger when a release is published
 
 jobs:
-  pypi:
-    name: upload release to PyPI
+  pypi-publish:
+    name: Upload release to PyPI
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: '3.12'
 
-      - name: deps
-        run: python -m pip install -U build
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
 
-      - name: build
+      - name: Build the package
         run: python -m build
 
-      - name: mint API token
-        id: mint-token
-        run: |
-          # retrieve the ambient OIDC token
-          resp=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=pypi")
-          oidc_token=$(jq -r '.value' <<< "${resp}")
-
-          # exchange the OIDC token for an API token
-          resp=$(curl -X POST https://pypi.org/_/oidc/mint-token -d "{\"token\": \"${oidc_token}\"}")
-          api_token=$(jq -r '.token' <<< "${resp}")
-
-          # mask the newly minted API token, so that we don't accidentally leak it
-          echo "::add-mask::${api_token}"
-
-          # see the next step in the workflow for an example of using this step output
-          echo "api-token=${api_token}" >> "${GITHUB_OUTPUT}"
-
-      - name: publish
-        # gh-action-pypi-publish uses TWINE_PASSWORD automatically
+      - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ steps.mint-token.outputs.api-token }}
+          password: ${{ secrets.PYPI_API_TOKEN }}

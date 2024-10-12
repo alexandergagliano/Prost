@@ -1,6 +1,6 @@
 
 [project]
-name = "prost"
+name = "astro-prost"
 license = {file = "LICENSE"}
 readme = "README.md"
 authors = [

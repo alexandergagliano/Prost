@@ -2,15 +2,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-os.chdir("/Users/alexgagliano/Documents/Research/prob_association/")
-from diagnose import *
-from helpers import *
+from astro_prost.diagnose import *
+from astro_prost.helpers import *
 import seaborn as sns
 import scipy.stats as st
 import glob
 import requests
+import pathlib
 
-def associate_transient(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs=['glade', 'decals', 'panstarrs']):
+def associate_transient(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z, priorfunc_offset, priorfunc_absmag, likefunc_offset, likefunc_absmag, catalogs=['glade', 'decals', 'panstarrs'], cat_cols=False):
     try:
         transient = Transient(name=row['name'], position=SkyCoord(row.ra*u.deg, row.dec*u.deg), redshift=float(row.redshift), n_samples=n_samples)
     except:
@@ -56,6 +56,7 @@ def associate_transient(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z
                     for key in print_cols:
                         print(key)
                         print(cat.galaxies[key][second_best_idx])
+                if id
                 best_objID = cat.galaxies['objID'][best_idx]
                 best_prob = cat.galaxies['total_prob'][best_idx]
                 best_ra = cat.galaxies['ra'][best_idx]
@@ -68,6 +69,9 @@ def associate_transient(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z
 
                 best_cat = cat_name
                 query_time = cat.query_time
+
+                if cat_cols:
+                    print("WARNING! cat_cols not implemented yet.")
 
                 if verbose > 0:
                     print(f"Found a good host in {cat_name}!")
@@ -87,8 +91,10 @@ def associate_transient(idx, row, GLADE_catalog, n_samples, verbose, priorfunc_z
 
 
 def prepare_catalog(transient_catalog, transient_name_col='name', transient_coord_cols=('ra', 'dec'), debug_names=[], debug=False):
-    association_fields = ['prob_host_ra', 'prob_host_dec','prob_host_score','prob_host_2_ra', 'prob_host_2_dec', 'prob_host_2_score',
-        'sn_ra_deg', 'sn_dec_deg', 'prob_association_time', 'separation_from_Pcc']
+    association_fields = ['host_id', 'host_ra', 'host_dec','host_prob', 
+                          'host_2_id', 'host_2_ra', 'host_2_dec', 'host_2_prob',
+                          'smallcone_prob', 'missedcat_prob',
+                          'sn_ra_deg', 'sn_dec_deg', 'prob_association_time']
 
     for field in association_fields:
         transient_catalog[field] = np.nan
@@ -100,7 +106,7 @@ def prepare_catalog(transient_catalog, transient_name_col='name', transient_coor
         transient_catalog = transient_catalog[transient_catalog[transient_name_col].isin(debug_names)]
 
     #convert coords if needed
-    if ':' in transient_catalog[transient_coord_cols[0]].values[0]:
+    if ':' in str(transient_catalog[transient_coord_cols[0]].values[0]):
         ra = transient_catalog[transient_coord_cols[0]].values
         dec = transient_catalog[transient_coord_cols[1]].values
         transient_coords = SkyCoord(ra, dec, unit=(u.hourangle, u.deg))
@@ -124,7 +130,7 @@ def prepare_catalog(transient_catalog, transient_name_col='name', transient_coor
 
     return transient_catalog
 
-def associate_sample(transient_catalog, priors=None, likes=None, catalogs=['glade', 'decals', 'panstarrs'], n_samples=1000, verbose=False, parallel=True, save=True):
+def associate_sample(transient_catalog, priors=None, likes=None, catalogs=['glade', 'decals', 'panstarrs'], n_samples=1000, verbose=False, parallel=True, save=True, savepath='./'):
     for key in ['offset', 'absmag', 'z']:
         if key not in priors.keys():
             raise ValueError(f"ERROR: Please set a prior function for {key}.")
@@ -133,12 +139,9 @@ def associate_sample(transient_catalog, priors=None, likes=None, catalogs=['glad
 
     #always load GLADE -- we now use it for spec-zs.
     try:
-        GLADE_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/data/GLADE+_HyperLedaSizes_mod_withz.csv")
+        GLADE_catalog = pd.read_csv("GLADE+_HyperLedaSizes_mod_withz.csv")
     except:
         GLADE_catalog = None
-
-    #foundHost = np.argmin(SkyCoord(GLADE_catalog['RAJ2000'].values, GLADE_catalog['DEJ2000'], unit=(u.deg, u.deg)).separation(SkyCoord(185.7288746, 15.8223044, unit=(u.deg, u.deg))).arcsec)
-    #GLADE_catalog.to_csv("/Users/alexgagliano/Documents/Research/prob_association/data/GLADE+_HyperLedaSizes_mod_withz.csv",index=False)
 
     #unpack priors and likelihoods
     priorfunc_z = priors['z']
@@ -179,49 +182,7 @@ def associate_sample(transient_catalog, priors=None, likes=None, catalogs=['glad
     # Save the updated catalog
     if save:
         ts = int(time.time())
-        transient_catalog.to_csv(f"updated_transient_catalog_{ts}.csv", index=False)
+        savename = pathlib.Path(pathname, f"associated_transient_catalog_{ts}.csv")
+        transient_catalog.to_csv(savename, index=False)
     else:
         return transient_catalog
-
-if __name__ == "__main__":
-    #source = "DELIGHT"
-    #source = "Jones+18"
-    source = 'ZTF BTS'
-
-    #with open('/Users/alexgagliano/Documents/Research/prob_association/data/all.pkl', 'rb') as f:
-    #    transient_catalog = pickle.load(f)
-    transient_catalog = pd.read_csv("/Users/alexgagliano/Documents/Research/multimodal-supernovae/data/ZTFBTS/ZTFBTS_TransientTable.csv")
-
-    # define priors for properties
-    priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
-    #priorfunc_z = prior_z_observed_transients(z_min=0, z_max=1, mag_cutoff=19, Mmean=-19, Mmin=-24, Mmax=-17)
-    #%matplotlib inline
-    #priorfunc_z.plot()
-    priorfunc_offset = uniform(loc=0, scale=10)
-    priorfunc_absmag = uniform(loc=-30, scale=20)
-
-    likefunc_offset = st.gamma(a=0.75) #truncexpon(loc=0, scale=1, b=10)
-    likefunc_absmag = SNRate_absmag(a=-30, b=-10)
-
-    priors = {'offset':priorfunc_offset, 'absmag':priorfunc_absmag, 'z':priorfunc_z}
-    likes = {'offset':likefunc_offset, 'absmag':likefunc_absmag}
-
-    #set up properties of the run
-    verbose = 0
-    parallel = True
-    save = False
-    debug = False
-    catalogs = ['panstarrs'] #options are (in order) GLADE, decals, panstarrs
-
-    #alreadyMatched = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/updated_sn_catalog_ZTFBTS_1727848419_N500.csv")
-    #debug_names = alreadyMatched['name'].values
-    #debug_names = ['ZTF20aaelulu']#['ZTF23aaubzzz', 'ZTF19aaklbok', 'ZTF19aapszzy', 'ZTF22aaoolua']
-    transient_coord_cols = ("RA", "Dec") #the name of the coord columns in the dataframe
-    transient_name_col = 'ZTFID'
-
-    transient_catalog = prepare_catalog(transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols, debug=debug)#, debug_names=debug_names)
-    transient_catalog = associate_sample(transient_catalog, priors=priors, likes=likes, catalogs=catalogs, parallel=parallel, verbose=verbose, save=save)
-
-
-    df1 = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/updated_transient_catalog_1728420461.csv")
-    df2 = pd.read_csv("/Users/alexgagliano/Documents/Research/prob_association/updated_sn_catalog_ZTFBTS_1727848419_N500.csv")

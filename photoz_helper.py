@@ -1,7 +1,7 @@
 import pkg_resources
 import numpy as np
 import requests
-from astro_ghost.PS1QueryFunctions import *
+#from astro_ghost.PS1QueryFunctions import *
 
 import pandas as pd
 import tensorflow as tf

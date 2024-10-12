@@ -22,8 +22,7 @@ import sys
 import re
 import json
 import requests
-os.chdir("/Users/alexgagliano/Documents/Research/prob_association/")
-from photoz_helper import *
+from astro_prost.photoz_helper import *
 
 cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
 
@@ -57,7 +56,6 @@ class GalaxyCatalog:
         if self.name == 'panstarrs':
             self.mlim = 26
             self.galaxies = build_panstarrs_candidates(transient.name, transient.position, search_rad, n_samples=self.n_samples, verbose=verbose, GLADE_catalog=self.data)
-
         elif self.name == 'decals':
             self.mlim = 26
             self.galaxies = build_decals_candidates(transient.name, transient.position, search_rad, n_samples=self.n_samples, verbose=verbose)

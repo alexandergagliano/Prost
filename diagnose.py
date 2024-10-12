@@ -23,8 +23,6 @@ from astropy.visualization import make_lupton_rgb
 from astropy.wcs import WCS
 import pickle
 
-#os.chdir("/Users/alexgagliano/Desktop/prob_association/plots_likelihoodoffsetscale1_wGLADE/")
-
 def plotmatch(host_ra, host_dec, Pcc_host_ra, Pcc_host_dec, host_z_mean, host_z_std, SN_ra, SN_dec, SN_name, SN_z, Bayesflag, fn):
     cols = np.array(['#ff9f1c', '#2cda9d', '#f15946', '#da80dd', '#f4e76e', '#b87d4b', '#ff928b', '#c73e1d', '#58b09c', '#e7e08b'])
     bands = 'zrg'
@@ -419,46 +417,3 @@ def crossmatch_glade_decals(GLADE_catalog):
     plt.xlim((0, 60))
     plt.ylim((0, 60))
     plt.show()
-
-
-
-
-
-#sky_sep_measured = SkyCoord(sn_catalog['sn_ra_deg'].values*u.deg, sn_catalog['sn_dec_deg'].values*u.deg).separation(SkyCoord(sn_catalog['prob_host_ra'].values*u.deg, sn_catalog['prob_host_dec'].values*u.deg)).arcsec
-#sky_sep_jones = SkyCoord(sn_catalog['sn_ra_deg'].values*u.deg, sn_catalog['sn_dec_deg'].values*u.deg).separation(SkyCoord(sn_catalog['host_ra'].values*u.deg, sn_catalog['host_dec'].values*u.deg)).arcsec
-
-#import seaborn as sns
-#sns.set_context("talk")
-
-#plt.plot(sky_sep_measured[~sn_catalog['object_name'].isin(['2002dp', '1997E'])], sky_sep_jones[~sn_catalog['object_name'].isin(['2002dp', '1997E'])], 'o', mec='k', zorder=500)
-#plt.plot(sky_sep_measured[sn_catalog['object_name'].isin(['2002dp', '1997E'])], sky_sep_jones[sn_catalog['object_name'].isin(['2002dp', '1997E'])], 'o', mec='k', c='tab:red', zorder=500)
-#plt.plot([0, 50], [0, 50], c='k', ls='--')
-#plt.xscale("log")
-#plt.yscale("log")
-#plt.xlabel("Measured Offset (\")")
-#plt.ylabel("Jones+18 Offset (\")")
-
-#match_err = SkyCoord(sn_catalog['host_ra'].values*u.deg, sn_catalog['host_dec'].values*u.deg).separation(SkyCoord(sn_catalog['prob_host_ra'].values*u.deg, sn_catalog['prob_host_dec'].values*u.deg)).arcsec
-
-# histogram on linear scale
-#hist, bins, _ = plt.hist(match_err, bins=30);
-
-#logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
-#plt.hist(match_err, bins=logbins)
-#plt.xscale('log')
-#plt.yscale("log")
-#plt.xlabel("Error (\")")
-#plt.ylabel("")
-#plt.show()
-
-#sn_catalog.loc[sn_catalog['object_name'] == '1997E', 'prob_host_ra']
-#sn_catalog.loc[sn_catalog['object_name'] == '1997E', 'prob_host_dec']
-#sn_catalog['object_name'][(match_err > 6)].values
-#array(['2000dk', '2002dp', 'ASASSN-15mf', '1997E', '2001en'], dtype=object)
-#'2000dk', 'ASASSN-15mf', '2001en'
-#plt.hist(galaxies['DLR_samples'])
-#plt.hist(truncnorm.rvs(loc=5, scale=3, size=1000, a=-2, b=2))
-#sn_catalog
-#sn_catalog = pd.read_csv("/Users/alexgagliano/Desktop/prob_association/Jones+18_Alexprob.csv")
-
-#sn_catalog.columns.values

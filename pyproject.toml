@@ -48,6 +48,8 @@ include-package-data = true
 
 [tool.setuptools_scm]
 write_to = "src/astro_prost/_version.py"
+local_scheme = "no-local-version"  
+version_scheme = "no-guess-dev"
 
 [tool.pytest.ini_options]
 testpaths = [

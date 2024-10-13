@@ -17,6 +17,17 @@ classifiers = [
 dynamic = ["version"]
 requires-python = ">=3.9"
 dependencies = [
+  "numpy", 
+  "astropy", 
+  "pandas", 
+  "matplotlib", 
+  "pandas", 
+  "sklearn", 
+  "torch", 
+  "scipy", 
+  "astro-datalab", 
+  "tensorflow", 
+  "requests"
 ]
 
 [project.urls]

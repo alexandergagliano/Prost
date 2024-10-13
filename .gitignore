@@ -1,6 +1,8 @@
 # Ignore all .log files
 *.log
 
+src/astro_prost/_version.py
+
 obsolete/
 data/
 sfddata-master/

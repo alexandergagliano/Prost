@@ -22,7 +22,7 @@ dependencies = [
   "pandas", 
   "matplotlib", 
   "pandas", 
-  "sklearn", 
+  "scikit-learn", 
   "torch", 
   "scipy", 
   "astro-datalab", 

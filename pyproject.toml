@@ -29,7 +29,7 @@ dependencies = [
   "requests",
   "sfdmap2",
   "mpire",
-  "filelock"
+  "filelock",
   "tensorflow==2.15.0; python_version < '3.10'",
   "tensorflow>2.16.0; python_version >= '3.10'"
 ]

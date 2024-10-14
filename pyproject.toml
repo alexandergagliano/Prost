@@ -29,7 +29,7 @@ dependencies = [
   "tensorflow", 
   "requests",
   "sfdmap2",
-  "dask[distributed]",
+  "mpire",
   "filelock"
 ]
 

@@ -10,13 +10,23 @@ import tensorflow as tf
 from astropy.table import Table
 from sfdmap2 import sfdmap
 from filelock import FileLock
+from dask.distributed import get_worker
+from functools import lru_cache
 
 default_model_path = "./MLP_lupton.hdf5"
 default_dust_path = "."
+first_pid = None
 
-def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./"):
+@lru_cache(maxsize=None)
+def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0):
     """Downloads directory of Galactic dust maps for extinction correction.
     """
+    global first_pid
+    current_pid = os.getpid()
+    
+    if first_pid is None:
+        first_pid = current_pid
+    
     target_dir = os.path.join(data_dir, "sfddata-master")
     
     # Use a file lock to synchronize processes trying to download or extract
@@ -25,13 +35,15 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./"):
     with FileLock(lock_path):  # This lock ensures only one process runs this code at a time
         # Check if the dust map directory already exists
         if os.path.isdir(target_dir):
-            print(f"""Dust map data directory "{target_dir}" already exists.""")
+            if (current_pid == first_pid) and (verbose > 0):
+                print(f"""Dust map data directory "{target_dir}" already exists.""")
             return
 
         # Download the data archive file if it is not present
         if not os.path.exists(file_path):
             url = "https://github.com/kbarbary/sfddata/archive/master.tar.gz"
-            print(f"Downloading dust map data from {url}...")
+            if current_pid == first_pid:
+                print(f"Downloading dust map data from {url}...")
             response = requests.get(url, stream=True)
             if response.status_code == 200:
                 with open(file_path, "wb") as f:
@@ -41,13 +53,17 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./"):
                 raise ValueError(f"Failed to download the file: {url} - Status code: {response.status_code}")
 
         # Extract the data files
-        print(f"Extracting {file_path}...")
+        if (current_pid == first_pid) and (verbose > 0):
+            print(f"Extracting {file_path}...")
         with tarfile.open(file_path) as tar:
             tar.extractall(data_dir)
 
-        # Delete the archive file after extraction
+        # Delete the archive file (and the lock) after extraction
         os.remove(file_path)
-        print("Done creating dust directory.")
+        os.remove(lock_path)
+
+        if current_pid == first_pid:
+            print("Done creating dust directory.")
 
 def get_photoz_weights(file_path=default_model_path):
     """Get weights for MLP photo-z model.
@@ -500,7 +516,8 @@ def preprocess(df, path="../data/sfddata-master/", ebv=True):
 
     return x
 
-
+#caching so that multiple workers don't re-load the model
+@lru_cache(maxsize=None)
 def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path):
     """Helper function that defines and loads the weights of our NN model and the output space of the NN.
 
@@ -518,9 +535,9 @@ def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path
     get_photoz_weights(file_path=model_path)
 
     def model():
-        input = tf.keras.layers.input(shape=(31,))
+        input = tf.keras.layers.Input(shape=(31,))
 
-        dense1 = tf.keras.layers.dense(
+        dense1 = tf.keras.layers.Dense(
             256,
             activation=tf.keras.layers.LeakyReLU(),
             kernel_initializer=tf.keras.initializers.he_normal(),
@@ -528,7 +545,7 @@ def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path
         )(input)
         drop1 = tf.keras.layers.Dropout(0.05)(dense1)
 
-        dense2 = tf.keras.layers.dense(
+        dense2 = tf.keras.layers.Dense(
             1024,
             activation=tf.keras.layers.LeakyReLU(),
             kernel_initializer=tf.keras.initializers.he_normal(),
@@ -536,7 +553,7 @@ def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path
         )(drop1)
         drop2 = tf.keras.layers.Dropout(0.05)(dense2)
 
-        dense3 = tf.keras.layers.dense(
+        dense3 = tf.keras.layers.Dense(
             1024,
             activation=tf.keras.layers.LeakyReLU(),
             kernel_initializer=tf.keras.initializers.he_normal(),
@@ -544,14 +561,14 @@ def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path
         )(drop2)
         drop3 = tf.keras.layers.Dropout(0.05)(dense3)
 
-        dense4 = tf.keras.layers.dense(
+        dense4 = tf.keras.layers.Dense(
             1024,
             activation=tf.keras.layers.LeakyReLU(),
             kernel_initializer=tf.keras.initializers.he_normal(),
             kernel_regularizer=tf.keras.regularizers.l2(1e-5),
         )(drop3)
 
-        output = tf.keras.layers.dense(360, activation=tf.keras.activations.softmax)(dense4)
+        output = tf.keras.layers.Dense(360, activation=tf.keras.activations.softmax)(dense4)
 
         model = tf.keras.Model(input, output)
 

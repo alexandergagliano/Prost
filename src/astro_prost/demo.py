@@ -4,62 +4,66 @@ from scipy.stats import gamma, halfnorm, uniform
 from astro_prost.associate import associate_sample, prepare_catalog
 from astro_prost.helpers import SnRateAbsmag
 
-source = "ZTF BTS"
+if __name__ == '__main__':
+	source = "ZTF BTS"
 
-transient_catalog = pd.read_csv(
-    "/Users/alexgagliano/Documents/Research/multimodal-supernovae/data/ZTFBTS/ZTFBTS_TransientTable.csv"
-)
+	transient_catalog = pd.read_csv(
+	    "/Users/alexgagliano/Documents/Research/multimodal-supernovae/data/ZTFBTS/ZTFBTS_TransientTable.csv"
+	)
 
-# define priors for properties
-priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
+	#only take the first 10 events 
+	transient_catalog = transient_catalog.sample(n=10)
 
-# if you want the redshift prior to be based
-# on an observed distribution of transients within a given absmag range
-# transients are uniformly distributed in cosmological volume
-# between zmin and zmax and the subset
-# peaking above mag_cutoff sets the z distribution
-# cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
-# priorfunc_z = PriorzObservedTransients(z_min=0, z_max=1, mag_cutoff=19,
-#       absmag_mean=-19, absmag_min=-24, absmag_max=-17, cosmo=cosmo)
+	# define priors for properties
+	priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
 
-# look at your distribution (only available for the above experiment)
-# priorfunc_z.plot()
+	# if you want the redshift prior to be based
+	# on an observed distribution of transients within a given absmag range
+	# transients are uniformly distributed in cosmological volume
+	# between zmin and zmax and the subset
+	# peaking above mag_cutoff sets the z distribution
+	# cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
+	# priorfunc_z = PriorzObservedTransients(z_min=0, z_max=1, mag_cutoff=19,
+	#       absmag_mean=-19, absmag_min=-24, absmag_max=-17, cosmo=cosmo)
 
-priorfunc_offset = uniform(loc=0, scale=10)
-priorfunc_absmag = uniform(loc=-30, scale=20)
+	# look at your distribution (only available for the above experiment)
+	# priorfunc_z.plot()
 
-likefunc_offset = gamma(a=0.75)
-likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
+	priorfunc_offset = uniform(loc=0, scale=10)
+	priorfunc_absmag = uniform(loc=-30, scale=20)
 
-priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "z": priorfunc_z}
-likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
+	likefunc_offset = gamma(a=0.75)
+	likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
 
-# set up properties of the association run
-verbose = 0
-parallel = True
-save = False
+	priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "z": priorfunc_z}
+	likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
-# list of catalogs to search -- options are (in order) glade, decals, panstarrs
-catalogs = ["panstarrs"]
+	# set up properties of the association run
+	verbose = 0
+	parallel = True
+	save = False
 
-# the name of the coord columns in the dataframe
-transient_coord_cols = ("RA", "Dec")
+	# list of catalogs to search -- options are (in order) glade, decals, panstarrs
+	catalogs = ["panstarrs"]
 
-# the column containing the transient names
-transient_name_col = "IAUID"
+	# the name of the coord columns in the dataframe
+	transient_coord_cols = ("RA", "Dec")
 
-transient_catalog = prepare_catalog(
-    transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols
-)
+	# the column containing the transient names
+	transient_name_col = "IAUID"
 
-# cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-transient_catalog = associate_sample(
-    transient_catalog,
-    priors=priors,
-    likes=likes,
-    catalogs=catalogs,
-    parallel=parallel,
-    verbose=verbose,
-    save=save,
-    cat_cols=False,
-)
+	transient_catalog = prepare_catalog(
+	    transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols
+	)
+
+	# cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
+	transient_catalog = associate_sample(
+	    transient_catalog,
+	    priors=priors,
+	    likes=likes,
+	    catalogs=catalogs,
+	    parallel=parallel,
+	    verbose=verbose,
+	    save=save,
+	    cat_cols=False,
+	)

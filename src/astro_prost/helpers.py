@@ -17,7 +17,6 @@ from scipy.stats import halfnorm, norm
 
 from .photoz_helpers import evaluate, load_lupton_model, preprocess, ps1metadata
 
-
 class GalaxyCatalog:
     """Short summary.
 
@@ -81,7 +80,7 @@ class GalaxyCatalog:
         if timequery:
             start_time = time.time()
         if self.name == "panstarrs":
-            self.mlim = 26
+            self.limiting_mag = 26
             self.galaxies = build_panstarrs_candidates(
                 transient.name,
                 transient.position,
@@ -92,7 +91,7 @@ class GalaxyCatalog:
                 glade_catalog=self.data,
             )
         elif self.name == "decals":
-            self.mlim = 26
+            self.limiting_mag = 26
             self.galaxies = build_decals_candidates(
                 transient.name,
                 transient.position,
@@ -102,7 +101,7 @@ class GalaxyCatalog:
                 verbose=verbose,
             )
         elif self.name == "glade":
-            self.mlim = 17
+            self.limiting_mag = 17
             if self.data is not None:
                 self.galaxies = build_glade_candidates(
                     transient.name,
@@ -483,7 +482,7 @@ class Transient:
         """
         ngals = galaxy_catalog.ngals
         search_rad = galaxy_catalog.search_rad
-        mlim = galaxy_catalog.mlim
+        limiting_mag = galaxy_catalog.limiting_mag
         galaxies = galaxy_catalog.galaxies
         n_samples = galaxy_catalog.n_samples
 
@@ -533,8 +532,13 @@ class Transient:
         p_hostless = np.array(
             [0] * n_samples
         )  # some very low value that the SN is actually hostless, across all samples.
-        p_outside = self.probability_host_outside_cone(search_rad, verbose, n_samples, cosmo)
-        p_unobs = self.probability_of_unobserved_host(search_rad, mlim, verbose, n_samples, cosmo)
+
+        if self.redshift == self.redshift:
+            p_outside = self.probability_host_outside_cone(search_rad=search_rad, verbose=verbose, n_samples=n_samples, cosmo=cosmo)
+        else:
+            p_outside = 0
+
+        p_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, verbose=verbose, n_samples=n_samples, cosmo=cosmo)
 
         # sum across all galaxies for these overall metrics
         p_tot = np.nansum(p_gals, axis=0) + p_hostless + p_outside + p_unobs
@@ -583,15 +587,15 @@ class Transient:
 
         return galaxy_catalog
 
-    def probability_of_unobserved_host(self, search_rad, cosmo, m_lim=30, verbose=False, n_samples=1000):
+    def probability_of_unobserved_host(self, search_rad, cosmo, limiting_mag=30, verbose=False, n_samples=1000):
         """Short summary.
 
         Parameters
         ----------
         search_rad : type
             Description of parameter `search_rad`.
-        m_lim : type
-            Description of parameter `m_lim`.
+        limiting_mag : type
+            Description of parameter `limiting_mag`.
         verbose : type
             Description of parameter `verbose`.
         n_samples : type
@@ -652,7 +656,7 @@ class Transient:
             size=(n_gals, n_samples),
         )
 
-        sn_distance = self.luminosity_distance.to(u.pc).value  # in pc
+        sn_distance = cosmo.luminosity_distance(z_sn).to(u.pc).value  # in pc
 
         min_phys_rad = 1.0
         max_phys_rad = (search_rad.arcsec / 206265) * sn_distance / 1.0e3  # in kpc
@@ -661,7 +665,7 @@ class Transient:
         physical_offset_std = 0.05 * physical_offset_mean
 
         physical_offset_samples = norm.rvs(
-            physical_offset_mean, physical_offset_std, size=(n_gals, n_samples)
+            physical_offset_mean[:, np.newaxis], physical_offset_std[:, np.newaxis], size=(n_gals, n_samples)
         )
 
         fractional_offset_samples = (
@@ -671,9 +675,10 @@ class Transient:
         prior_offset_unobs = self.calc_prior_offset(fractional_offset_samples, reduce=None)
         l_offset_unobs = self.calc_like_offset(fractional_offset_samples, reduce=None)
 
-        absmag_lim_samples = m_lim - 5 * (np.log10(sn_distance / 10))
+        absmag_lim_samples = limiting_mag - 5 * (np.log10(sn_distance / 10))
 
         absmag_samples = np.linspace(absmag_lim_samples, 0, n_gals)
+        absmag_samples = absmag_samples[:, np.newaxis]
 
         prior_absmag = self.calc_prior_absmag(absmag_samples, reduce=None)
         l_absmag = self.calc_like_absmag(absmag_samples, reduce=None)
@@ -684,13 +689,13 @@ class Transient:
 
         return p_unobserved
 
-    def probability_host_outside_cone(self, cosmo, cutout_rad=60, verbose=False, n_samples=1000):
+    def probability_host_outside_cone(self, cosmo, search_rad=60, verbose=False, n_samples=1000):
         """Short summary.
 
         Parameters
         ----------
-        cutout_rad : type
-            Description of parameter `cutout_rad`.
+        search_rad : type
+            Description of parameter `search_rad`.
         verbose : type
             Description of parameter `verbose`.
         n_samples : type
@@ -769,7 +774,7 @@ class Transient:
         sn_distances = cosmo.comoving_distance(self.redshift_samples).value  # in Mpc
 
         # Convert angular cutout radius to physical offset at each sampled redshift
-        min_phys_rad = (cutout_rad.arcsec / 206265) * sn_distances * 1e3  # in kpc
+        min_phys_rad = (search_rad.arcsec / 206265) * sn_distances * 1e3  # in kpc
         max_phys_rad = 5 * min_phys_rad
 
         galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=0, scale=10)  # in kpc
@@ -1739,7 +1744,8 @@ def build_panstarrs_candidates(
 
     # shred logic
     if len(candidate_hosts) > 1:
-        print("Removing panstarrs shreds...")
+        if verbose > 0:
+            print("Removing panstarrs shreds...")
         shred_idxs = find_panstarrs_shreds(
             candidate_hosts["objID"].values,
             candidate_hosts["raMean"].values,
@@ -1753,8 +1759,9 @@ def build_panstarrs_candidates(
             temp_mag_r,
             verbose=verbose,
         )
-        if len(shred_idxs) > 0:
-            print(f"Removing {len(shred_idxs)} indices from tentative matches in panstarrs!")
+        if len(shred_idxs) > 0: 
+            if verbose > 0:
+                print(f"Removing {len(shred_idxs)} indices from tentative matches in panstarrs!")
             left_idxs = ~candidate_hosts.index.isin(shred_idxs)
             candidate_hosts = candidate_hosts[left_idxs]
             temp_mag_r = temp_mag_r[left_idxs]
@@ -1762,7 +1769,8 @@ def build_panstarrs_candidates(
             dlr_samples = dlr_samples[left_idxs, :]
             galaxies_pos = galaxies_pos[left_idxs]
         else:
-            print("No panstarrs shreds found.")
+            if verbose > 0:
+                print("No panstarrs shreds found.")
 
     n_galaxies = len(candidate_hosts)
 
@@ -1799,7 +1807,7 @@ def build_panstarrs_candidates(
     with pkg_resources.as_file(pkg_data_file) as model_path:
         model, range_z = load_lupton_model(model_path=model_path, dust_path=default_dust_path)
 
-    x = preprocess(candidate_hosts, PATH=os.path.join(default_dust_path, "sfddata-master"))
+    x = preprocess(candidate_hosts, path=os.path.join(default_dust_path, "sfddata-master"))
     posteriors, point_estimates, errors = evaluate(x, model, range_z)
     point_estimates[point_estimates < 0.001] = 0.001  # set photometric redshift floor
     point_estimates[point_estimates != point_estimates] = 0.001  # set photometric redshift floor

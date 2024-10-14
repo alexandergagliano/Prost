@@ -93,12 +93,15 @@ def associate_transient(
     transient.set_likelihood("offset", likefunc_offset)
     transient.set_likelihood("absmag", likefunc_absmag)
 
-    best_prob, best_ra, best_dec, query_time = (
+    best_prob, best_ra, best_dec, second_best_prob, second_best_ra, second_best_dec, query_time = (
         np.nan,
         np.nan,
         np.nan,
+        np.nan, 
         np.nan,
-    )  # Default values when no good host is found
+        np.nan,
+        np.nan
+    ) 
     best_cat = ""
 
     for cat_name in catalogs:
@@ -240,7 +243,7 @@ def prepare_catalog(
         "missedcat_prob",
         "sn_ra_deg",
         "sn_dec_deg",
-        "prob_association_time",
+        "association_time",
     ]
 
     for field in association_fields:
@@ -376,7 +379,7 @@ def associate_sample(
         ]
 
         jobs = [associate_transient(*event) for event in events]
-        results = compute(*jobs)  
+        results = compute(*jobs, scheduler='processes') 
     else:
         results = []
         for idx, row in transient_catalog.iterrows():
@@ -398,12 +401,27 @@ def associate_sample(
             results.append(associate_transient(*event))
     # Update transient_catalog with results
     for result in results:
-        idx, best_prob, best_ra, best_dec, query_time, best_cat = result
-        transient_catalog.at[idx, "prob_host_ra"] = best_ra
-        transient_catalog.at[idx, "prob_host_dec"] = best_dec
-        transient_catalog.at[idx, "prob_host_score"] = best_prob
-        transient_catalog.at[idx, "prob_query_time"] = query_time
-        transient_catalog.at[idx, "prob_best_cat"] = best_cat
+
+        (idx, best_objid, best_prob, best_ra, best_dec, 
+           second_best_objid, second_best_prob, second_best_ra, second_best_dec, 
+           query_time, best_cat) = result
+
+        transient_catalog.at[idx, "host_id"] = best_objid
+        transient_catalog.at[idx, "host_ra"] = best_ra
+        transient_catalog.at[idx, "host_dec"] = best_dec
+        transient_catalog.at[idx, "host_prob"] = best_prob
+        transient_catalog.at[idx, "host_2_id"] = second_best_objid
+        transient_catalog.at[idx, "host_2_ra"] = second_best_ra
+        transient_catalog.at[idx, "host_2_dec"] = second_best_dec
+        transient_catalog.at[idx, "host_2_prob"] = second_best_prob 
+        transient_catalog.at[idx, "association_time"] = query_time
+        transient_catalog.at[idx, "best_cat"] = best_cat
+
+
+    # TODO: add in logic to return smallcone_prob and missedcat_prob
+        "smallcone_prob",
+        "missedcat_prob",
+
     print("Association of all transients is complete.")
 
     # Save the updated catalog

@@ -46,7 +46,7 @@ catalogs = ["panstarrs"]
 transient_coord_cols = ("RA", "Dec")
 
 # the column containing the transient names
-transient_name_col = "name"
+transient_name_col = "IAUID"
 
 transient_catalog = prepare_catalog(
     transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols

@@ -28,7 +28,9 @@ dependencies = [
   "astro-datalab", 
   "tensorflow", 
   "requests",
-  "sfdmap2"
+  "sfdmap2",
+  "dask",
+  "filelock"
 ]
 
 [project.urls]

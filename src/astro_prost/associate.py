@@ -1,10 +1,9 @@
 import os
 import pathlib
-import importlib.resources
-from multiprocessing import Pool
+import dask
 from time import time
 from urllib.error import HTTPError
-
+from dask import delayed, compute
 import astropy.units as u
 import numpy as np
 import pandas as pd
@@ -12,12 +11,12 @@ import requests
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import LambdaCDM
 import importlib.resources as pkg_resources
-from astro_prost import data
+import importlib
 
 from .diagnose import plot_match
 from .helpers import GalaxyCatalog, Transient
 
-
+@delayed
 def associate_transient(
     idx,
     row,
@@ -335,8 +334,11 @@ def associate_sample(
             raise ValueError(f"ERROR: Please set a likelihood function for {key}.")
 
     # always load GLADE -- we now use it for spec-zs.
+    pkg = pkg_resources.files("astro_prost")
+    pkg_data_file = pkg / "data" / "GLADE+_HyperLedaSizes_mod_withz.csv"
+    
     try:
-        with importlib.resources.open_text(data, 'GLADE+_HyperLedaSizes_mod_withz.csv') as csvfile:
+        with pkg_resources.as_file(pkg_data_file) as csvfile:
             glade_catalog = pd.read_csv(csvfile)
     except FileNotFoundError:
         glade_catalog = None
@@ -354,7 +356,7 @@ def associate_sample(
 
         # Create a list of tasks (one per transient)
         print("parallelizing...")
-        tasks = [
+        events = [
             (
                 idx,
                 row,
@@ -373,11 +375,8 @@ def associate_sample(
             for idx, row in transient_catalog.iterrows()
         ]
 
-        # Run the association tasks in parallel
-        with Pool(processes=n_processes) as pool:
-            results = pool.starmap(associate_transient, tasks)
-            pool.close()
-            pool.join()  # Ensures that all resources are released
+        jobs = [associate_transient(*event) for event in events]
+        results = compute(*jobs)  
     else:
         results = []
         for idx, row in transient_catalog.iterrows():

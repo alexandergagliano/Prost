@@ -1,11 +1,11 @@
 import os
 import time
-import importlib.resources
+import importlib
+import importlib.resources as pkg_resources
 
 import matplotlib.pyplot as plt
 import numpy as np
 import importlib.resources as pkg_resources
-from astro_prost import data 
 import requests
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, match_coordinates_sky
@@ -85,7 +85,7 @@ class GalaxyCatalog:
             self.galaxies = build_panstarrs_candidates(
                 transient.name,
                 transient.position,
-                search_rad,
+                search_rad=search_rad,
                 n_samples=self.n_samples,
                 verbose=verbose,
                 cosmo=cosmo,
@@ -96,7 +96,7 @@ class GalaxyCatalog:
             self.galaxies = build_decals_candidates(
                 transient.name,
                 transient.position,
-                search_rad,
+                search_rad=search_rad,
                 cosmo=cosmo,
                 n_samples=self.n_samples,
                 verbose=verbose,
@@ -1178,8 +1178,8 @@ def build_glade_candidates(
     transient_name,
     transient_pos,
     glade_catalog,
-    search_rad,
     cosmo,
+    search_rad=None,
     n_samples=1000,
     verbose=False,
 ):
@@ -1208,7 +1208,7 @@ def build_glade_candidates(
         Description of returned object.
 
     """
-    if not search_rad:
+    if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
     candidate_hosts = glade_catalog[
@@ -1346,7 +1346,7 @@ def build_glade_candidates(
     return galaxies
 
 
-def build_decals_candidates(transient_name, transient_pos, search_rad, cosmo, n_samples=1000, verbose=False):
+def build_decals_candidates(transient_name, transient_pos, cosmo, search_rad=None, n_samples=1000, verbose=False):
     """Short summary.
 
     Parameters
@@ -1370,7 +1370,7 @@ def build_decals_candidates(transient_name, transient_pos, search_rad, cosmo, n_
         Description of returned object.
 
     """
-    if not search_rad:
+    if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
@@ -1562,8 +1562,8 @@ def build_decals_candidates(transient_name, transient_pos, search_rad, cosmo, n_
 def build_panstarrs_candidates(
     transient_name,
     transient_pos,
-    search_rad,
     cosmo,
+    search_rad=None,
     n_samples=1000,
     verbose=False,
     glade_catalog=None,
@@ -1593,7 +1593,7 @@ def build_panstarrs_candidates(
         Description of returned object.
     """
 
-    if not search_rad:
+    if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
@@ -1793,7 +1793,10 @@ def build_panstarrs_candidates(
     # get photozs from Andrew Engel's code!
     default_dust_path = "."
 
-    with importlib.resources.path(data, 'MLP_lupton.hdf5') as model_path:
+    pkg = pkg_resources.files("astro_prost")
+    pkg_data_file = pkg / "data" / "MLP_lupton.hdf5"
+
+    with pkg_resources.as_file(pkg_data_file) as model_path:
         model, range_z = load_lupton_model(model_path=model_path, dust_path=default_dust_path)
 
     x = preprocess(candidate_hosts, PATH=os.path.join(default_dust_path, "sfddata-master"))

@@ -4,7 +4,6 @@
 src/astro_prost/_version.py
 
 obsolete/
-data/
 sfddata-master/
 
 # Ignore all directories named "temp"

@@ -1,9 +1,8 @@
 import os
 import pathlib
-import dask
+from mpire import WorkerPool
 from time import time
 from urllib.error import HTTPError
-from dask import delayed, compute
 import astropy.units as u
 import numpy as np
 import pandas as pd
@@ -16,7 +15,6 @@ import importlib
 from .diagnose import plot_match
 from .helpers import GalaxyCatalog, Transient
 
-@delayed
 def associate_transient(
     idx,
     row,
@@ -93,15 +91,22 @@ def associate_transient(
     transient.set_likelihood("offset", likefunc_offset)
     transient.set_likelihood("absmag", likefunc_absmag)
 
-    best_prob, best_ra, best_dec, second_best_prob, second_best_ra, second_best_dec, query_time = (
+    (
+        best_objid, best_prob, best_ra, best_dec,
+        second_best_objid, second_best_prob, second_best_ra,
+        second_best_dec, query_time
+    ) = (
         np.nan,
         np.nan,
         np.nan,
-        np.nan, 
+        np.nan,
+        np.nan,
+        np.nan,
         np.nan,
         np.nan,
         np.nan
-    ) 
+    )
+
     best_cat = ""
 
     for cat_name in catalogs:
@@ -280,7 +285,6 @@ def prepare_catalog(
 
     return transient_catalog
 
-
 def associate_sample(
     transient_catalog,
     catalogs,
@@ -292,6 +296,7 @@ def associate_sample(
     save=True,
     save_path="./",
     cat_cols=False,
+    progress_bar=False,
     cosmology=None,
 ):
     """Short summary.
@@ -318,6 +323,8 @@ def associate_sample(
         Description of parameter `save_path`.
     cat_cols : type
         Description of parameter `cat_cols`.
+    progress_bar : type 
+        Description of parameter `progress_bar`.
     cosmology : type
         Description of parameter `cosmology`.
 
@@ -354,80 +361,78 @@ def associate_sample(
     likefunc_offset = likes["offset"]
     likefunc_absmag = likes["absmag"]
 
+    results = []
+
+    events = [
+        (
+            idx,
+            row,
+            glade_catalog,
+            n_samples,
+            verbose,
+            priorfunc_z,
+            priorfunc_offset,
+            priorfunc_absmag,
+            likefunc_offset,
+            likefunc_absmag,
+            cosmo,
+            catalogs,
+            cat_cols,
+        )
+        for idx, row in transient_catalog.iterrows()
+    ]
+
+
     if parallel:
-        n_processes = os.cpu_count() - 5
+        envkey = 'PYSPAWN_' + os.path.basename(__file__)
 
-        # Create a list of tasks (one per transient)
-        print("parallelizing...")
-        events = [
-            (
-                idx,
-                row,
-                glade_catalog,
-                n_samples,
-                verbose,
-                priorfunc_z,
-                priorfunc_offset,
-                priorfunc_absmag,
-                likefunc_offset,
-                likefunc_absmag,
-                cosmo,
-                catalogs,
-                cat_cols,
-            )
-            for idx, row in transient_catalog.iterrows()
-        ]
+        if not os.environ.get(envkey, False):
+            # Set the environment variable in the parent process only
+            os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
+        
+            n_processes = os.cpu_count() - 5
 
-        jobs = [associate_transient(*event) for event in events]
-        results = compute(*jobs, scheduler='processes') 
+            # Create a list of tasks (one per transient)
+            if verbose > 0:
+                print("Parallelizing associations with {n_processes} processes.")
+
+            with WorkerPool(n_jobs=n_processes, start_method='spawn') as pool:
+                #jobs = [associate_transient(*event) for event in events]
+                results = pool.map(associate_transient, events, progress_bar=progress_bar)
+                pool.stop_and_join()
     else:
-        results = []
-        for idx, row in transient_catalog.iterrows():
-            event = (
-                idx,
-                row,
-                glade_catalog,
-                n_samples,
-                verbose,
-                priorfunc_z,
-                priorfunc_offset,
-                priorfunc_absmag,
-                likefunc_offset,
-                likefunc_absmag,
-                cosmo,
-                catalogs,
-                cat_cols,
-            )
-            results.append(associate_transient(*event))
-    # Update transient_catalog with results
-    for result in results:
+        results = [associate_transient(*event) for event in events]
 
-        (idx, best_objid, best_prob, best_ra, best_dec, 
-           second_best_objid, second_best_prob, second_best_ra, second_best_dec, 
-           query_time, best_cat) = result
+    if not parallel or os.environ.get(envkey) == str(os.getpid()):
+        # Update transient_catalog with results
 
-        transient_catalog.at[idx, "host_id"] = best_objid
-        transient_catalog.at[idx, "host_ra"] = best_ra
-        transient_catalog.at[idx, "host_dec"] = best_dec
-        transient_catalog.at[idx, "host_prob"] = best_prob
-        transient_catalog.at[idx, "host_2_id"] = second_best_objid
-        transient_catalog.at[idx, "host_2_ra"] = second_best_ra
-        transient_catalog.at[idx, "host_2_dec"] = second_best_dec
-        transient_catalog.at[idx, "host_2_prob"] = second_best_prob 
-        transient_catalog.at[idx, "association_time"] = query_time
-        transient_catalog.at[idx, "best_cat"] = best_cat
+        results_df = pd.DataFrame(
+            results,
+            columns=[
+                "idx", "best_objid", "best_prob", "best_ra", "best_dec",
+                "second_best_objid", "second_best_prob", "second_best_ra", "second_best_dec",
+                "query_time", "best_cat"
+            ]
+        )
+   
+        # Use the 'idx' column to align with the corresponding rows in transient_catalog
+        transient_catalog.loc[results_df["idx"], ["host_id", "host_ra", "host_dec", "host_prob",
+                                              "host_2_id", "host_2_ra", "host_2_dec",
+                                              "host_2_prob", "association_time", "best_cat"]] = \
+        results_df[["best_objid", "best_ra", "best_dec", "best_prob",
+                "second_best_objid", "second_best_ra", "second_best_dec",
+                "second_best_prob", "query_time", "best_cat"]].values
 
+        # TODO: add in logic to return smallcone_prob and missedcat_prob (also cat_cols if true)
+        #"smallcone_prob",
+        #"missedcat_prob",
 
-    # TODO: add in logic to return smallcone_prob and missedcat_prob
-        "smallcone_prob",
-        "missedcat_prob",
-
-    print("Association of all transients is complete.")
-
-    # Save the updated catalog
-    if save:
-        ts = int(time.time())
-        save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
-        transient_catalog.to_csv(save_name, index=False)
+        print("Association of all transients is complete.")
+ 
+        # Save the updated catalog
+        if save:
+            ts = int(time())
+            save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
+            transient_catalog.to_csv(save_name, index=False)
     else:
         return transient_catalog

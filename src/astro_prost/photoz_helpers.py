@@ -10,39 +10,28 @@ import tensorflow as tf
 from astropy.table import Table
 from sfdmap2 import sfdmap
 from filelock import FileLock
-from dask.distributed import get_worker
-from functools import lru_cache
+from pathlib import Path
 
 default_model_path = "./MLP_lupton.hdf5"
 default_dust_path = "."
-first_pid = None
 
-@lru_cache(maxsize=None)
 def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0):
-    """Downloads directory of Galactic dust maps for extinction correction.
-    """
-    global first_pid
-    current_pid = os.getpid()
-    
-    if first_pid is None:
-        first_pid = current_pid
-    
+    """Downloads directory of Galactic dust maps for extinction correction."""
+
+    # Define the target directory
     target_dir = os.path.join(data_dir, "sfddata-master")
-    
-    # Use a file lock to synchronize processes trying to download or extract
-    lock_path = file_path + ".lock"
-    
-    with FileLock(lock_path):  # This lock ensures only one process runs this code at a time
+
+    lock_path = Path(file_path).with_suffix(".lock")
+
+    with FileLock(lock_path):
         # Check if the dust map directory already exists
         if os.path.isdir(target_dir):
-            if (current_pid == first_pid) and (verbose > 0):
-                print(f"""Dust map data directory "{target_dir}" already exists.""")
             return
 
         # Download the data archive file if it is not present
         if not os.path.exists(file_path):
             url = "https://github.com/kbarbary/sfddata/archive/master.tar.gz"
-            if current_pid == first_pid:
+            if verbose > 0:
                 print(f"Downloading dust map data from {url}...")
             response = requests.get(url, stream=True)
             if response.status_code == 200:
@@ -53,35 +42,44 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0)
                 raise ValueError(f"Failed to download the file: {url} - Status code: {response.status_code}")
 
         # Extract the data files
-        if (current_pid == first_pid) and (verbose > 0):
+        if verbose > 0:
             print(f"Extracting {file_path}...")
         with tarfile.open(file_path) as tar:
             tar.extractall(data_dir)
 
-        # Delete the archive file (and the lock) after extraction
+        # Delete the archive file after extraction
         os.remove(file_path)
         os.remove(lock_path)
 
-        if current_pid == first_pid:
+        if verbose > 0:
             print("Done creating dust directory.")
 
-def get_photoz_weights(file_path=default_model_path):
-    """Get weights for MLP photo-z model.
+def get_photoz_weights(file_path=default_model_path, verbose=0):
+    """Get weights for MLP photo-z model."""
 
-    :param fname: Filename of saved MLP weights.
-    :type fname: str
-    """
-    if os.path.exists(file_path):
-        print(f"""photo-z weights file "{file_path}" already exists.""")
-        return
-    url = "https://uofi.box.com/shared/static/n1yiy818mv5b5riy2h3dg5yk2by3swos.hdf5"
-    response = requests.get(url, stream=True)
-    if response.status_code == 200:
-        with open(file_path, "wb") as f:
-            f.write(response.raw.read())
-    print("Done getting photo-z weights.")
-    return
+    # File lock path
+    lock_path = file_path.with_suffix(".lock")
 
+    # Use the lock to ensure only one process downloads the weights file
+    with FileLock(lock_path):
+        # Check if the photo-z weights file already exists
+        if os.path.exists(file_path):
+            # Do not print anything here
+            return
+
+        # Download the file if it does not exist
+        url = "https://uofi.box.com/shared/static/n1yiy818mv5b5riy2h3dg5yk2by3swos.hdf5"
+        if verbose > 0:
+            print(f"Downloading photo-z weights from {url}...")
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(file_path, "wb") as f:
+                f.write(response.raw.read())
+        else:
+            raise ValueError(f"Failed to download the file: {url} - Status code: {response.status_code}")
+
+        if verbose > 0:
+            print("Done getting photo-z weights.")
 
 def ps1objidsearch(
     objid,
@@ -516,8 +514,6 @@ def preprocess(df, path="../data/sfddata-master/", ebv=True):
 
     return x
 
-#caching so that multiple workers don't re-load the model
-@lru_cache(maxsize=None)
 def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path):
     """Helper function that defines and loads the weights of our NN model and the output space of the NN.
 

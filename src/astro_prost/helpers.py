@@ -4,6 +4,8 @@ import importlib.resources
 
 import matplotlib.pyplot as plt
 import numpy as np
+import importlib.resources as pkg_resources
+from astro_prost import data 
 import requests
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, match_coordinates_sky
@@ -1791,7 +1793,7 @@ def build_panstarrs_candidates(
     # get photozs from Andrew Engel's code!
     default_dust_path = "."
 
-    with importlib.resources.path('astro_prost.data', 'MLP_lupton.hdf5') as model_path:
+    with importlib.resources.path(data, 'MLP_lupton.hdf5') as model_path:
         model, range_z = load_lupton_model(model_path=model_path, dust_path=default_dust_path)
 
     x = preprocess(candidate_hosts, PATH=os.path.join(default_dust_path, "sfddata-master"))

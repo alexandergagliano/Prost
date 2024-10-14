@@ -27,7 +27,8 @@ dependencies = [
   "scipy", 
   "astro-datalab", 
   "tensorflow", 
-  "requests"
+  "requests",
+  "sfdmap2"
 ]
 
 [project.urls]

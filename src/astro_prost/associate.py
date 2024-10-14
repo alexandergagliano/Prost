@@ -11,6 +11,8 @@ import pandas as pd
 import requests
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import LambdaCDM
+import importlib.resources as pkg_resources
+from astro_prost import data
 
 from .diagnose import plot_match
 from .helpers import GalaxyCatalog, Transient
@@ -200,7 +202,7 @@ def associate_transient(
 
 def prepare_catalog(
     transient_catalog,
-    debug_names,
+    debug_names=None,
     transient_name_col="name",
     transient_coord_cols=("ra", "dec"),
     debug=False,
@@ -248,7 +250,7 @@ def prepare_catalog(
     transient_catalog["prob_host_flag"] = 0
 
     # debugging with just the ones we got wrong
-    if debug and len(debug_names) > 0:
+    if debug and debug_names is not None:
         transient_catalog = transient_catalog[transient_catalog[transient_name_col].isin(debug_names)]
 
     # convert coords if needed
@@ -334,7 +336,7 @@ def associate_sample(
 
     # always load GLADE -- we now use it for spec-zs.
     try:
-        with importlib.resources.open_text('astro_prost.data', 'GLADE+_HyperLedaSizes_mod_withz.csv') as csvfile:
+        with importlib.resources.open_text(data, 'GLADE+_HyperLedaSizes_mod_withz.csv') as csvfile:
             glade_catalog = pd.read_csv(csvfile)
     except FileNotFoundError:
         glade_catalog = None

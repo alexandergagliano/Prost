@@ -43,7 +43,7 @@ save = False
 catalogs = ["panstarrs"]
 
 # the name of the coord columns in the dataframe
-transient_coord_cols = ("ra", "dec")
+transient_coord_cols = ("RA", "Dec")
 
 # the column containing the transient names
 transient_name_col = "name"

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath("../src/"))
 project = "prost"
 copyright = "2024, Alex Gagliano"
 author = "Alex Gagliano"
-release = version("prost")
+release = version("astro-prost")
 # for example take major/minor
 version = ".".join(release.split(".")[:2])
 

@@ -169,9 +169,8 @@ def associate_transient(
                         extra_cat_cols[field] = cat.galaxies[field][best_idx]
 
                 if verbose > 0:
-                    print(f"Found a good host in {cat_name}!")
                     print(
-                        f"Chosen galaxy has catalog ID of {best_objid}"
+                        f"Chosen {cat_name} galaxy has catalog ID of {best_objid}"
                         f" and RA, DEC = {best_ra:.6f}, {best_dec:.6f}"
                     )
                 if verbose > 1:
@@ -435,7 +434,6 @@ def associate_sample(
         id_cols = [col for col in transient_catalog.columns if col.endswith('id')]
 
         for col in id_cols:
-            print(col)
             transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors='coerce').astype('Int64')
 
         print("Association of all transients is complete.")
@@ -445,5 +443,7 @@ def associate_sample(
             ts = int(time())
             save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
             transient_catalog.to_csv(save_name, index=False)
+        else:
+            return transient_catalog
     else:
         return transient_catalog

@@ -6,6 +6,10 @@ src/astro_prost/_version.py
 obsolete/
 sfddata-master/
 
+_readthedocs/
+_build/
+.doctrees/
+
 # Ignore all directories named "temp"
 temp/
 tests/*

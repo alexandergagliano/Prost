@@ -1,0 +1,12 @@
+# .readthedocs.yml
+version: 2
+
+# Build documentation with Sphinx
+sphinx:
+  configuration: docs/conf.py  
+
+# Python dependencies
+python:
+  version: 3.11
+  install:
+    - requirements: requirements.txt  # Install dependencies from requirements.txt

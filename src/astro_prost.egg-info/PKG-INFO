@@ -1,0 +1,80 @@
+Metadata-Version: 2.1
+Name: astro-prost
+Version: 1.0.9
+Author-email: Alex Gagliano <gaglian2@mit.edu>
+License: MIT License
+        
+        Copyright (c) 2024 Alex Gagliano
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Source Code, https://github.com/alexandergagliano/prost
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: astropy
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: torch
+Requires-Dist: scipy
+Requires-Dist: astro-datalab
+Requires-Dist: requests
+Requires-Dist: sfdmap2
+Requires-Dist: mpire
+Requires-Dist: filelock
+Requires-Dist: tensorflow==2.14.0; python_version < "3.10"
+Requires-Dist: tensorflow>2.16.0; python_version >= "3.10"
+Provides-Extra: dev
+Requires-Dist: asv==0.6.4; extra == "dev"
+Requires-Dist: jupyter; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+
+
+# Prost: Probabilistic Host Galaxy Association
+## Prost is a code for rapidly associating transients with their host galaxies. 
+The code calculates the posterior probability that each galaxy in a search region is the true host galaxy, by considering
+the transient's fractional offset, redshift (or the prior for the survey), and brightness. The code queries the following catalogs in order: 
+* <a href="https://ui.adsabs.harvard.edu/abs/2022MNRAS.514.1403D">GLADE+</a>  
+* <a href="https://ui.adsabs.harvard.edu/abs/2019AJ....157..168D">DECaLS</a>
+* <a href="https://ui.adsabs.harvard.edu/abs/2016arXiv161205560C">PanSTARRS Data Release 2</a>
+
+The code also estimates the posterior probability that the true host lies outside of the search cone or is missing from the search catalog. The priors and likelihoods for each property can be customized according to the transient survey.
+
+[![Template](https://img.shields.io/badge/Template-LINCC%20Frameworks%20Python%20Project%20Template-brightgreen)](https://lincc-ppt.readthedocs.io/en/latest/)
+
+[![PyPI](https://img.shields.io/pypi/v/prost?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/prost/)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/alexandergagliano/prost/smoke-test.yml)](https://github.com/alexandergagliano/prost/actions/workflows/smoke-test.yml)
+[![Codecov](https://codecov.io/gh/alexandergagliano/prost/branch/main/graph/badge.svg)](https://codecov.io/gh/alexandergagliano/prost)
+[![Read The Docs](https://img.shields.io/readthedocs/astro_prost)](https://astro_prost.readthedocs.io/)
+[![Benchmarks](https://img.shields.io/github/actions/workflow/status/alexandergagliano/prost/asv-main.yml?label=benchmarks)](https://alexandergagliano.github.io/prost/)
+
+This project was automatically generated using the LINCC-Frameworks 
+[python-project-template](https://github.com/lincc-frameworks/python-project-template).

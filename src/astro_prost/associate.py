@@ -81,7 +81,7 @@ def associate_transient(
     if verbose > 0:
         print(
             f"Associating for {transient.name} at RA, DEC = "
-            "{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
+            f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
         )
 
     transient.set_prior("redshift", priorfunc_z)
@@ -172,8 +172,9 @@ def associate_transient(
                     print(f"Found a good host in {cat_name}!")
                     print(
                         f"Chosen galaxy has catalog ID of {best_objid}"
-                        "and RA, DEC = {best_ra:.6f}, {best_dec:.6f}"
+                        f"and RA, DEC = {best_ra:.6f}, {best_dec:.6f}"
                     )
+                if verbose > 1:
                     try:
                         plot_match(
                             [best_ra],

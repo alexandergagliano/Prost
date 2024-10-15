@@ -1,0 +1,27 @@
+numpy
+astropy
+pandas
+matplotlib
+pandas
+scikit-learn
+torch
+scipy
+astro-datalab
+requests
+sfdmap2
+mpire
+filelock
+
+[:python_version < "3.10"]
+tensorflow==2.14.0
+
+[:python_version >= "3.10"]
+tensorflow>2.16.0
+
+[dev]
+asv==0.6.4
+jupyter
+pre-commit
+pytest
+pytest-cov
+ruff

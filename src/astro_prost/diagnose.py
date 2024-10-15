@@ -12,8 +12,7 @@ from astropy.table import Table
 from astropy.visualization import make_lupton_rgb
 from astropy.wcs import WCS
 
-
-def getimages(ra, dec, size=240, filters="grizy", type="stack"):
+def get_images(ra, dec, size=240, filters="grizy", type="stack"):
     """Query ps1filenames.py service to get a list of images.
 
     :param ra: Right ascension of position, in degrees.
@@ -63,7 +62,7 @@ def geturl(ra, dec, size=240, output_size=None, filters="grizy", format="jpg", c
         raise ValueError("color images are available only for jpg or png formats")
     if format not in ("jpg", "png", "fits"):
         raise ValueError("format must be one of jpg, png, fits")
-    table = getimages(ra, dec, size=size, filters=filters, type=type)
+    table = get_images(ra, dec, size=size, filters=filters, type=type)
     url = (
         "https://ps1images.stsci.edu/cgi-bin/fitscut.cgi?" "ra={ra}&dec={dec}&size={size}&format={format}"
     ).format(**locals())
@@ -136,7 +135,6 @@ def find_all(name, path):
             result.append(os.path.join(root, name))
     return result
 
-
 def plot_match(
     host_ra,
     host_dec,
@@ -144,10 +142,10 @@ def plot_match(
     true_host_dec,
     host_z_mean,
     host_z_std,
-    sn_ra,
-    sn_dec,
-    sn_name,
-    sn_z,
+    transient_ra,
+    transient_dec,
+    transient_name,
+    transient_z,
     bayesflag,
     fn,
 ):
@@ -167,14 +165,14 @@ def plot_match(
         Description of parameter `host_z_mean`.
     host_z_std : type
         Description of parameter `host_z_std`.
-    sn_ra : type
-        Description of parameter `sn_ra`.
-    sn_dec : type
-        Description of parameter `sn_dec`.
-    sn_name : type
-        Description of parameter `sn_name`.
-    sn_z : type
-        Description of parameter `sn_z`.
+    transient_ra : type
+        Description of parameter `transient_ra`.
+    transient_dec : type
+        Description of parameter `transient_dec`.
+    transient_name : type
+        Description of parameter `transient_name`.
+    transient_z : type
+        Description of parameter `transient_z`.
     bayesflag : type
         Description of parameter `bayesflag`.
     fn : type
@@ -204,7 +202,7 @@ def plot_match(
     if len(host_ra) > 0:
         sep = np.nanmax(
             SkyCoord(host_ra * u.deg, host_dec * u.deg)
-            .separation(SkyCoord(sn_ra * u.deg, sn_dec * u.deg))
+            .separation(SkyCoord(transient_ra * u.deg, transient_dec * u.deg))
             .arcsec
         )
     else:
@@ -212,7 +210,7 @@ def plot_match(
     if true_host_ra:
         sep_true = (
             SkyCoord(true_host_ra * u.deg, true_host_dec * u.deg)
-            .separation(SkyCoord(sn_ra * u.deg, sn_dec * u.deg))
+            .separation(SkyCoord(transient_ra * u.deg, transient_dec * u.deg))
             .arcsec
         )
         if (true_host_ra) and (true_host_dec) and (sep_true > sep):
@@ -221,16 +219,18 @@ def plot_match(
     print(f"Getting img with size len {rad:.2f}...")
     pic_data = []
     for band in bands:
-        get_ps1_pic("./", None, sn_ra, sn_dec, int(rad * 4), band)
-        a = find_all(f"PS1_ra={sn_ra}_dec={sn_dec}_{int(rad)}arcsec_{band}.fits", ".")
-        pixels = fits.open(a[0])[0].data
-        pixels = pixels.astype("float32")
-        # normalize to the range 0-255
-        pixels *= 255 / np.nanmax(pixels)
-        # plt.hist(pixels)
-        pic_data.append(pixels)
-        hdu = fits.open(a[0])[0]
-        os.remove(a[0])
+        get_ps1_pic("./", None, transient_ra, transient_dec, int(rad * 4), band)
+        a = find_all(f"PS1_ra={transient_ra}_dec={transient_dec}_{int(rad)}arcsec_{band}.fits", ".")
+        if not a:
+            raise FileNotFoundError(f"FITS file not found for RA={transient_ra}, DEC={transient_dec}, radius={int(rad)}, band={band}")
+        else:
+            pixels = fits.open(a[0])[0].data
+            pixels = pixels.astype("float32")
+            # normalize to the range 0-255
+            pixels *= 255 / np.nanmax(pixels)
+            pic_data.append(pixels)
+            hdu = fits.open(a[0])[0]
+            os.remove(a[0])
 
     lo_val, up_val = np.nanpercentile(
         np.array(pic_data).ravel(), (0.5, 99.5)
@@ -288,21 +288,21 @@ def plot_match(
                 facecolor=cols[i],
                 zorder=100,
             )
-        if sn_z == sn_z:
+        if transient_z == transient_z:
             plt.title(
-                f"{sn_name}, z={sn_z:.4f}; Host Match,"
+                f"{transient_name}, z={transient_z:.4f}; Host Match,"
                 f"z={host_z_mean:.4f}+/-{host_z_std:.4f} {true_str}{bayesstr}"
             )
         else:
             plt.title(
-                f"{sn_name}, no z; Host Match, "
+                f"{transient_name}, no z; Host Match, "
                 f"z={host_z_mean:.4f}+/-{host_z_std:.4f} {true_str}{bayesstr}"
             )
     else:
-        if sn_z == sn_z:
-            plt.title(f"{sn_name}, z={sn_z:.4f}; No host found {true_str}")
+        if transient_z == transient_z:
+            plt.title(f"{transient_name}, z={transient_z:.4f}; No host found {true_str}")
         else:
-            plt.title(f"{sn_name}, no z; No host found {true_str}")
+            plt.title(f"{transient_name}, no z; No host found {true_str}")
     ax.imshow(rgb_default, origin="lower")
     plt.axis("off")
     plt.savefig("./%s.png" % fn, bbox_inches="tight")

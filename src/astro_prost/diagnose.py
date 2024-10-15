@@ -3,8 +3,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.coordinates import SkyCoord
-
-matplotlib.use("Agg")  # Use the Agg backend for non-GUI rendering
 import os
 
 from astropy.io import fits
@@ -35,7 +33,7 @@ def get_images(ra, dec, size=240, filters="grizy", type="stack"):
     return table
 
 
-def geturl(ra, dec, size=240, output_size=None, filters="grizy", format="jpg", color=False, type="stack"):
+def get_url(ra, dec, size=240, output_size=None, filters="grizy", format="jpg", color=False, type="stack"):
     """Get the URL for images in the table.
 
     :param ra: Right ascension of position, in degrees.
@@ -106,7 +104,7 @@ def get_ps1_pic(path, objid, ra, dec, size, band, safe=False, save=False):
     :type safe: bool, optional
     """
 
-    fitsurl = geturl(ra, dec, size=size, filters=f"{band}", format="fits")
+    fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")
     fh = fits.open(fitsurl[0])
     if save:
         if safe:

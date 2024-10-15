@@ -1806,7 +1806,7 @@ def build_panstarrs_candidates(
     # shred logic
     if len(candidate_hosts) > 1:
         if verbose > 0:
-            print("Removing panstarrs shreds...")
+            print("Removing panstarrs shreds.")
         shred_idxs = find_panstarrs_shreds(
             candidate_hosts["objID"].values,
             candidate_hosts["raMean"].values,
@@ -1821,14 +1821,14 @@ def build_panstarrs_candidates(
             verbose=verbose,
         )
         if len(shred_idxs) > 0:
-            if verbose > 0:
-                print(f"Removing {len(shred_idxs)} indices from tentative matches in panstarrs!")
             left_idxs = ~candidate_hosts.index.isin(shred_idxs)
             candidate_hosts = candidate_hosts[left_idxs]
             temp_mag_r = temp_mag_r[left_idxs]
             temp_mag_r_std = temp_mag_r_std[left_idxs]
             dlr_samples = dlr_samples[left_idxs, :]
             galaxies_pos = galaxies_pos[left_idxs]
+            if verbose > 0:
+                print(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
         else:
             if verbose > 0:
                 print("No panstarrs shreds found.")

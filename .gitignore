@@ -35,6 +35,7 @@ __pycache__/
 
 # Jupyter notebook checkpoints
 .ipynb_checkpoints/
+docs/notebooks/.ipynb_checkpoints/
 
 # Doctree files
 *.doctree

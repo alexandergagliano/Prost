@@ -80,7 +80,7 @@ def associate_transient(
 
     if verbose > 0:
         print(
-            f"Associating for {transient.name} at RA, DEC = "
+            f"Associating {transient.name} at RA, DEC = "
             f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
         )
 
@@ -172,7 +172,7 @@ def associate_transient(
                     print(f"Found a good host in {cat_name}!")
                     print(
                         f"Chosen galaxy has catalog ID of {best_objid}"
-                        f"and RA, DEC = {best_ra:.6f}, {best_dec:.6f}"
+                        f" and RA, DEC = {best_ra:.6f}, {best_dec:.6f}"
                     )
                 if verbose > 1:
                     try:

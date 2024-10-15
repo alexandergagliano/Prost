@@ -14,7 +14,7 @@ The code also estimates the posterior probability that the true host lies outsid
 [![PyPI](https://img.shields.io/pypi/v/prost?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/prost/)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/alexandergagliano/prost/smoke-test.yml)](https://github.com/alexandergagliano/prost/actions/workflows/smoke-test.yml)
 [![Codecov](https://codecov.io/gh/alexandergagliano/prost/branch/main/graph/badge.svg)](https://codecov.io/gh/alexandergagliano/prost)
-[![Read The Docs](https://img.shields.io/readthedocs/astro_prost)](https://astro_prost.readthedocs.io/)
+[![Read The Docs](https://img.shields.io/readthedocs/astro_prost)](https://astro-prost.readthedocs.io/)
 [![Benchmarks](https://img.shields.io/github/actions/workflow/status/alexandergagliano/prost/asv-main.yml?label=benchmarks)](https://alexandergagliano.github.io/prost/)
 
 This project was automatically generated using the LINCC-Frameworks 

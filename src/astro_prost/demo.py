@@ -11,7 +11,7 @@ transient_catalog = pd.read_csv(
 )
 
 #only take the first 10 events 
-transient_catalog = transient_catalog.sample(n=10)
+transient_catalog = transient_catalog.sample(n=1)
 
 # define priors for properties
 priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
@@ -43,6 +43,7 @@ parallel = True
 save = True
 # if not parallel, results can be returned directly
 progress_bar = False
+cat_cols = True
 
 # list of catalogs to search -- options are (in order) glade, decals, panstarrs
 catalogs = ["panstarrs"]
@@ -67,5 +68,5 @@ associate_sample(
     verbose=verbose,
     save=save,
     progress_bar=progress_bar,
-    cat_cols=False,
+    cat_cols=cat_cols,
 )

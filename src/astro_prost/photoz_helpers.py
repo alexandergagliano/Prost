@@ -21,35 +21,45 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0)
     # Define the target directory
     target_dir = os.path.join(data_dir, "sfddata-master")
 
+    # Lock path for concurrency safety
     lock_path = Path(file_path).with_suffix(".lock")
 
-    with FileLock(lock_path):
-        # Check if the dust map directory already exists
-        if os.path.isdir(target_dir):
-            return
+    try:
+        # Use FileLock to ensure only one process downloads/extracts at a time
+        with FileLock(lock_path):
+            # If the dust map directory already exists, no need to proceed
+            if os.path.isdir(target_dir):
+                if verbose > 0:
+                    print(f"{target_dir} already exists. Skipping extraction.")
+                return
 
-        # Download the data archive file if it is not present
-        if not os.path.exists(file_path):
-            url = "https://github.com/kbarbary/sfddata/archive/master.tar.gz"
+            # Download the archive if it doesn't exist
+            if not os.path.exists(file_path):
+                url = "https://github.com/kbarbary/sfddata/archive/master.tar.gz"
+                if verbose > 0:
+                    print(f"Downloading dust map data from {url}...")
+                response = requests.get(url, stream=True)
+                if response.status_code == 200:
+                    with open(file_path, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                else:
+                    raise ValueError(f"Failed to download the file: {url} - Status code: {response.status_code}")
+
+            # Extract the tarball into the data directory
             if verbose > 0:
-                print(f"Downloading dust map data from {url}...")
-            response = requests.get(url, stream=True)
-            if response.status_code == 200:
-                with open(file_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-            else:
-                raise ValueError(f"Failed to download the file: {url} - Status code: {response.status_code}")
+                print(f"Extracting {file_path}...")
+            with tarfile.open(file_path) as tar:
+                tar.extractall(data_dir)
 
-        # Extract the data files
-        if verbose > 0:
-            print(f"Extracting {file_path}...")
-        with tarfile.open(file_path) as tar:
-            tar.extractall(data_dir)
+            # Remove the tar file after extraction
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
-        # Delete the archive file after extraction
-        os.remove(file_path)
-        os.remove(lock_path)
+    finally:
+        # Ensure the lock file is removed in any case (success or failure)
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
 
         if verbose > 0:
             print("Done creating dust directory.")
@@ -581,7 +591,7 @@ def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path
     return mymodel, range_z
 
 
-def evaluate(x, mymodel, range_z):
+def evaluate(x, mymodel, range_z, verbose=None):
     """Evaluate the MLP for a set of PS1 inputs, and return predictions.
 
     :param x: PS1 properties of associated hosts.
@@ -600,7 +610,7 @@ def evaluate(x, mymodel, range_z):
     :rtype: numpy ndarray shape of (df.shape[0],)
     """
 
-    posteriors = mymodel.predict(x)
+    posteriors = mymodel.predict(x, verbose)
     point_estimates = np.sum(posteriors * range_z, axis=1)
     for i in range(len(posteriors)):
         posteriors[i, :] /= np.sum(posteriors[i, :])

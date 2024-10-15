@@ -69,13 +69,13 @@ def associate_transient(
     try:
         transient = Transient(
             name=row["name"],
-            position=SkyCoord(row.ra * u.deg, row.dec * u.deg),
+            position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg),
             redshift=float(row.redshift),
             n_samples=n_samples,
         )
     except KeyError:
         transient = Transient(
-            name=row["name"], position=SkyCoord(row.ra * u.deg, row.dec * u.deg), n_samples=n_samples
+            name=row["name"], position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg), n_samples=n_samples
         )
 
     if verbose > 0:
@@ -107,13 +107,14 @@ def associate_transient(
         np.nan
     )
 
+    extra_cat_cols = {}
     best_cat = ""
 
     for cat_name in catalogs:
         cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog)
 
         try:
-            cat.get_candidates(transient, timequery=True, verbose=verbose, cosmo=cosmo)
+            cat.get_candidates(transient, timequery=True, verbose=verbose, cosmo=cosmo, cat_cols=cat_cols)
         except requests.exceptions.HTTPError:
             print(f"Candidate retrieval failed for {transient.name} in catalog {cat_name}.")
             continue
@@ -148,21 +149,24 @@ def associate_transient(
                         print(key)
                         print(cat.galaxies[key][second_best_idx])
 
-                best_objid = cat.galaxies["objID"][best_idx]
+                best_objid = np.int64(cat.galaxies["objID"][best_idx])
                 best_prob = cat.galaxies["total_prob"][best_idx]
                 best_ra = cat.galaxies["ra"][best_idx]
                 best_dec = cat.galaxies["dec"][best_idx]
 
-                second_best_objid = cat.galaxies["objID"][second_best_idx]
+                second_best_objid = np.int64(cat.galaxies["objID"][second_best_idx])
                 second_best_prob = cat.galaxies["total_prob"][second_best_idx]
                 second_best_ra = cat.galaxies["ra"][second_best_idx]
                 second_best_dec = cat.galaxies["dec"][second_best_idx]
 
                 best_cat = cat_name
                 query_time = cat.query_time
+                smallcone_prob = transient.smallcone_prob
+                missedcat_prob = transient.missedcat_prob
 
                 if cat_cols:
-                    print("WARNING! cat_cols not implemented yet.")
+                    for field in cat.cat_col_fields:
+                        extra_cat_cols[field] = cat.galaxies[field][best_idx]
 
                 if verbose > 0:
                     print(f"Found a good host in {cat_name}!")
@@ -204,6 +208,9 @@ def associate_transient(
         second_best_dec,
         query_time,
         best_cat,
+        smallcone_prob,
+        missedcat_prob,
+        extra_cat_cols
     )
 
 
@@ -246,8 +253,6 @@ def prepare_catalog(
         "host_2_prob",
         "smallcone_prob",
         "missedcat_prob",
-        "sn_ra_deg",
-        "sn_dec_deg",
         "association_time",
     ]
 
@@ -274,8 +279,8 @@ def prepare_catalog(
         except KeyError as err:
             raise ValueError("ERROR: I could not understand your provided coordinates.") from err
 
-    transient_catalog["ra"] = transient_coords.ra.deg
-    transient_catalog["dec"] = transient_coords.dec.deg
+    transient_catalog["transient_ra_deg"] = transient_coords.ra.deg
+    transient_catalog["transient_dec_deg"] = transient_coords.dec.deg
 
     transient_catalog.rename(columns={transient_name_col: "name"}, inplace=True)
 
@@ -323,7 +328,7 @@ def associate_sample(
         Description of parameter `save_path`.
     cat_cols : type
         Description of parameter `cat_cols`.
-    progress_bar : type 
+    progress_bar : type
         Description of parameter `progress_bar`.
     cosmology : type
         Description of parameter `cosmology`.
@@ -346,7 +351,7 @@ def associate_sample(
     # always load GLADE -- we now use it for spec-zs.
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "GLADE+_HyperLedaSizes_mod_withz.csv"
-    
+
     try:
         with pkg_resources.as_file(pkg_data_file) as csvfile:
             glade_catalog = pd.read_csv(csvfile)
@@ -389,7 +394,7 @@ def associate_sample(
         if not os.environ.get(envkey, False):
             # Set the environment variable in the parent process only
             os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
-        
+
             n_processes = os.cpu_count() - 5
 
             # Create a list of tasks (one per transient)
@@ -406,29 +411,34 @@ def associate_sample(
     if not parallel or os.environ.get(envkey) == str(os.getpid()):
         # Update transient_catalog with results
 
-        results_df = pd.DataFrame(
-            results,
+        main_results = [res[:-1] for res in results]
+
+        results_df = pd.DataFrame.from_records(
+            main_results,
             columns=[
-                "idx", "best_objid", "best_prob", "best_ra", "best_dec",
-                "second_best_objid", "second_best_prob", "second_best_ra", "second_best_dec",
-                "query_time", "best_cat"
+                "idx", "host_id", "host_prob", "host_ra", "host_dec",
+                "host_2_objid", "host_2_prob", "host_2_ra", "host_2_dec",
+                "query_time", "best_cat", "smallcone_prob", "missedcat_prob"
             ]
         )
-   
-        # Use the 'idx' column to align with the corresponding rows in transient_catalog
-        transient_catalog.loc[results_df["idx"], ["host_id", "host_ra", "host_dec", "host_prob",
-                                              "host_2_id", "host_2_ra", "host_2_dec",
-                                              "host_2_prob", "association_time", "best_cat"]] = \
-        results_df[["best_objid", "best_ra", "best_dec", "best_prob",
-                "second_best_objid", "second_best_ra", "second_best_dec",
-                "second_best_prob", "query_time", "best_cat"]].values
 
-        # TODO: add in logic to return smallcone_prob and missedcat_prob (also cat_cols if true)
-        #"smallcone_prob",
-        #"missedcat_prob",
+        transient_catalog.update(results_df.set_index("idx"))
+
+        if cat_cols:
+            extra_cat_cols_list = [res[-1] for res in results]
+            extra_cat_cols_df = pd.DataFrame.from_records(extra_cat_cols_list)
+            extra_cols = extra_cat_cols_df.columns
+            extra_cat_cols_df['idx'] = results_df['idx']
+            transient_catalog = pd.concat([transient_catalog, extra_cat_cols_df.set_index("idx")], axis=1)
+
+        id_cols = [col for col in transient_catalog.columns if col.endswith('id')]
+
+        for col in id_cols:
+            print(col)
+            transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors='coerce').astype('Int64')
 
         print("Association of all transients is complete.")
- 
+
         # Save the updated catalog
         if save:
             ts = int(time())

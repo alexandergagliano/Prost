@@ -42,7 +42,7 @@ class GalaxyCatalog:
         self.data = data
         self.n_samples = n_samples
 
-    def get_candidates(self, transient, cosmo, timequery=False, verbose=False):
+    def get_candidates(self, transient, cosmo, timequery=False, verbose=False, cat_cols=False):
         """Short summary.
 
         Parameters
@@ -81,7 +81,7 @@ class GalaxyCatalog:
             start_time = time.time()
         if self.name == "panstarrs":
             self.limiting_mag = 26
-            self.galaxies = build_panstarrs_candidates(
+            self.galaxies, self.cat_col_fields = build_panstarrs_candidates(
                 transient.name,
                 transient.position,
                 search_rad=search_rad,
@@ -89,21 +89,23 @@ class GalaxyCatalog:
                 verbose=verbose,
                 cosmo=cosmo,
                 glade_catalog=self.data,
+                cat_cols=cat_cols
             )
         elif self.name == "decals":
             self.limiting_mag = 26
-            self.galaxies = build_decals_candidates(
+            self.galaxies, self.cat_col_fields = build_decals_candidates(
                 transient.name,
                 transient.position,
                 search_rad=search_rad,
                 cosmo=cosmo,
                 n_samples=self.n_samples,
                 verbose=verbose,
+                cat_cols=cat_cols
             )
         elif self.name == "glade":
             self.limiting_mag = 17
             if self.data is not None:
-                self.galaxies = build_glade_candidates(
+                self.galaxies, self.cat_col_fields = build_glade_candidates(
                     transient.name,
                     transient.position,
                     search_rad=search_rad,
@@ -111,10 +113,11 @@ class GalaxyCatalog:
                     glade_catalog=self.data,
                     n_samples=self.n_samples,
                     verbose=verbose,
+                    cat_cols=cat_cols
                 )
             else:
                 print("ERROR: Please provide GLADE catalog as 'data' when initializing GalaxyCatalog object.")
-                self.galaxies = np.array([])
+                self.galaxies, self.cat_col_fields = np.array([]), np.array([])
         if self.galaxies is None:
             self.ngals = 0
         else:
@@ -494,8 +497,6 @@ class Transient:
         z_gal_samples = np.vstack(galaxies["z_best_samples"])
         galaxy_dlr_samples = np.vstack(galaxies["dlr_samples"])
         absmag_samples = np.vstack(galaxies["absmag_samples"])
-        # galaxy_ras = galaxies['ra']
-        # galaxy_decs = galaxies['dec']
 
         # just copied now assuming 0 positional uncertainty -- this can be updated later (TODO!)
         offset_arcsec_samples = np.repeat(offset_arcsec[:, np.newaxis], n_samples, axis=1)
@@ -562,6 +563,8 @@ class Transient:
         self.associated_catalog = galaxy_catalog.name
         self.any_prob = np.nanmedian(p_any_norm)
         self.none_prob = np.nanmedian(p_none_norm)
+        self.smallcone_prob = np.nanmedian(p_outside_norm)
+        self.missedcat_prob = np.nanmedian(p_unobs_norm)
 
         if self.any_prob > self.none_prob:
             if verbose > 0:
@@ -1187,6 +1190,7 @@ def build_glade_candidates(
     search_rad=None,
     n_samples=1000,
     verbose=False,
+    cat_cols=False
 ):
     """Short summary.
 
@@ -1206,6 +1210,8 @@ def build_glade_candidates(
         Description of parameter `n_samples`.
     verbose : type
         Description of parameter `verbose`.
+    cat_cols : type
+        Description of parameter `cat_cols`.
 
     Returns
     -------
@@ -1215,6 +1221,25 @@ def build_glade_candidates(
     """
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
+
+
+    dtype = [
+        ("objID", np.int64),
+        ("ra", float),
+        ("dec", float),
+        ("z_best_samples", object),
+        ("z_best_mean", float),
+        ("z_best_std", float),
+        ("dlr_samples", object),
+        ("absmag_samples", object),
+        ("offset_arcsec", float),
+        ("z_prob", float),
+        ("offset_prob", float),
+        ("absmag_prob", float),
+        ("total_prob", float),
+    ]
+
+    galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
 
     candidate_hosts = glade_catalog[
         SkyCoord(glade_catalog["RAJ2000"].values * u.deg, glade_catalog["DEJ2000"].values * u.deg)
@@ -1241,26 +1266,29 @@ def build_glade_candidates(
         temp_sizes, np.abs(temp_sizes) * np.log(10) * candidate_hosts["e_logd25Hyp"].values
     )
 
-    dtype = [
-        ("objID", np.int64),
-        ("ra", float),
-        ("dec", float),
-        ("z_best_samples", object),
-        ("z_best_mean", float),
-        ("z_best_std", float),
-        ("dlr_samples", object),
-        ("absmag_samples", object),
-        ("offset_arcsec", float),
-        ("z_prob", float),
-        ("offset_prob", float),
-        ("absmag_prob", float),
-        ("total_prob", float),
-    ]
+    if cat_cols:
+        # Extract field names from the existing dtype (without the data types)
+        current_fields = {name for name, _ in dtype}
 
-    galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
+        # Identify new fields to add from candidate_hosts
+        cat_col_fields = list(set(candidate_hosts.columns) - current_fields)
+
+        # Extend the dtype with new fields and their corresponding data types
+        for col in cat_col_fields:
+            dtype.append((col, candidate_hosts[col].dtype))  # Append (column name, column dtype)
+
+        # Create galaxies array with updated dtype
+        galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
+
+        # Populate galaxies array with data from candidate_hosts
+        for col in candidate_hosts.columns:
+            galaxies[col] = candidate_hosts[col].values
+    else:
+        galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
+        cat_col_fields = []
 
     # dummy placeholder for IDs
-    galaxies["objID"] = np.arange(len(candidate_hosts))
+    galaxies["objID"] = candidate_hosts.index.values
 
     galaxies_pos = SkyCoord(
         candidate_hosts["RAJ2000"].values * u.deg, candidate_hosts["DEJ2000"].values * u.deg
@@ -1348,10 +1376,16 @@ def build_glade_candidates(
         galaxies["dlr_samples"][i] = dlr_samples[i, :]
         galaxies["absmag_samples"][i] = absmag_samples[i, :]
 
-    return galaxies
+    return galaxies, cat_col_fields
 
 
-def build_decals_candidates(transient_name, transient_pos, cosmo, search_rad=None, n_samples=1000, verbose=False):
+def build_decals_candidates(transient_name,
+                            transient_pos,
+                            cosmo,
+                            search_rad=None,
+                            n_samples=1000,
+                            verbose=False,
+                            cat_cols=False):
     """Short summary.
 
     Parameters
@@ -1368,6 +1402,8 @@ def build_decals_candidates(transient_name, transient_pos, cosmo, search_rad=Non
         Description of parameter `n_samples`.
     verbose : type
         Description of parameter `verbose`.
+    cat_cols : type
+        Description of parameter `cat_cols`.
 
     Returns
     -------
@@ -1451,6 +1487,27 @@ def build_decals_candidates(transient_name, transient_pos, cosmo, search_rad=Non
 
     galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
     galaxies_pos = SkyCoord(candidate_hosts["ra"].values * u.deg, candidate_hosts["dec"].values * u.deg)
+
+    if cat_cols:
+        # Extract field names from the existing dtype (without the data types)
+        current_fields = {name for name, _ in dtype}
+
+        # Identify new fields to add from candidate_hosts
+        cat_col_fields = list(set(candidate_hosts.columns) - current_fields)
+
+        # Extend the dtype with new fields and their corresponding data types
+        for col in cat_col_fields:
+            dtype.append((col, candidate_hosts[col].dtype))  # Append (column name, column dtype)
+
+        # Create galaxies array with updated dtype
+        galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
+
+        # Populate galaxies array with data from candidate_hosts
+        for col in candidate_hosts.columns:
+            galaxies[col] = candidate_hosts[col].values
+    else:
+        galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
+        cat_col_fields = []
 
     galaxies["objID"] = candidate_hosts["ls_id"].values
     galaxies["ra"] = galaxies_pos.ra.deg
@@ -1561,7 +1618,7 @@ def build_decals_candidates(transient_name, transient_pos, cosmo, search_rad=Non
         galaxies["dlr_samples"][i] = dlr_samples[i, :]
         galaxies["absmag_samples"][i] = absmag_samples[i, :]
 
-    return galaxies
+    return galaxies, cat_col_fields
 
 
 def build_panstarrs_candidates(
@@ -1572,6 +1629,7 @@ def build_panstarrs_candidates(
     n_samples=1000,
     verbose=False,
     glade_catalog=None,
+    cat_cols=False
 ):
     """Short summary.
 
@@ -1591,6 +1649,8 @@ def build_panstarrs_candidates(
         Description of parameter `verbose`.
     glade_catalog : type
         Description of parameter `glade_catalog`.
+    cat_cols : type
+        Description of parameter `cat_cols`.
 
     Returns
     -------
@@ -1602,8 +1662,10 @@ def build_panstarrs_candidates(
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
+
     result = ps1cone(transient_pos.ra.deg, transient_pos.dec.deg, rad_deg, release="dr2")
 
+    #columns needed for photometric redshift inference
     photoz_cols = [
         "objID",
         "raMean",
@@ -1677,9 +1739,8 @@ def build_panstarrs_candidates(
         ["gmomentXY", "rmomentXY", "imomentXY", "zmomentXY", "ymomentXY"]
     ].median(axis=1)
 
-    candidate_hosts = candidate_hosts[
-        candidate_hosts["nDetections"] > 2
-    ]  # some VERY basic filtering to say that it's confidently detected
+    candidate_hosts = candidate_hosts[candidate_hosts["nDetections"] > 2]
+    # some VERY basic filtering to say that it's confidently detected
     candidate_hosts = candidate_hosts[candidate_hosts["primaryDetection"] == 1]
 
     candidate_hosts["KronRad"] = candidate_hosts[
@@ -1693,12 +1754,12 @@ def build_panstarrs_candidates(
     ].median(axis=1)
 
     candidate_hosts.dropna(
-        subset=["raMean", "decMean", "momentXX", "momentYY", "momentYY", "KronRad", "KronMag"], inplace=True
+        subset=["raMean", "decMean", "momentXX", "momentYY", "momentYY", "KronRad", "KronMag"],
+        inplace=True
     )
     candidate_hosts.reset_index(drop=True, inplace=True)
 
     temp_sizes = candidate_hosts["KronRad"].values
-    # temp_sizes[temp_sizes < 0.25] = 0.25 #1 pixel, at least for PS1
 
     temp_sizes_std = 0.05 * candidate_hosts["KronRad"].values
     temp_sizes_std = np.maximum(temp_sizes_std, 1e-10)  # Prevent division by zero
@@ -1759,7 +1820,7 @@ def build_panstarrs_candidates(
             temp_mag_r,
             verbose=verbose,
         )
-        if len(shred_idxs) > 0: 
+        if len(shred_idxs) > 0:
             if verbose > 0:
                 print(f"Removing {len(shred_idxs)} indices from tentative matches in panstarrs!")
             left_idxs = ~candidate_hosts.index.isin(shred_idxs)
@@ -1779,25 +1840,6 @@ def build_panstarrs_candidates(
         # "Double-check that the SN coords overlap the survey footprint.")
         return None
 
-    dtype = [
-        ("objID", np.int64),
-        ("ra", float),
-        ("dec", float),
-        ("z_best_samples", object),
-        ("z_best_mean", float),
-        ("z_best_std", float),
-        ("ls_id", int),
-        ("dlr_samples", object),
-        ("absmag_samples", object),
-        ("offset_arcsec", float),
-        ("z_prob", float),
-        ("offset_prob", float),
-        ("absmag_prob", float),
-        ("total_prob", float),
-    ]
-
-    galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
-
     # get photozs from Andrew Engel's code!
     default_dust_path = "."
 
@@ -1815,6 +1857,44 @@ def build_panstarrs_candidates(
     # 30% uncertainty floor
     err_bool = errors < 0.3 * point_estimates
     errors[err_bool] = 0.3 * point_estimates[err_bool]
+
+    dtype = [
+        ("objID", np.int64),
+        ("ra", float),
+        ("dec", float),
+        ("z_best_samples", object),
+        ("z_best_mean", float),
+        ("z_best_std", float),
+        ("ls_id", int),
+        ("dlr_samples", object),
+        ("absmag_samples", object),
+        ("offset_arcsec", float),
+        ("z_prob", float),
+        ("offset_prob", float),
+        ("absmag_prob", float),
+        ("total_prob", float),
+    ]
+
+    if cat_cols:
+        # Extract field names from the existing dtype (without the data types)
+        current_fields = {name for name, _ in dtype}
+
+        # Identify new fields to add from candidate_hosts
+        cat_col_fields = list(set(candidate_hosts.columns) - current_fields)
+
+        # Extend the dtype with new fields and their corresponding data types
+        for col in cat_col_fields:
+            dtype.append((col, candidate_hosts[col].dtype))  # Append (column name, column dtype)
+
+        # Create galaxies array with updated dtype
+        galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
+
+        # Populate galaxies array with data from candidate_hosts
+        for col in candidate_hosts.columns:
+            galaxies[col] = candidate_hosts[col].values
+    else:
+        galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
+        cat_col_fields = []
 
     # not QUITE the mean of the posterior, but we're assuming it's gaussian :/
     # TODO -- sample from the full posterior!
@@ -1866,7 +1946,7 @@ def build_panstarrs_candidates(
         galaxies["dlr_samples"][i] = dlr_samples[i, :]
         galaxies["absmag_samples"][i] = absmag_samples[i, :]
 
-    return galaxies
+    return galaxies, cat_col_fields
 
 
 def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1000):

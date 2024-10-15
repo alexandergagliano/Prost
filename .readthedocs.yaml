@@ -13,4 +13,4 @@ sphinx:
 # Python dependencies
 python:
   install:
-    - requirements: requirements.txt  # Install dependencies from requirements.txt
+    - requirements: docs/requirements.txt  

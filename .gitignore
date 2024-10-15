@@ -25,3 +25,16 @@ temp/*
 
 # Exception: do not ignore a specific file
 !important.log
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Egg info and other build artifacts
+*.egg-info/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Doctree files
+*.doctree

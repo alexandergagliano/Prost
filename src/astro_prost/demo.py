@@ -10,8 +10,8 @@ transient_catalog = pd.read_csv(
     "/Users/alexgagliano/Documents/Research/multimodal-supernovae/data/ZTFBTS/ZTFBTS_TransientTable.csv"
 )
 
-#only take the first 10 events 
-transient_catalog = transient_catalog.sample(n=1)
+#only take the first 10 events
+transient_catalog = transient_catalog.sample(n=10)
 
 # define priors for properties
 priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
@@ -38,7 +38,7 @@ priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "z": priorfunc
 likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
 # set up properties of the association run
-verbose = 0
+verbose = 1
 parallel = True
 save = True
 # if not parallel, results can be returned directly

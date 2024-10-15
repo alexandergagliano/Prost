@@ -18,16 +18,17 @@ from scipy.stats import halfnorm, norm
 from .photoz_helpers import evaluate, load_lupton_model, preprocess, ps1metadata
 
 class GalaxyCatalog:
-    """Short summary.
+    """Class for source catalog containing candidate transient host galaxies.
 
     Parameters
     ----------
-    name : type
-        Description of parameter `name`.
-    data : type
-        Description of parameter `data`.
-    n_samples : type
-        Description of parameter `n_samples`.
+    name : str
+        Name of the transient catalog. Currently 'glade', 'decals', and
+        'panstarrs' are supported.
+    data : Pandas DataFrame
+        Locally-saved GLADE catalog for redshifts at low-z.
+    n_samples : int
+        Number of samples to draw in monte-carlo association.
 
     Attributes
     ----------
@@ -42,24 +43,21 @@ class GalaxyCatalog:
         self.data = data
         self.n_samples = n_samples
 
-    def get_candidates(self, transient, cosmo, timequery=False, verbose=False, cat_cols=False):
-        """Short summary.
+    def get_candidates(self, transient, cosmo, time_query=False, verbose=False, cat_cols=False):
+        """Hydrates the catalog attribute catalog.galaxies with a list of candidates.
 
         Parameters
         ----------
-        transient : type
-            Description of parameter `transient`.
-        cosmo : type
-            Description of parameter `cosmo`.
-        timequery : type
-            Description of parameter `timequery`.
-        verbose : type
-            Description of parameter `verbose`.
-
-        Returns
-        -------
-        type
-            Description of returned object.
+        transient : Transient
+            Source to associate, of custom class Transient.
+        cosmo : astropy cosmology
+            Assumed cosmology for conversions (defaults to LambdaCDM if not set).
+        time_query : boolean
+            If True, times the catalog query and stores the result in self.query_time.
+        verbose : int
+            Verbosity level; can be 0, 1, or 2.
+        cat_cols : boolean
+            If True, contatenates catalog columns to resulting DataFrame.
 
         """
         search_rad = Angle(300 * u.arcsec)
@@ -77,7 +75,7 @@ class GalaxyCatalog:
 
         self.search_rad = search_rad
         self.search_pos = transient.position
-        if timequery:
+        if time_query:
             start_time = time.time()
         if self.name == "panstarrs":
             self.limiting_mag = 26
@@ -123,44 +121,44 @@ class GalaxyCatalog:
         else:
             self.ngals = len(self.galaxies)
 
-        if timequery:
+        if time_query:
             end_time = time.time()
             elapsed = end_time - start_time
             self.query_time = elapsed
 
 
 class Transient:
-    """Short summary.
+    """Class for transient source to be associated.
 
     Parameters
     ----------
-    name : type
-        Description of parameter `name`.
-    position : type
-        Description of parameter `position`.
-    redshift : type
-        Description of parameter `redshift`.
-    spec_class : type
-        Description of parameter `spec_class`.
-    phot_class : type
-        Description of parameter `phot_class`.
-    n_samples : type
-        Description of parameter `n_samples`.
+    name : str
+        Name of transient.
+    position : astropy.coord SkyCoord object
+        Position of transient.
+    redshift : float
+        Photometric or spectroscopic redshift of transient.
+    spec_class : str
+        Spectroscopic class of transient, if available.
+    phot_class : str
+        Photometric class of transient, if available.
+    n_samples : int
+        Number of iterations for monte-carlo association.
 
     Attributes
     ----------
-    best_host : type
-        Description of attribute `best_host`.
-    second_best_host : type
-        Description of attribute `second_best_host`.
+    best_host : int
+        Catalog index of highest-probability host galaxy.
+    second_best_host : int
+        Catalog index of second-highest-probability host galaxy.
     redshift_std : type
         Description of attribute `redshift_std`.
-    gen_z_samples : type
-        Description of attribute `gen_z_samples`.
-    priors : type
-        Description of attribute `priors`.
-    likes : type
-        Description of attribute `likes`.
+    gen_z_samples : function
+        Draws samples from transient redshift for monte-carlo association run.
+    priors : dict
+        Prior distributions on host fractional offset, absolute brightness, and redshift.
+    likes : dict
+        Likelihood distributions on host fractional offset, and absolute brightness.
     name
     position
     redshift
@@ -201,17 +199,17 @@ class Transient:
         return f"Transient(name={self.name}, position={self.position}, {redshift_str}, {class_str}"
 
     def get_prior(self, type):
-        """Short summary.
+        """Retrieves the transient host's prior for a given property.
 
         Parameters
         ----------
-        type : type
-            Description of parameter `type`.
+        type : str
+            Type of prior to retrieve (can be redshift, offset, absmag).
 
         Returns
         -------
-        type
-            Description of returned object.
+        prior : scipy stats continuous distribution
+            The prior for 'type' property.
 
         """
         try:
@@ -221,18 +219,18 @@ class Transient:
             prior = None
         return prior
 
-    def get_likelihood(self, type):
-        """Short summary.
+    def set_likelihood(self, type):
+        """Retrieves the transient host's likelihood for a given property.
 
         Parameters
         ----------
-        type : type
-            Description of parameter `type`.
+        type : str
+            Type of prior to retrieve (can be redshift, offset, absmag).
 
         Returns
         -------
-        type
-            Description of returned object.
+        prior : scipy stats continuous distribution
+            The likelihood for 'type' property.
 
         """
         try:
@@ -243,37 +241,27 @@ class Transient:
         return like
 
     def set_likelihood(self, type, func):
-        """Short summary.
+        """Sets the transient's host prior for a given property.
 
         Parameters
         ----------
-        type : type
-            Description of parameter `type`.
-        func : type
-            Description of parameter `func`.
-
-        Returns
-        -------
-        type
-            Description of returned object.
+        type : str
+            Type of likelihood to set (can be redshift, offset, absmag).
+        func : scipy stats continuous distribution
+            The likelihood to set for 'type' property.
 
         """
         self.likes[type] = func
 
     def set_prior(self, type, func):
-        """Short summary.
+        """Sets the transient host's prior for a given property.
 
         Parameters
         ----------
-        type : type
-            Description of parameter `type`.
-        func : type
-            Description of parameter `func`.
-
-        Returns
-        -------
-        type
-            Description of returned object.
+        type : str
+            Type of prior to set (can be redshift, offset, absmag).
+        func : scipy stats continuous distribution
+            The prior to set for 'type' property.
 
         """
         self.priors[type] = func
@@ -281,47 +269,61 @@ class Transient:
             self.gen_z_samples()
 
     def gen_z_samples(self, ret=False, n_samples=None):
-        """Short summary.
+        """Generates transient redshift samples for monte-carlo association.
+            If redshift is not measured, samples are drawn from the prior.
 
         Parameters
         ----------
-        ret : type
-            Description of parameter `ret`.
-        n_samples : type
-            Description of parameter `n_samples`.
+        ret : boolean
+            If true, returns the samples.
+        n_samples : int
+            Number of samples to draw.
 
         Returns
         -------
-        type
-            Description of returned object.
+        samples : array-like
+            If ret=True, redshift samples.
 
         """
         if n_samples is None:
             n_samples = self.n_samples
-        if self.redshift != self.redshift:
-            samples = np.maximum(0.001, self.get_prior("redshift").rvs(size=n_samples))
+
+        floor = 0.001  # Set the floor value for redshift
+
+        # Sample initially based on whether redshift is NaN or not
+        if np.isnan(self.redshift):
+            samples = self.get_prior("redshift").rvs(size=n_samples)
         else:
-            samples = np.maximum(0.001, norm.rvs(self.redshift, self.redshift_std, size=n_samples))
-        # now generate distances
+            samples = norm.rvs(self.redshift, self.redshift_std, size=n_samples)
+
+        # Resample only those below the floor
+        while np.any(samples < floor):
+            mask = samples < floor
+            samples[mask] = (self.get_prior("redshift").rvs(size=np.sum(mask))
+                             if np.isnan(self.redshift)
+                             else norm.rvs(self.redshift, self.redshift_std, size=np.sum(mask)))
+
+        # now return or assign redshift samples
         if ret:
             return samples
         else:
             self.redshift_samples = samples
 
     def calc_prior_redshift(self, z_best_samples, reduce="mean"):
-        """Short summary.
+        """Calculates the prior probability of the transient redshift samples.
 
         Parameters
         ----------
-        z_best_samples : type
-            Description of parameter `z_best_samples`.
-        reduce : type
-            Description of parameter `reduce`.
+        z_best_samples : array-like
+            Array of transient redshift samples.
+        reduce : str
+            How to collapse the samples into a prior point-estimate.
+            Defaults to calculating the mean across samples.
 
         Returns
         -------
-        type
-            Description of returned object.
+        pdf : float or array-like
+            prior probability point estimate or samples.
 
         """
         pdf = self.get_prior("redshift").pdf(z_best_samples)
@@ -333,14 +335,15 @@ class Transient:
             return pdf
 
     def calc_prior_offset(self, fractional_offset_samples, reduce="mean"):
-        """Short summary.
+        """Calculates the prior probability of the transient's fractional offset.
 
         Parameters
         ----------
-        fractional_offset_samples : type
-            Description of parameter `fractional_offset_samples`.
-        reduce : type
-            Description of parameter `reduce`.
+        fractional_offset_samples : array-like
+            Array of transient fractional offset samples.
+        reduce : str
+            How to collapse the samples into a prior point-estimate.
+            Defaults to calculating the mean across samples.
 
         Returns
         -------
@@ -363,8 +366,9 @@ class Transient:
         ----------
         absmag_samples : type
             Description of parameter `absmag_samples`.
-        reduce : type
-            Description of parameter `reduce`.
+        reduce : str
+            How to collapse the samples into a prior point-estimate.
+            Defaults to calculating the mean across samples.
 
         Returns
         -------
@@ -389,8 +393,9 @@ class Transient:
             Description of parameter `z_best_mean`.
         z_best_std : type
             Description of parameter `z_best_std`.
-        reduce : type
-            Description of parameter `reduce`.
+        reduce : str
+            How to collapse the samples into a prior point-estimate.
+            Defaults to calculating the mean across samples.
 
         Returns
         -------
@@ -421,8 +426,9 @@ class Transient:
         ----------
         fractional_offset_samples : type
             Description of parameter `fractional_offset_samples`.
-        reduce : type
-            Description of parameter `reduce`.
+        reduce : str
+            How to collapse the samples into a prior point-estimate.
+            Defaults to calculating the mean across samples.
 
         Returns
         -------
@@ -430,7 +436,7 @@ class Transient:
             Description of returned object.
 
         """
-        likelihoods = self.get_likelihood("offset").pdf(fractional_offset_samples)
+        likelihoods = self.set_likelihood("offset").pdf(fractional_offset_samples)
         if reduce == "mean":
             return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
         elif reduce == "median":
@@ -445,8 +451,9 @@ class Transient:
         ----------
         absmag_samples : type
             Description of parameter `absmag_samples`.
-        reduce : type
-            Description of parameter `reduce`.
+        reduce : str
+            How to collapse the samples into a prior point-estimate.
+            Defaults to calculating the mean across samples.
 
         Returns
         -------
@@ -457,7 +464,7 @@ class Transient:
         # assuming a typical 0.1 SN/century/10^10 Lsol (in K-band)
         # TODO -- convert to K-band luminosity of the host!
         # https://www.aanda.org/articles/aa/pdf/2005/15/aa1411.pdf
-        likelihoods = self.get_likelihood("absmag").pdf(absmag_samples)
+        likelihoods = self.set_likelihood("absmag").pdf(absmag_samples)
         if reduce == "mean":
             return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
         elif reduce == "median":
@@ -466,21 +473,22 @@ class Transient:
             return likelihoods
 
     def associate(self, galaxy_catalog, cosmo, verbose=False):
-        """Short summary.
+        """Runs the main transient association module.
 
         Parameters
         ----------
-        galaxy_catalog : type
-            Description of parameter `galaxy_catalog`.
-        cosmo : type
-            Description of parameter `cosmo`.
-        verbose : type
-            Description of parameter `verbose`.
+        galaxy_catalog : GalaxyCatalog object
+            The catalog populated with candidate hosts and their attributes.
+        cosmo : astropy cosmology
+            Assumed cosmology.
+        verbose : boolean
+            If True, prints detailed information about the association.
 
         Returns
         -------
-        type
-            Description of returned object.
+        galaxy_catalog : GalaxyCatalog object
+            The catalog, with additional attributes including posterior probabilities,
+            best host, and unobserved probability.
 
         """
         ngals = galaxy_catalog.ngals
@@ -591,25 +599,26 @@ class Transient:
         return galaxy_catalog
 
     def probability_of_unobserved_host(self, search_rad, cosmo, limiting_mag=30, verbose=False, n_samples=1000):
-        """Short summary.
+        """Calculates the posterior probability of the host being either dimmer than the
+           limiting magnitude of the catalog or not in the catalog at all.
 
         Parameters
         ----------
-        search_rad : type
-            Description of parameter `search_rad`.
-        limiting_mag : type
-            Description of parameter `limiting_mag`.
-        verbose : type
-            Description of parameter `verbose`.
-        n_samples : type
-            Description of parameter `n_samples`.
-        cosmo : type
-            Description of parameter `cosmo`.
+        search_rad : float
+            Cone search radius, in arcsec.
+        limiting_mag : float
+            Limiting magnitude of the survey, in AB mag.
+        verbose : boolean
+            If true, prints stats about association.
+        n_samples : int
+            Number of samples for monte-carlo association.
+        cosmo : astropy cosmology
+            Assumed cosmology for the run.
 
         Returns
         -------
-        type
-            Description of returned object.
+        p_unobserved : array-like
+            n_samples of posterior probabilities of the host not being in the catalog.
 
         """
         n_gals = int(0.5 * n_samples)
@@ -693,23 +702,24 @@ class Transient:
         return p_unobserved
 
     def probability_host_outside_cone(self, cosmo, search_rad=60, verbose=False, n_samples=1000):
-        """Short summary.
+        """Calculates the posterior probability of the host being outside the cone search chosen
+           for the catalog query. Primarily set by the fractional offset and redshift prior.
 
         Parameters
         ----------
-        search_rad : type
-            Description of parameter `search_rad`.
-        verbose : type
-            Description of parameter `verbose`.
-        n_samples : type
-            Description of parameter `n_samples`.
-        cosmo : type
-            Description of parameter `cosmo`.
+        search_rad : float
+            Cone search radius, in arcsec.
+        verbose : boolean
+            If True, prints stats about the probability calculation.
+        n_samples : int
+            Number of samples to draw for monte-carlo association.
+        cosmo : astropy cosmology
+            Assumed cosmology.
 
         Returns
         -------
-        type
-            Description of returned object.
+        p_outside : array-like
+            An array of n_samples posterior probabilities of the host being outside the search cone.
 
         """
         n_gals = int(n_samples / 2)
@@ -804,37 +814,40 @@ class Transient:
 
 
 class PriorzObservedTransients(st.rv_continuous):
-    """Short summary.
+    """A continuous probability distribution for a redshift prior defined by
+       an observed sample of transients with a given limiting magnitude, volumetric rate,
+       and brightness distribution.
 
     Parameters
     ----------
-    z_min : type
-        Description of parameter `z_min`.
-    z_max : type
-        Description of parameter `z_max`.
-    n_bins : type
-        Description of parameter `n_bins`.
-    mag_cutoff : type
-        Description of parameter `mag_cutoff`.
-    absmag_mean : type
-        Description of parameter `absmag_mean`.
-    absmag_min : type
+    z_min : float
+        Minimum redshift to draw transients from.
+    z_max : float
+        Maximum redshift to draw transients from.
+    n_bins : int
+        Number of bins with which to fit the observed sample to a PDF.
+    mag_cutoff : float
+        Maximum apparent magnitude of the transient survey.
+    absmag_mean : float
+        Expected absolute brightness of the transient.
+    absmag_min : float
         Description of parameter `absmag_min`.
     absmag_max : type
         Description of parameter `absmag_max`.
-    r_sn : type
-        Description of parameter `r_sn`.
-    t_obs : type
-        Description of parameter `t_obs`.
-    **kwargs : type
-        Description of parameter `**kwargs`.
+    r_transient : float
+        Transient volumetric rate, in units of N/Mpc^3/yr.
+        (This gets normalized, so this is not too important).
+    t_obs : float
+        The observing time in years.
+    **kwargs : dict
+        Any other params.
 
     Attributes
     ----------
-    cosmo : type
-        Description of attribute `cosmo`.
-    _generate_distribution : type
-        Description of attribute `_generate_distribution`.
+    cosmo : astropy cosmology
+        Assumed cosmology.
+    _generate_distribution : function
+        Runs the experiment to build the distribution of observed transients.
     z_min
     z_max
     n_bins
@@ -842,7 +855,7 @@ class PriorzObservedTransients(st.rv_continuous):
     absmag_mean
     absmag_min
     absmag_max
-    r_sn
+    r_transient
     t_obs
 
     """
@@ -857,7 +870,7 @@ class PriorzObservedTransients(st.rv_continuous):
         absmag_mean=-19,
         absmag_min=-24,
         absmag_max=-17,
-        r_sn=1e-5,
+        r_transient=1e-5,
         t_obs=1.0,
         **kwargs,
     ):
@@ -871,7 +884,7 @@ class PriorzObservedTransients(st.rv_continuous):
         self.absmag_mean = absmag_mean
         self.absmag_min = absmag_min
         self.absmag_max = absmag_max
-        self.r_sn = r_sn
+        self.r_transient = r_transient
         self.t_obs = t_obs
         self.cosmo = cosmo
 
@@ -898,7 +911,7 @@ class PriorzObservedTransients(st.rv_continuous):
         solid_angle = 4 * np.pi  # full sky in steradians
 
         # Supernovae per redshift bin (for full sky)
-        supernovae_per_bin = (self.r_sn * dv_dz * solid_angle * np.diff(z_bins)).astype(int)
+        supernovae_per_bin = (self.r_transient * dv_dz * solid_angle * np.diff(z_bins)).astype(int)
 
         # Generate random redshifts for all supernovae
         z_scattered = np.hstack(
@@ -930,6 +943,16 @@ class PriorzObservedTransients(st.rv_continuous):
         """
         Return the PDF (KDE) based on observed redshifts.
         Handles 1D and 2D arrays.
+
+        Parameters
+        ----------
+        z : array-like
+            List of input redshifts.
+
+        Returns
+        -------
+        flat_pdf : the pdf from a kde fit to the input redshifts.
+
         """
         if z.ndim == 2:
             flat_z = z.flatten()
@@ -938,32 +961,25 @@ class PriorzObservedTransients(st.rv_continuous):
         else:
             return self.bestFit(z)
 
-    def rvs(self, size=None, random_state=None):
-        """Short summary.
+    def rvs(self, size=None):
+        """Generate random variables from the empirical distribution.
 
         Parameters
         ----------
-        size : type
-            Description of parameter `size`.
-        random_state : type
-            Description of parameter `random_state`.
+        size : int
+            Number of samples to draw from the distribution
 
         Returns
         -------
-        type
-            Description of returned object.
+        samples : array-like
+            The redshift samples from the distribution.
 
         """
-        return self.bestFit.resample(size=size).reshape(-1)
+        samples = self.bestFit.resample(size=size).reshape(-1)
+        return samples
 
     def plot(self):
-        """Short summary.
-
-        Returns
-        -------
-        type
-            Description of returned object.
-
+        """Plots the empirical redshift distribution.
         """
         z_bins = np.linspace(self.z_min, self.z_max, self.n_bins + 1)
 
@@ -989,23 +1005,23 @@ class PriorzObservedTransients(st.rv_continuous):
 
 
 class SnRateAbsmag(st.rv_continuous):
-    """Short summary.
+    """A host-galaxy absolute magnitude likelihood distribution,
+       where supernova rate scales as ~0.1*L_host in units of 10^10 Lsol.
+       Based on Li, Chornock et al. 2011.
 
     Parameters
     ----------
-    a : type
-        Description of parameter `a`.
-    b : type
-        Description of parameter `b`.
-    **kwargs : type
-        Description of parameter `**kwargs`.
+    a : float
+        The minimum absolute magnitude of a host galaxy.
+    b : float
+        The maximum absolute magnitude of a host galaxy.
 
     Attributes
     ----------
-    normalization : type
-        Description of attribute `normalization`.
-    _calculate_normalization : type
-        Description of attribute `_calculate_normalization`.
+    normalization : float
+        The calculated normalization constant for the distribution.
+    _calculate_normalization : function
+        Calculates the normalization constant for the distribution.
 
     """
 
@@ -1014,36 +1030,36 @@ class SnRateAbsmag(st.rv_continuous):
         self.normalization = self._calculate_normalization(a, b)
 
     def _calculate_normalization(self, a, b):
-        """Short summary.
+        """Calculates the normalization constant for the distribution.
 
         Parameters
         ----------
-        a : type
-            Description of parameter `a`.
-        b : type
-            Description of parameter `b`.
+        a : float
+            The minimum absolute magnitude of a host galaxy.
+        b : float
+            The maximum absolute magnitude of a host galaxy.
 
         Returns
         -------
-        type
-            Description of returned object.
+        result : float
+            The calculated normalization constant for the distribution.
 
         """
         result, _ = quad(self._unnormalized_pdf, a, b)
         return result
 
     def _unnormalized_pdf(self, abs_mag_samples):
-        """Short summary.
+        """Calculates the unnormalized PDF from the supernova rate.
 
         Parameters
         ----------
-        abs_mag_samples : type
-            Description of parameter `abs_mag_samples`.
+        abs_mag_samples : array-like
+            Array of galaxy absolute magnitudes.
 
         Returns
         -------
-        type
-            Description of returned object.
+        snrate : array-like
+            Supernovae rate for corresponding galaxies.
 
         """
         msol = 4.74
@@ -1053,21 +1069,21 @@ class SnRateAbsmag(st.rv_continuous):
         return snrate
 
     def _pdf(self, m_abs_samples):
-        """Short summary.
+        """The PDF of galaxies with m_abs_samples, after normalization.
 
         Parameters
         ----------
-        m_abs_samples : type
-            Description of parameter `m_abs_samples`.
+        m_abs_samples : array-like
+            Absolute magnitudes of galaxies.
 
         Returns
         -------
-        type
-            Description of returned object.
+        normalized_pdf : array-like
+            Normalized PDF values for m_abs_samples.
 
         """
-        return self._unnormalized_pdf(m_abs_samples) / self.normalization
-
+        normalized_pdf = self._unnormalized_pdf(m_abs_samples) / self.normalization
+        return normalized_pdf
 
 # from https://ps1images.stsci.edu/ps1_dr2_api.html
 def ps1cone(
@@ -1082,44 +1098,45 @@ def ps1cone(
     verbose=False,
     **kw,
 ):
-    """Short summary.
+    """Conducts a cone search of the Pan-STARRS 3PI catalog tables.
 
     Parameters
     ----------
-    ra : type
-        Description of parameter `ra`.
-    dec : type
-        Description of parameter `dec`.
-    radius : type
-        Description of parameter `radius`.
-    table : type
-        Description of parameter `table`.
-    release : type
-        Description of parameter `release`.
-    format : type
-        Description of parameter `format`.
-    columns : type
-        Description of parameter `columns`.
-    baseurl : type
-        Description of parameter `baseurl`.
-    verbose : type
-        Description of parameter `verbose`.
-    **kw : type
-        Description of parameter `**kw`.
+    ra : float
+        Right ascension of search center, in decimal degrees.
+    dec : float
+        Declination of search center, in decimal degrees.
+    radius : float
+        Radius of search cone, in degrees.
+    table : str
+        The table to query.
+    release : str
+        The pan-starrs data release. Can be "dr1" or "dr2".
+    format : str
+        The format for the retrieved data.
+    columns : array-like
+        A list of columns to retrieve from 'table'.
+    baseurl : str
+        The api endpoint to query.
+    verbose : boolean
+        If True, prints details about the query.
+    **kw : dict
+        Any additional search parameters.
 
     Returns
     -------
-    type
-        Description of returned object.
+    result : str
+        String containing retrieved data (empty if none found).
 
     """
     data = kw.copy()
     data["ra"] = ra
     data["dec"] = dec
     data["radius"] = radius
-    return ps1search(
+    result = ps1search(
         table=table, release=release, format=format, columns=columns, baseurl=baseurl, verbose=verbose, **data
     )
+    return result
 
 
 def ps1search(
@@ -1135,25 +1152,25 @@ def ps1search(
 
     Parameters
     ----------
-    table : type
-        Description of parameter `table`.
-    release : type
-        Description of parameter `release`.
-    format : type
-        Description of parameter `format`.
-    columns : type
-        Description of parameter `columns`.
-    baseurl : type
-        Description of parameter `baseurl`.
-    verbose : type
-        Description of parameter `verbose`.
-    **kw : type
-        Description of parameter `**kw`.
+    table : str
+        The table to query.
+    release : str
+        The pan-starrs data release. Can be "dr1" or "dr2".
+    format : str
+        The format for the retrieved data.
+    columns : array-like
+        A list of columns to retrieve from 'table'.
+    baseurl : str
+        The api endpoint to query.
+    verbose : boolean
+        If True, prints details about the query.
+    **kw : dict
+        Any additional search parameters.
 
     Returns
     -------
-    type
-        Description of returned object.
+    result : str
+        String containing retrieved data (empty if none found).
 
     """
     data = kw.copy()
@@ -1192,31 +1209,39 @@ def build_glade_candidates(
     verbose=False,
     cat_cols=False
 ):
-    """Short summary.
+    """Populates a GalaxyCatalog object with candidates from a cone search of the
+       GLADE catalog (See https://glade.elte.hu/ for details). Reported luminosity
+       distances have been converted to redshifts with a 5% uncertainty floor for
+       faster processing.
 
     Parameters
     ----------
-    transient_name : type
-        Description of parameter `transient_name`.
-    transient_pos : type
-        Description of parameter `transient_pos`.
-    glade_catalog : type
-        Description of parameter `glade_catalog`.
-    search_rad : type
-        Description of parameter `search_rad`.
-    cosmo : type
-        Description of parameter `cosmo`.
-    n_samples : type
-        Description of parameter `n_samples`.
-    verbose : type
-        Description of parameter `verbose`.
-    cat_cols : type
-        Description of parameter `cat_cols`.
+    transient_name : str
+        Name of transient to associate.
+    transient_pos : astropy.coord SkyCoord
+        Position of transient to associate.
+    glade_catalog : Pandas DataFrame
+        The locally-packaged GLADE catalog (to avoid querying).
+    search_rad : astropy Angle
+        Radius for cone search.
+    cosmo : astropy cosmology
+        Assumed cosmology for conversions.
+    n_samples : int
+        Number of samples for monte-carlo association.
+    verbose : int
+        Level of logging verbosity; can be 0, 1, or 2.
+    cat_cols : boolean
+        If True, concatenates catalog fields for best host to final catalog.
 
     Returns
     -------
-    type
-        Description of returned object.
+    galaxies : structured numpy array
+        Array of properties for candidate sources needed
+        for host association.
+
+    cat_col_fields : str
+        List of columns retrieved from the galaxy catalog
+        (rather than calculated internally).
 
     """
     if search_rad is None:
@@ -1386,29 +1411,37 @@ def build_decals_candidates(transient_name,
                             n_samples=1000,
                             verbose=False,
                             cat_cols=False):
-    """Short summary.
+    """Populates a GalaxyCatalog object with candidates from a cone search of the
+       DECaLS catalog (See https://www.legacysurvey.org/decamls/ for details).
 
     Parameters
     ----------
-    transient_name : type
-        Description of parameter `transient_name`.
-    transient_pos : type
-        Description of parameter `transient_pos`.
-    search_rad : type
-        Description of parameter `search_rad`.
-    cosmo : type
-        Description of parameter `cosmo`.
-    n_samples : type
-        Description of parameter `n_samples`.
-    verbose : type
-        Description of parameter `verbose`.
-    cat_cols : type
-        Description of parameter `cat_cols`.
+    transient_name : str
+        Name of transient to associate.
+    transient_pos : astropy.coord SkyCoord
+        Position of transient to associate.
+    glade_catalog : Pandas DataFrame
+        The locally-packaged GLADE catalog (to avoid querying).
+    search_rad : astropy Angle
+        Radius for cone search.
+    cosmo : astropy cosmology
+        Assumed cosmology for conversions.
+    n_samples : int
+        Number of samples for monte-carlo association.
+    verbose : int
+        Level of logging verbosity; can be 0, 1, or 2.
+    cat_cols : boolean
+        If True, concatenates catalog fields for best host to final catalog.
 
     Returns
     -------
-    type
-        Description of returned object.
+    galaxies : structured numpy array
+        Array of properties for candidate sources needed
+        for host association.
+
+    cat_col_fields : str
+        List of columns retrieved from the galaxy catalog
+        (rather than calculated internally).
 
     """
     if search_rad is None:
@@ -1631,31 +1664,38 @@ def build_panstarrs_candidates(
     glade_catalog=None,
     cat_cols=False
 ):
-    """Short summary.
+    """Populates a GalaxyCatalog object with candidates from a cone search of the
+       panstarrs DR2 catalog (See https://outerspace.stsci.edu/display/PANSTARRS/ for details).
 
     Parameters
     ----------
-    transient_name : type
-        Description of parameter `transient_name`.
-    transient_pos : type
-        Description of parameter `transient_pos`.
-    search_rad : type
-        Description of parameter `search_rad`.
-    cosmo : type
-        Description of parameter `cosmo`.
-    n_samples : type
-        Description of parameter `n_samples`.
-    verbose : type
-        Description of parameter `verbose`.
-    glade_catalog : type
-        Description of parameter `glade_catalog`.
-    cat_cols : type
-        Description of parameter `cat_cols`.
+    transient_name : str
+        Name of transient to associate.
+    transient_pos : astropy.coord SkyCoord
+        Position of transient to associate.
+    glade_catalog : Pandas DataFrame
+        The locally-packaged GLADE catalog (to avoid querying).
+    search_rad : astropy Angle
+        Radius for cone search.
+    cosmo : astropy cosmology
+        Assumed cosmology for conversions.
+    n_samples : int
+        Number of samples for monte-carlo association.
+    verbose : int
+        Level of logging verbosity; can be 0, 1, or 2.
+    cat_cols : boolean
+        If True, concatenates catalog fields for best host to final catalog.
 
     Returns
     -------
-    type
-        Description of returned object.
+    galaxies : structured numpy array
+        Array of properties for candidate sources needed
+        for host association.
+
+    cat_col_fields : str
+        List of columns retrieved from the galaxy catalog
+        (rather than calculated internally).
+
     """
 
     if search_rad is None:
@@ -1950,33 +1990,34 @@ def build_panstarrs_candidates(
 
 
 def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1000):
-    """Short summary.
+    """Calculates the directional light radius (DLR) between candidate host and transient, following the
+       general framework in Gupta et al. (2016).
 
     Parameters
     ----------
-    transient_pos : type
-        Description of parameter `transient_pos`.
-    galaxies_pos : type
-        Description of parameter `galaxies_pos`.
-    a : type
-        Description of parameter `a`.
-    a_std : type
-        Description of parameter `a_std`.
-    a_over_b : type
-        Description of parameter `a_over_b`.
-    a_over_b_std : type
-        Description of parameter `a_over_b_std`.
-    phi : type
-        Description of parameter `phi`.
-    phi_std : type
-        Description of parameter `phi_std`.
+    transient_pos : astropy.coord SkyCoord
+        Position of the transient.
+    galaxies_pos : array of astropy.coord SkyCoord objects
+        Positions of candidate host galaxies.
+    a : array-like
+        Semi-major axes of candidates, in arcsec.
+    a_std : array-like
+        Error in semi-major axes of candidates, in arcsec.
+    a_over_b : array-like
+        Axis ratio (major/minor) of candidates.
+    a_over_b_std : array-like
+        Error in axis ratio.
+    phi : array-like
+        Position angles of sources, in radians.
+    phi_std : array-like
+        Error in position angle.
     n_samples : type
-        Description of parameter `n_samples`.
+        Number of DLR samples to draw for monte-carlo association.
 
     Returns
     -------
-    type
-        Description of returned object.
+    dlr : array-like
+        2D array of DLR samples of dimensionality (n_galaxies, n_samples).
 
     """
     n_gals = len(galaxies_pos)
@@ -2022,37 +2063,38 @@ def find_panstarrs_shreds(
     appmag,
     verbose=False,
 ):
-    """Short summary.
+    """Finds potentially shredded sources in panstarrs and removes the shreds.
+       If any source is in another sources light radius, the dimmer source is dropped.
 
     Parameters
     ----------
-    objids : type
-        Description of parameter `objids`.
-    ra_allgals : type
-        Description of parameter `ra_allgals`.
-    dec_allgals : type
-        Description of parameter `dec_allgals`.
-    size : type
-        Description of parameter `size`.
-    size_std : type
-        Description of parameter `size_std`.
-    a_over_b : type
-        Description of parameter `a_over_b`.
-    a_over_b_std : type
-        Description of parameter `a_over_b_std`.
-    phi : type
-        Description of parameter `phi`.
-    phi_std : type
-        Description of parameter `phi_std`.
-    appmag : type
-        Description of parameter `appmag`.
-    verbose : type
-        Description of parameter `verbose`.
+    objids : array-like
+        catalog IDs in panstarrs of all sources.
+    ra_allgals : array-like
+        Right ascension of catalog sources, in decimal degrees.
+    dec_allgals : array-like
+        Declination of catalog sources, in decimal degrees.
+    a : array-like
+        Semi-major axes of candidates, in arcsec.
+    a_std : array-like
+        Error in semi-major axes of candidates, in arcsec.
+    a_over_b : array-like
+        Axis ratio (major/minor) of candidates.
+    a_over_b_std : array-like
+        Error in axis ratio.
+    phi : array-like
+        Position angles of sources, in radians.
+    phi_std : array-like
+        Error in position angle.
+    appmag : array-like
+        Apparent magnitudes of candidate sources.
+    verbose : int
+        Level of logging; can be 0, 1, or 2.
 
     Returns
     -------
-    type
-        Description of returned object.
+    dropidxs: array
+        The indices of the candidates flagged as shreds.
 
     """
     # deprecated for now!
@@ -2070,8 +2112,8 @@ def find_panstarrs_shreds(
         restgal_ab_std = np.delete(a_over_b_std, i)
         restgal_phi = np.delete(phi, i)
         restgal_phi_std = np.delete(phi_std, i)
-        restgal_size = np.delete(size, i)
-        restgal_size_std = np.delete(size_std, i)
+        restgal_a = np.delete(a, i)
+        restgal_a_std = np.delete(a_std, i)
         restgal_appmag = np.delete(appmag, i)
 
         restgal_coord = SkyCoord(restgal_ra, restgal_dec, unit=(u.deg, u.deg))
@@ -2079,8 +2121,8 @@ def find_panstarrs_shreds(
         dlr = calc_dlr(
             onegal_coord,
             restgal_coord,
-            restgal_size,
-            restgal_size_std,
+            restgal_a,
+            restgal_a_std,
             restgal_ab,
             restgal_ab_std,
             restgal_phi,
@@ -2097,8 +2139,8 @@ def find_panstarrs_shreds(
             print(f"Considering source at: {onegal_ra:.6f}, {onegal_dec:.6f}:")
             print("Next-closest galaxy (by fractional offset):")
             print(f"{restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
-            print(f"Size of this nearby galaxy:{restgal_size[min_idx]}")
-            print(f"Size uncertainty of this nearby galaxy:{restgal_size_std[min_idx]}")
+            print(f"Size of this nearby galaxy:{restgal_a[min_idx]}")
+            print(f"Size uncertainty of this nearby galaxy:{restgal_sa_std[min_idx]}")
             print("Axis ratio:", restgal_ab[min_idx])
             print("Axis ratio uncertainty:", restgal_ab_std[min_idx])
             print("Phi:", restgal_phi[min_idx])

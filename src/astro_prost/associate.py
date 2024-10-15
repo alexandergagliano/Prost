@@ -30,40 +30,42 @@ def associate_transient(
     catalogs,
     cat_cols,
 ):
-    """Short summary.
+    """Associates a transient with its most likely host galaxy.
 
     Parameters
     ----------
-    idx : type
-        Description of parameter `idx`.
-    row : type
-        Description of parameter `row`.
-    glade_catalog : type
-        Description of parameter `glade_catalog`.
-    n_samples : type
-        Description of parameter `n_samples`.
-    verbose : type
-        Description of parameter `verbose`.
-    priorfunc_z : type
-        Description of parameter `priorfunc_z`.
-    priorfunc_offset : type
-        Description of parameter `priorfunc_offset`.
-    priorfunc_absmag : type
-        Description of parameter `priorfunc_absmag`.
-    likefunc_offset : type
-        Description of parameter `likefunc_offset`.
-    likefunc_absmag : type
-        Description of parameter `likefunc_absmag`.
-    cosmo : type
-        Description of parameter `cosmo`.
-    catalogs : type
-        Description of parameter `catalogs`.
-    cat_cols : type
-        Description of parameter `cat_cols`.
+    idx : int
+        Index of the transient from a larger catalog (used to cross-match properties after association).
+    row : pandas Series
+        Full row of transient properties.
+    glade_catalog : Pandas DataFrame
+        GLADE catalog of galaxies, with sizes and photo-zs.
+    n_samples : int
+        Number of samples for the monte-carlo sampling of associations.
+    verbose : int
+        Level of logging during run (can be 0, 1, or 2).
+    priorfunc_z : scipy stats continuous distribution
+        Prior distribution on redshift. This class can be user-defined
+        but needs .sample(size=n) and .pdf(x) functions.
+    priorfunc_offset : scipy stats continuous distribution
+        Prior distribution on fractional offset.
+    priorfunc_absmag : scipy stats continuous distribution
+        Prior distribution on host absolute magnitude.
+    likefunc_offset : scipy stats continuous distribution
+        Likelihood distribution on fractional offset.
+    likefunc_absmag : scipy stats continuous distribution.
+        Likelihood distribution on host absolute magnitude.
+    cosmo : astropy cosmology
+        Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
+    catalogs : list
+        List of source catalogs to query (can include 'glade', 'decals', or 'panstarrs').
+    cat_cols : boolean
+        If true, concatenates the source catalog fields to the returned dataframe.
     Returns
     -------
-    type
-        Description of returned object.
+    tuple
+        Properties of the first and second-best host galaxy matches, and
+        a dictionary of catalog columns (empty if cat_cols=False)
 
     """
     try:
@@ -216,30 +218,30 @@ def associate_transient(
 
 def prepare_catalog(
     transient_catalog,
-    debug_names=None,
     transient_name_col="name",
     transient_coord_cols=("ra", "dec"),
     debug=False,
+    debug_names=None,
 ):
-    """Short summary.
+    """Preprocesses the transient catalog for fields needed by association function.
 
     Parameters
     ----------
-    transient_catalog : type
-        Description of parameter `transient_catalog`.
-    transient_name_col : type
-        Description of parameter `transient_name_col`.
-    transient_coord_cols : type
-        Description of parameter `transient_coord_cols`.
-    debug_names : type
-        Description of parameter `debug_names`.
-    debug : type
-        Description of parameter `debug`.
+    transient_catalog : Pandas DataFrame
+        Contains the details of the transients to be associated.
+    transient_name_col : str
+        Column corresponding to transient name.
+    transient_coord_cols : tuple
+        Columns corresponding to transient coordinates (converted to decimal degrees internally).
+    debug : boolean
+        If true, associates only transients in debug_names.
+    debug_names : list
+        List of specific transients to associate when debug=True.
 
     Returns
     -------
-    type
-        Description of returned object.
+    Pandas DataFrame
+        The transformed dataframe with standardized columns.
 
     """
     association_fields = [
@@ -304,39 +306,39 @@ def associate_sample(
     progress_bar=False,
     cosmology=None,
 ):
-    """Short summary.
+    """Wrapper function for associating sample of transients.
 
     Parameters
     ----------
-    transient_catalog : type
-        Description of parameter `transient_catalog`.
-    priors : type
-        Description of parameter `priors`.
-    likes : type
-        Description of parameter `likes`.
-    catalogs : type
-        Description of parameter `catalogs`.
-    n_samples : type
-        Description of parameter `n_samples`.
-    verbose : type
-        Description of parameter `verbose`.
-    parallel : type
-        Description of parameter `parallel`.
-    save : type
-        Description of parameter `save`.
-    save_path : type
-        Description of parameter `save_path`.
-    cat_cols : type
-        Description of parameter `cat_cols`.
-    progress_bar : type
-        Description of parameter `progress_bar`.
-    cosmology : type
-        Description of parameter `cosmology`.
+    transient_catalog : Pandas DataFrame
+        Dataframe containing transient name and coordinates.
+    priors : dict
+        Dictionary of prior distributions on redshift, fractional offset, absolute magnitude
+    likes : dict
+        Dictionary of likelihood distributions on redshift, fractional offset, absolute magnitude
+    catalogs : list
+        List of catalogs to query (can include 'glade', 'decals', 'panstarrs')
+    n_samples : int
+        List of samples to draw for monte-carlo association.
+    verbose : int
+        Verbosity level; can be 0, 1, or 2.
+    parallel : boolean
+        If True, runs in parallel with multiprocessing via mpire. Cannot be set with ipython!
+    save : boolean
+        If True, saves resulting association table to save_path.
+    save_path : str
+        Path where the association table should be saved (when save=True).
+    cat_cols : boolean
+        If True, contatenates catalog columns to resulting DataFrame.
+    progress_bar : boolean
+        If True, prints a loading bar for each association (when parallel=True).
+    cosmology : astropy cosmology
+        Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
 
     Returns
     -------
-    type
-        Description of returned object.
+    Pandas DataFrame
+        The transient dataframe with columns corresponding to the associated transient.
 
     """
     if not cosmology:

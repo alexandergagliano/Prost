@@ -13,16 +13,21 @@ from astropy.wcs import WCS
 def get_images(ra, dec, size=240, filters="grizy", type="stack"):
     """Query ps1filenames.py service to get a list of images.
 
-    :param ra: Right ascension of position, in degrees.
-    :type ra: float
-    :param dec: Declination of position, in degrees.
-    :type dec: float
-    :param size: The image size in pixels (0.25 arcsec/pixel)
-    :type size: int
-    :param filters: A string with the filters to include
-    :type filters: str
-    :return: The results of the search for relevant images.
-    :rtype: Astropy Table
+    Parameters
+    ----------
+    ra : float
+        Right ascension of position, in decimal degrees.
+    dec : float
+        Declination of position, in decimal degrees.
+    size : int
+        The image size in pixels (0.25 arcsec/pixel).
+    filters : str
+        A string with the filters to include.
+
+    Returns
+    -------
+    astropy table
+        The results of the search for relevant images.
     """
 
     service = "https://ps1images.stsci.edu/cgi-bin/ps1filenames.py"
@@ -36,24 +41,30 @@ def get_images(ra, dec, size=240, filters="grizy", type="stack"):
 def get_url(ra, dec, size=240, output_size=None, filters="grizy", format="jpg", color=False, type="stack"):
     """Get the URL for images in the table.
 
-    :param ra: Right ascension of position, in degrees.
-    :type ra: float
-    :param dec: Declination of position, in degrees.
-    :type dec: float
-    :param size: The extracted image size in pixels (0.25 arcsec/pixel)
-    :type size: int
-    :param output_size: output (display) image size in pixels (default = size).
+    Parameters
+    ----------
+
+    ra : float
+        Right ascension of position, in degrees.
+    dec : float
+        Declination of position, in degrees.
+    size : int
+        The extracted image size in pixels (0.25 arcsec/pixel)
+    output_size : int
+        output (display) image size in pixels (default = size).
         The output_size has no effect for fits format images.
-    :type output_size: int
-    :param filters: The string with filters to include.
-    :type filters: str
-    :param format: The data format (options are \\"jpg\\", \\"png" or \\"fits\\").
-    :type format: str
-    :param color: If True, creates a color image (only for jpg or png format).
+    filters : str
+        The string with filters to include.
+    format : str
+        The data format (options are \\"jpg\\", \\"png" or \\"fits\\").
+    color : boolean
+        If True, creates a color image (only for jpg or png format).
         If False, return a list of URLs for single-filter grayscale images.
-    :type color: bool, optional
-    :return: The url for the image to download.
-    :rtype: str
+
+    Returns
+    -------
+    url
+        The url for the image to download.
     """
 
     if color and format == "fits":
@@ -87,44 +98,59 @@ def get_url(ra, dec, size=240, output_size=None, filters="grizy", format="jpg", 
 def get_ps1_pic(path, objid, ra, dec, size, band, safe=False, save=False):
     """Downloads PS1 picture (in fits) centered at a given location.
 
-    :param path: The filepath where the fits file will be saved.
-    :type path: str
-    :param objid: The PS1 objid of the object of interest (to save as filename).
-    :type objid: int
-    :param ra: Right ascension of position, in degrees.
-    :type ra: float
-    :param dec: Declination of position, in degrees.
-    :type dec: float
-    :param size: The extracted image size in pixels (0.25 arcsec/pixel)
-    :type size: int
-    :param band: The PS1 band.
-    :type band: str
-    :param safe: If True, include the objid of the object of interest in the filename
-        (useful when saving multiple files at comparable positions).
-    :type safe: bool, optional
+    Parameters
+    ----------
+
+    path : str
+        The filepath where the fits file will be saved.
+    objid : int
+        The PS1 objid of the object of interest (to save as filename).
+    ra : float
+        Right ascension of position, in degrees.
+    dec : float
+        Declination of position, in degrees.
+    size : int
+        The extracted image size in pixels (0.25 arcsec/pixel)
+    band : str
+        The PS1 band.
+    safe : boolean
+        If True, include the objid of the object of interest in the filename
+        (useful when saving multiple files at similar positions).
+
+    Returns
+    -------
+    fn : fits file
+        File retrieved from ps1
     """
 
     fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")
-    fh = fits.open(fitsurl[0])
+    fn = fits.open(fitsurl[0])
     if save:
         if safe:
-            fh.writeto(path + f"/PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits")
+            fn.writeto(path + f"/PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits")
         else:
-            fh.writeto(path + f"/PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits")
+            fn.writeto(path + f"/PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits")
     else:
-        return fh
+        return fn
 
 
 def find_all(name, path):
     """Crawls through a directory and all its sub-directories looking for a file matching
-       \\'name\\'. If found, it is returned.
+       'name'. If found, it is returned.
 
-    :param name: The filename for which to search.
-    :type name: str
-    :param path: The directory to search.
-    :type path: str
-    :return: The list of absolute paths to all files called \\'name\\' in \\'path\\'.
-    :rtype: list
+    Parameters
+    ----------
+
+    name : str
+        The filename for which to search.
+    path : str
+        the absolute path to search within.
+
+    Returns
+    -------
+    result : list
+        List of absolute paths to all files called 'name' in 'path'.
+
     """
 
     result = []
@@ -136,8 +162,6 @@ def find_all(name, path):
 def plot_match(
     host_ra,
     host_dec,
-    true_host_ra,
-    true_host_dec,
     host_z_mean,
     host_z_std,
     transient_ra,
@@ -146,40 +170,39 @@ def plot_match(
     transient_z,
     bayesflag,
     fn,
+    true_host_ra=None,
+    true_host_dec=None,
 ):
-    """Short summary.
+    """Plots a host-galaxy match with panstarrs postage stamp.
 
     Parameters
     ----------
-    host_ra : type
-        Description of parameter `host_ra`.
-    host_dec : type
-        Description of parameter `host_dec`.
-    true_host_ra : type
-        Description of parameter `true_host_ra`.
-    true_host_dec : type
-        Description of parameter `true_host_dec`.
-    host_z_mean : type
-        Description of parameter `host_z_mean`.
-    host_z_std : type
-        Description of parameter `host_z_std`.
-    transient_ra : type
-        Description of parameter `transient_ra`.
-    transient_dec : type
-        Description of parameter `transient_dec`.
-    transient_name : type
-        Description of parameter `transient_name`.
-    transient_z : type
-        Description of parameter `transient_z`.
-    bayesflag : type
-        Description of parameter `bayesflag`.
-    fn : type
-        Description of parameter `fn`.
-
-    Returns
-    -------
-    type
-        Description of returned object.
+    host_ra : list
+        List of right ascension coordinates for associated hosts, in decimal degrees.
+        (Can provide up to 10 hosts)
+    host_dec : list
+        List of declination coordinates for associated hosts, in decimal degrees.
+    true_host_ra : float
+        Right ascension of the true galaxy in decimal degrees.
+    true_host_dec : float
+        Declination of the true galaxy in decimal degrees.
+    host_z_mean : float
+        Point estimate of host-galaxy redshift.
+    host_z_std : float
+        Error on host_z_mean.
+    transient_ra : float
+        Right ascension of transient, in decimal degrees.
+    transient_dec : float
+        Declination of transient, in decimal degrees.
+    transient_name : str
+        Name of transient for plot.
+    transient_z : float
+        Redshift of transient, if available.
+    bayesflag : int
+        Flag from association run. If 0, bayes factor is sufficient for confident association.
+        If 1, bayes factor is weak. If 2, bayes factor is strong.
+    fn : str
+        Name of saved image.
 
     """
     cols = np.array(
@@ -303,7 +326,7 @@ def plot_match(
             plt.title(f"{transient_name}, no z; No host found {true_str}")
     ax.imshow(rgb_default, origin="lower")
     plt.axis("off")
-    plt.savefig("./%s.png" % fn, bbox_inches="tight")
+    plt.savefig(f"{fn}.png", bbox_inches="tight")
     plt.close()
 
 
@@ -317,48 +340,49 @@ def diagnose_ranking(
     post_absmag,
     galaxy_ids,
     z_sn,
-    sn_position,
+    transient_position,
     post_offset_true=None,
     post_z_true=None,
     post_absmag_true=None,
     verbose=False,
 ):
-    """Short summary.
+    """Prints summary statistics from association run.
 
     Parameters
     ----------
-    true_index : type
-        Description of parameter `true_index`.
-    post_probs : type
-        Description of parameter `post_probs`.
-    galaxy_catalog : type
-        Description of parameter `galaxy_catalog`.
-    post_offset : type
-        Description of parameter `post_offset`.
-    post_z : type
-        Description of parameter `post_z`.
-    post_absmag : type
-        Description of parameter `post_absmag`.
-    galaxy_ids : type
-        Description of parameter `galaxy_ids`.
-    z_sn : type
-        Description of parameter `z_sn`.
-    sn_position : type
-        Description of parameter `sn_position`.
-    post_offset_true : type
-        Description of parameter `post_offset_true`.
-    post_z_true : type
-        Description of parameter `post_z_true`.
-    post_absmag_true : type
-        Description of parameter `post_absmag_true`.
-    verbose : type
-        Description of parameter `verbose`.
+    true_index : int
+        Index of the true host in galaxy_ids.
+    post_probs : list
+        List of total posterior probabilities for candidate hosts.
+    galaxy_catalog : str
+        Galaxy catalog used for association.
+    post_offset : list
+        List of posterior probabilities for fractional offset.
+    post_z : list
+        List of posterior probabilities for redshift.
+    post_absmag : list
+        List of posterior probabilities for absolute magnitude.
+    galaxy_ids : list
+        List of catalog ids for candidate hosts.
+    z_sn : float
+        Redshift of the transient.
+    transient_position : astropy.coordinates SkyCoord
+        Position of the associated transient.
+    post_offset_true : float
+        Posterior probability for true host's fractional offset.
+    post_z_true : float
+        Posterior probability for true host's redshift.
+    post_absmag_true : float
+        Posterior probability for true host's absolute magnitude.
+    verbose : boolean
+        If true, enables detailed logging of summary statistics.
 
     Returns
     -------
-    type
-        Description of returned object.
-
+    true_rank : int
+        Rank of the true host galaxy in final association.
+    post_probs[true_index] : float
+        Total posterior probability for true host
     """
     top_indices = np.argsort(post_probs)[-3:][::-1]  # Top 3 ranked galaxies
 
@@ -379,10 +403,10 @@ def diagnose_ranking(
             )
 
     # Detailed comparison of the top-ranked and true galaxy
-    print(f"Coords (SN): {sn_position.ra.deg:.4f}, {sn_position.dec.deg:.4f}")
+    print(f"Coords (SN): {transient_position.ra.deg:.4f}, {transient_position.dec.deg:.4f}")
     for _, i in enumerate(top_indices, start=1):
         top_gal = galaxy_catalog[i]
-        top_theta = sn_position.separation(
+        top_theta = transient_position.separation(
             SkyCoord(ra=top_gal["ra"] * u.degree, dec=top_gal["dec"] * u.degree)
         ).arcsec
 
@@ -400,7 +424,7 @@ def diagnose_ranking(
 
     if verbose and true_index > 0:
         true_gal = galaxy_catalog[true_index]
-        true_theta = sn_position.separation(
+        true_theta = transient_position.separation(
             SkyCoord(ra=true_gal["ra"] * u.degree, dec=true_gal["dec"] * u.degree)
         ).arcsec
         print(f"True Galaxy: Fractional Sep. = {true_theta/true_gal['angular_size_arcsec']:.4f} host radii")

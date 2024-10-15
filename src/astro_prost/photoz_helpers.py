@@ -16,7 +16,19 @@ default_model_path = "./MLP_lupton.hdf5"
 default_dust_path = "."
 
 def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0):
-    """Downloads directory of Galactic dust maps for extinction correction."""
+    """Downloads directory of Galactic dust maps for extinction correction.
+
+    Parameters
+    ----------
+    file_path : str
+        Location of Galactic dust maps.
+    data_dir : str
+        Location to download Galactic dust maps, if file_path doesn't exist.
+    verbose : int
+        Logging level; can be 0, 1, or 2.
+
+
+    """
 
     # Define the target directory
     target_dir = os.path.join(data_dir, "sfddata-master")
@@ -65,10 +77,19 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0)
             print("Done creating dust directory.")
 
 def get_photoz_weights(file_path=default_model_path, verbose=0):
-    """Get weights for MLP photo-z model."""
+    """Get weights for MLP pan-starrs photo-z model.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to MLP model (defaults to './MLP_lupton.hdf5')
+    verbose : int
+        Logging level; can be 0, 1, or 2.
+
+    """
 
     # File lock path
-    lock_path = file_path.with_suffix(".lock")
+    lock_path = Path(file_path).with_suffix(".lock")
 
     # Use the lock to ensure only one process downloads the weights file
     with FileLock(lock_path):
@@ -91,100 +112,22 @@ def get_photoz_weights(file_path=default_model_path, verbose=0):
         if verbose > 0:
             print("Done getting photo-z weights.")
 
-def ps1objidsearch(
-    objid,
-    table="mean",
-    release="dr1",
-    format="csv",
-    columns=None,
-    baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs",
-    verbose=False,
-    **kw,
-):
-    """Do an object lookup by objid.
-
-    :param objid: list of objids (or dictionary?)
-    :type objid: List of objids
-    :param table: Can be \\'mean\\', \\'stack\\', or \\'detection\\'.
-    :type table: str
-    :param release: Can be 'dr1' or 'dr2'.
-    :type release: str
-    :param format: Can be 'csv', 'votable', or 'json'
-    :type format: str
-    :param columns: list of column names to include (None means use defaults)
-    :type columns: arrray-like
-    :param baseurl: base URL for the request
-    :type baseurl: str
-    :param verbose: print info about request
-    :type verbose: bool,optional
-    :param \\*\\*kw: other parameters (e.g., 'nDetections.min':2)
-    :type \\*\\*kw: dictionary
-    """
-
-    # this is a dictionary... we want a list of dictionaries
-    objid = list(objid)
-
-    data_list = [kw.copy() for i in range(len(objid))]
-    assert len(data_list) == len(objid)
-
-    for i in range(len(data_list)):
-        data_list[i]["objid"] = objid[i]
-
-    datas = []
-    for i in range(len(objid)):
-        data = ps1search(
-            table=table,
-            release=release,
-            format=format,
-            columns=columns,
-            baseurl=baseurl,
-            verbose=verbose,
-            **data_list[i],
-        )
-
-        datas.append(data)
-
-    return datas
-
-
-def fetch_information_serially(url, data, verbose=False, format="csv"):
-    """A helper function called by serial_objid_search-- Queries PanStarrs API for data.
-
-    :param url: Remote PS1 url.
-    :type url: str
-    :param data: List of objids requesting
-    :type data: list
-    :param verbose: If True,
-    :type verbose: bool, optional
-    :param format: Can be \\'csv\\', \\'json\\', or \\'votable\\'.
-    :type format: str
-    :return:
-    :rtype: str in format given by \\'format\\'.
-    """
-
-    results = []
-    for i in range(len(url)):
-        r = requests.get(url[i], params=data[i])
-        if verbose:
-            print(r.url)
-        r.raise_for_status()
-        if format == "json":
-            results.append(r.json())
-        else:
-            results.append(r.text)
-
-    return results
-
-
 def checklegal(table, release):
     """Checks if this combination of table and release is acceptable.
        Raises a ValueError exception if there is problem.
 
-    :param table: Table type. Can be \\'mean\\', \\'stack\\', or \\'detection\\'
-    :type table: str
-    :param release: The Pan-STARRS data release. Can be \\'dr1\\' or \\'dr2\\'.
-    :type release: str
-    :raises ValueError: Raises error if table and release combination are invalid.
+    Parameters
+    ----------
+
+    table : str
+        Retrieved table type; can be 'mean', 'stack', or 'detection'.
+    release : str
+        The Pan-STARRS data release. Can be 'dr1' or 'dr2'.
+
+    Raises
+    ----------
+     Valuerror : Error if table and release combination are invalid.
+
     """
 
     releaselist = ("dr1", "dr2")
@@ -197,81 +140,25 @@ def checklegal(table, release):
         )
 
 
-def ps1search(
-    table="mean",
-    release="dr1",
-    format="csv",
-    columns=None,
-    baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs",
-    verbose=False,
-    **kw,
-):
-    """Do a general search of the PS1 catalog (possibly without ra/dec/radius).
-
-    :param table: Table type. Can be \\'mean\\', \\'stack\\', or \\'detection\\'
-    :type table: str
-    :param release: The Pan-STARRS data release. Can be \\'dr1\\' or 'dr2\\'.
-    :type release: str
-    :param format: Can be \\'csv\\', \\'votable\\', or \\'json\\'.
-    :type format: str
-    :param columns: Column names to include (None means use defaults).
-    :type columns: str
-    :param baseurl: Base URL for the request.
-    :type baseurl: str
-    :param verbose: If true, print info about request.
-    :type verbose: bool
-    :param \\*\\*kw: Other parameters (e.g., \\'nDetections.min\\':2).  Note that this is required!
-    :type \\*\\*kw: dictionary
-    :return: Result of PS1 query, in \\'csv\\', \\'votable\\', or \\'json\\' format.
-    :rtype: Same as \\'format\\'
-    """
-
-    data = kw.copy()
-    if not data:
-        raise ValueError("You must specify some parameters for search")
-    checklegal(table, release)
-    if format not in ("csv", "votable", "json"):
-        raise ValueError("Bad value for format")
-    url = "{baseurl}/{release}/{table}.{format}".format(**locals())
-    if columns:
-        # check that column values are legal
-        # create a dictionary to speed this up
-        dcols = {}
-        for col in ps1metadata(table, release)["name"]:
-            dcols[col.lower()] = 1
-        badcols = []
-        for col in columns:
-            if col.lower().strip() not in dcols:
-                badcols.append(col)
-        if badcols:
-            raise ValueError("Some columns not found in table: {}".format(", ".join(badcols)))
-        # two different ways to specify a list of column values in the API
-        data["columns"] = "[{}]".format(",".join(columns))
-
-    # either get or post works
-    r = requests.get(url, params=data)
-
-    if verbose:
-        print(r.url)
-    r.raise_for_status()
-    if format == "json":
-        return r.json()
-    else:
-        return r.text
-
-
 def ps1metadata(table="mean", release="dr1", baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs"):
     """Return metadata for the specified catalog and table. Snagged from the
        wonderful API at https://ps1images.stsci.edu/ps1_dr2_api.html.
 
-    :param table: Table type. Can be \\'mean\\', \\'stack\\', or \\'detection\\'
-    :type table: str
-    :param release: The Pan-STARRS data release. Can be \\'dr1\\' or \\'dr2\\'.
-    :type release: str
-    :param baseurl: Base URL for the request.
-    :type baseurl: str
-    :return: Table with columns name, type, description.
-    :rtype: Astropy Table
+    Parameters
+    ----------
+
+    table : str
+        Table type. Can be 'mean', 'stack', or 'detection'.
+    release : str
+        The Pan-STARRS data release. Can be 'dr1' or 'dr2'.
+    baseurl : str
+        Base URL for the request.
+
+    Returns
+    ----------
+
+    tab : astropy table
+        Table with columns name, type, description.
     """
 
     checklegal(table, release)
@@ -286,102 +173,27 @@ def ps1metadata(table="mean", release="dr1", baseurl="https://catalogs.mast.stsc
     )
     return tab
 
-
-def post_url_serial(results, yse_id):
-    """A helper function called by serial_objid_search.
-       Post-processes the data retrieved from PS1 Servers into a pandas.DataFrame object.
-
-    :param results: The string resulting from PS1 query.
-    :type results: str
-    :param yse_id: local integer used for as an index tracking user objects vs retrived objects.
-    :type yse_id: int
-    :return: DataFrame object of the retrieved data from PS1 servers
-    :rtype: pandas.DataFrame
-    """
-    if not isinstance(results, str):
-        results = codecs.decode(results, "UTF-8")
-    lines = results.split("\r\n")
-    if len(lines) > 2:
-        values = [line.strip().split(",") for line in lines]
-        df = pd.DataFrame(values[1:-1], columns=values[0])
-    else:
-        df = pd.DataFrame()
-    df["id"] = np.ones(len(df)) * yse_id
-    return df
-
-
-def serial_objid_search(
-    objids, table="forced_mean", release="dr2", columns=None, verbose=False, **constraints
-):
-    """Given a list of ObjIDs, queries the PS1 server these object's Forced Mean Photometry,
-        then returns matches as a pandas.DataFrame.
-
-    :param objids: list of PS1 objids for objects user would like to query
-    :type objids: list
-    :param table: Which table to perform the query on. Default 'forced_mean'
-    :type table: str
-    :param release: Which release to perform the query on. Default 'dr2'
-    :type release: str
-    :param columns: list of what data fields to include; None means use default columns. Default None
-    :type columns: list or None
-    :param verbose: boolean setting level of feedback user received. default False
-    :type verbose: bool
-    :param \\*\\*constraints: Keyword dictionary with an additional constraints for the PS1 query
-    :type \\*\\*constraints: dict
-    :return: list of pd.DataFrame objects. If a match was found, then the Dataframe contains data,
-              else it only contains a local integer.
-    :rtype: pd.DataFrame
-    """
-
-    match = ps1objidsearch(
-        objid=objids, table="forced_mean", release=release, columns=columns, verbose=verbose, **constraints
-    )
-    # Return = fetch_information_serially(URLS,DATAS)
-    dfs = []
-    for i in range(len(match)):
-        dfs.append(post_url_serial(match[i], i))
-
-    return dfs
-
-
-def get_common_constraints_columns():
-    """Helper function that returns a dictionary of constraints used for the
-       matching objects in PS1 archive, and the columns of data we requre.
-
-    :return: dictionary with our constaint that we must have more than one detection
-    :rtype: dict
-    :return: List of PS1 fields required for matching and NN inputs
-    :rtype: list
-    """
-
-    constraints = {"nDetections.gt": 1}
-
-    # objects with n_detection=1 sometimes just an artifact.
-    # strip blanks and weed out blank and commented-out values
-    columns = """objid, raMean, decMean, gFKronFlux, rFKronFlux, iFKronFlux, zFKronFlux, yFKronFlux,
-    gFPSFFlux, rFPSFFlux, iFPSFFlux, zFPSFFlux, yFPSFFlux,
-    gFApFlux, rFApFlux, iFApFlux, zFApFlux, yFApFlux,
-    gFmeanflxR5, rFmeanflxR5, iFmeanflxR5, zFmeanflxR5, yFmeanflxR5,
-    gFmeanflxR6, rFmeanflxR6, iFmeanflxR6, zFmeanflxR6, yFmeanflxR6,
-    gFmeanflxR7, rFmeanflxR7, iFmeanflxR7, zFmeanflxR7, yFmeanflxR7""".split(",")
-    columns = [x.strip() for x in columns]
-    columns = [x for x in columns if x and not x.startswith("#")]
-
-    return constraints, columns
-
-
 def preprocess(df, path="../data/sfddata-master/", ebv=True):
     """Preprocesses the data inside pandas.DataFrame object
        returned by serial_objid_search to the space of inputs of our Neural Network.
 
-    :param df: Dataframe object containing the data for each matched objid
-    :type df: pandas DataFrame
-    :param path: string path to extinction maps data
-    :type path: str
-    :param ebv: boolean for lookup of extinction data. If False, all extinctions set to 0.
-    :type ebv: False
-    :return: Preprocessed inputs ready to be used as input to NN
-    :rtype: numpy ndarray
+
+    Parameters
+    ----------
+
+    df : pandas DataFrame
+        Dataframe containing the data for each matched objid.
+    path : str
+        string path to extinction maps data.
+    ebv : boolean
+        If True, extinction is queried and corrected. False, all extinctions are set to 0.
+
+
+    Returns
+    ----------
+    x : array-like
+        Preprocessed inputs ready to be used as input to NN
+
     """
     if ebv:
         m = sfdmap.SFDMap(path)
@@ -525,16 +337,25 @@ def preprocess(df, path="../data/sfddata-master/", ebv=True):
     return x
 
 def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path):
-    """Helper function that defines and loads the weights of our NN model and the output space of the NN.
+    """Helper function that defines and loads the weights of our NN model
+        and the output space of the NN.
 
-    :param model_path: path to the model weights.
-    :type model_path: str
-    :param dust_path: path to dust map data files.
-    :type dust_path: str
-    :return: Trained photo-z MLP.
-    :rtype: tensorflow keras Model
-    :return: Array of binned redshift space corresponding to the output space of the NN
-    :rtype: numpy ndarray
+    Parameters
+    ----------
+
+    model_path : str
+        Path to the model weights.
+    dust_path : str
+        Path to dust map data files.
+
+
+    Returns
+    ----------
+
+    mymodel : tensorflow keras model
+        Trained photo-z MLP.
+    range_z : array-like
+        Array of binned redshift space corresponding to the output space of the NN
     """
 
     build_sfd_dir(data_dir=dust_path)
@@ -590,24 +411,29 @@ def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path
 
     return mymodel, range_z
 
-
 def evaluate(x, mymodel, range_z, verbose=None):
     """Evaluate the MLP for a set of PS1 inputs, and return predictions.
 
-    :param x: PS1 properties of associated hosts.
-    :type x: array-like
-    :param mymodel: MLP model for photo-z estimation.
-    :type mymodel: tensorflow keras Model
-    :param range_z: Grid over which to evaluate the posterior distribution of photo-zs.
-    :type range_z: array-like
+    Parameters
+    ----------
 
-    :return: Posterior distributions for the grid of redshifts defined as
-        \\`np.linspace(0, 1, n)\\`
-    :rtype: numpy ndarray shape of (df.shape[0], n)
-    :return: means
-    :rtype: numpy ndarray shape of (df.shape[0],)
-    :return: Standard deviations
-    :rtype: numpy ndarray shape of (df.shape[0],)
+    x : array-like
+        PS1 properties of associated hosts.
+    mymodel : tensorflow Keras model
+        MLP model for photo-z estimation.
+    range_z : array-like
+        Grid over which to evaluate the posterior distribution of photo-zs.
+
+    Returns
+    ----------
+
+    posteriors : array-like
+        Posterior distributions for the grid of redshifts defined as
+        np.linspace(0, 1, n).
+    means : array-like
+        point estimates of posteriors for each source.
+    errors : array-like
+        standard deviations of posteriors for each source.
     """
 
     posteriors = mymodel.predict(x, verbose)
@@ -619,77 +445,3 @@ def evaluate(x, mymodel, range_z, verbose=None):
         errors[i] = np.std(np.random.choice(a=range_z, size=1000, p=posteriors[i, :], replace=True))
 
     return posteriors, point_estimates, errors
-
-
-#'id' column in df is the 0th ordered index of hosts. missing rows are therefore signalled
-#    by skipped numbers in index
-def calc_photoz(hosts, dust_path=default_dust_path, model_path=default_model_path):
-    """PhotoZ beta: not tested for missing objids.
-       photo-z uses a artificial neural network to estimate P(Z) in range Z = (0 - 1)
-       range_z is the value of z
-       posterior is an estimate PDF of the probability of z
-       point estimate uses the mean to find a single value estimate
-       error is an array that uses sampling from the posterior to estimate a std dev.
-       Relies upon the sfdmap package, (which is compatible with both unix and windows),
-       found at https://github.com/kbarbary/sfdmap.
-
-    :param hosts: The matched hosts from GHOST.
-    :type hosts: pandas DataFrame
-    :return: The matched hosts from GHOST, with photo-z point estimates and uncertainties.
-    :rtype: pandas DataFrame
-    """
-
-    if np.nansum(hosts["decMean"] < -30) > 0:
-        print(
-            "ERROR! Photo-z estimator has not yet been implemented for southern-hemisphere sources."
-            "Please remove sources below dec=-30d and try again."
-        )
-        return hosts
-    objids = hosts["objid"].values.tolist()
-    constraints, columns = get_common_constraints_columns()
-    dfs = serial_objid_search(objids, columns=columns, **constraints)
-    df = pd.concat(dfs)
-
-    posteriors, point_estimates, errors = get_photoz(df, dust_path=dust_path, model_path=model_path)
-    successids = df["objid"].values
-
-    mask = hosts["objid"].isin(successids)
-
-    # Map successids to point_estimates and errors using pandas' Series and set these values
-    id_to_point = pd.Series(point_estimates, index=successids)
-    id_to_error = pd.Series(errors, index=successids)
-
-    # Use the mask to update values in 'z_phot_point' and 'z_phot_err' columns
-    hosts.loc[mask, "z_phot_point"] = hosts["objid"].map(id_to_point)
-    hosts.loc[mask, "z_phot_err"] = hosts["objid"].map(id_to_error)
-
-    return successids, hosts, posteriors
-
-
-def get_photoz(df, dust_path=default_dust_path, model_path=default_model_path):
-    """Evaluate photo-z model for Pan-STARRS forced photometry.
-
-    :param df: Pan-STARRS forced mean photometry data, you can get it using
-        \\`ps1objidsearch\\` from this module, Pan-STARRS web-portal or via
-        astroquery i.e., \\`astroquery.mast.Catalogs.query_{criteria,region}(...,
-        catalog=\\'Panstarrs\\',table=\\'forced_mean\\')\\`
-    :type df: pandas DataFrame
-    :param dust_path: Path to dust map data files
-    :type dust_path: str
-    :param model_path: path to the data file with weights for MLP photo-z model
-    :type model_path: str
-    :return: Posterior distributions for the grid of redshifts defined as
-        \\`np.linspace(0, 1, n)\\`
-    :rtype: numpy ndarray shape of (df.shape[0], n)
-    :return: means
-    :rtype: numpy ndarray shape of (df.shape[0],)
-    :return: Standard deviations
-    :rtype: numpy ndarray shape of (df.shape[0],)
-    """
-
-    # The function load_lupton_model downloads the necessary dust models and
-    # weights from the ghost server.
-
-    model, range_z = load_lupton_model(model_path=model_path, dust_path=dust_path)
-    x = preprocess(df, path=os.path.join(dust_path, "sfddata-master"))
-    return evaluate(x, model, range_z)

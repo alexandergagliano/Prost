@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
     - uses: actions/checkout@main
@@ -20,6 +20,10 @@ jobs:
       uses: actions/setup-python@main
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Install pip
+      run: |
+        python -m ensurepip --upgrade
+        python -m pip install --upgrade pip setuptools wheel
     - name: Install dependencies
       run: |
         sudo apt-get update

@@ -1,4 +1,3 @@
-print("Before imports")
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 
@@ -10,12 +9,11 @@ import astropy.units as u
 import time
 
 def test_associate_decals():
-    print("Starting test!")
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-    transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
+    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
 
     # define priors for properties
     priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
@@ -64,3 +62,4 @@ def test_associate_decals():
     host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))
     true_coord = SkyCoord(328.3729167, 32.8013889, unit=(u.deg, u.deg))
     assert host_coord.separation(true_coord).arcsec <= 1
+

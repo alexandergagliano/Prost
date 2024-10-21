@@ -13,7 +13,7 @@ def test_associate_panstarrs():
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-    transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
+    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
 
     # define priors for properties
     priorfunc_z = halfnorm(loc=0.0001, scale=0.5)

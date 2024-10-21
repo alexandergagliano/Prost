@@ -8,7 +8,7 @@ import importlib.resources as pkg_resources
 import astropy.units as u
 import time
 
-def associate_glade():
+def test_associate_glade():
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:

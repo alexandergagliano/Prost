@@ -1,3 +1,4 @@
+print("Before imports")
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 
@@ -8,7 +9,8 @@ import importlib.resources as pkg_resources
 import astropy.units as u
 import time
 
-def associate_decals():
+def test_associate_decals():
+    print("Starting test!")
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:

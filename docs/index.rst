@@ -22,14 +22,14 @@ photometric and morphological properties, thereby providing uncertainty estimate
 final association. The probability that the true host was missed is also provided. 
 
 Multiple catalogs are currently supported: 
-* GLADE+ v1
-* The Dark Energy Camera Legacy Survey (DECaLS) Data Release 9
-* Pan-STARRS Data Release 2 
+#. GLADE+ v1
+#. The Dark Energy Camera Legacy Survey (DECaLS) Data Release 9
+#. Pan-STARRS Data Release 2 
 
 Associations with Pröst can be made in serial or parallelized across multiple cores, 
 making it scalable for the next generation of synoptic surveys.
 
-Overview
+Installation
 ========================================================================================
 
 Installation can be done via pip (ideally in a conda environment): 

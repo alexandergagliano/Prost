@@ -12,7 +12,6 @@ _build/
 
 # Ignore all directories named "temp"
 temp/
-tests/*
 
 # Ignore a specific file
 secrets.json

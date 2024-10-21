@@ -1720,9 +1720,11 @@ def build_panstarrs_candidates(
     """
 
     # load table metadata to avoid a query
-    metadata_path = pkg_resources.resource_filename('astro_prost', 'data/ps1_metadata.pkl')
-    with open(metadata_path, 'rb') as f:
-        metadata = pickle.load(f)
+    pkg_data_file = pkg_resources.files('astro_prost') / 'data' / 'ps1_metadata.pkl'
+
+    with pkg_resources.as_file(pkg_data_file) as metadata_path:
+        with open(metadata_path, 'rb') as f:
+            metadata = pickle.load(f)
 
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)

@@ -8,7 +8,7 @@ import importlib.resources as pkg_resources
 import astropy.units as u
 import time
 
-def test_associate_glade():
+def test_associate_parallel():
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
@@ -33,7 +33,7 @@ def test_associate_glade():
     cat_cols = False
 
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = ["glade"]
+    catalogs = ["panstarrs"]
 
     # the name of the coord columns in the dataframe
     transient_coord_cols = ("RA", "Dec")

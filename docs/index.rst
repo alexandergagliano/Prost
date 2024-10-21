@@ -23,9 +23,9 @@ final association. The probability that the true host was missed is also provide
 
 Multiple catalogs are currently supported: 
 
-- GLADE+ v1
-- The Dark Energy Camera Legacy Survey (DECaLS) Data Release 9
-- Pan-STARRS Data Release 2 
+- `GLADE+ v1 <https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=VII/275>`_
+- `The Dark Energy Camera Legacy Survey (DECaLS) Data Release 9 <https://www.legacysurvey.org/dr9/description/>`_
+- `Pan-STARRS Data Release 2 <https://outerspace.stsci.edu/display/PANSTARRS/>`_
 
 Associations with Pröst can be made in serial or parallelized across multiple cores, 
 making it scalable for the next generation of synoptic surveys.

@@ -13,7 +13,7 @@ def test_associate_decals():
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
+    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2022yei']
 
     # define priors for properties
     priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
@@ -60,6 +60,6 @@ def test_associate_decals():
     )
 
     host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))
-    true_coord = SkyCoord(328.3729167, 32.8013889, unit=(u.deg, u.deg))
+    true_coord = SkyCoord(158.8835833, 37.6495600, unit=(u.deg, u.deg))
     assert host_coord.separation(true_coord).arcsec <= 1
 

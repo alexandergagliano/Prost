@@ -34,11 +34,10 @@ Overview
 
 Installation can be done via pip (ideally in a conda environment): 
 
-```
->> conda create env -n <env_name> python=3.10
->> conda activate <env_name>
->> pip install astro-prost
-```
+.. code-block:: console
+   >> conda create env -n <env_name> python=3.10
+   >> conda activate <env_name>
+   >> pip install astro-prost
 
 Once installed, head over to the Notebooks tab for a tutorial on how to use the code.
 

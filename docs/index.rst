@@ -22,9 +22,10 @@ photometric and morphological properties, thereby providing uncertainty estimate
 final association. The probability that the true host was missed is also provided. 
 
 Multiple catalogs are currently supported: 
-#. GLADE+ v1
-#. The Dark Energy Camera Legacy Survey (DECaLS) Data Release 9
-#. Pan-STARRS Data Release 2 
+
+- GLADE+ v1
+- The Dark Energy Camera Legacy Survey (DECaLS) Data Release 9
+- Pan-STARRS Data Release 2 
 
 Associations with Pröst can be made in serial or parallelized across multiple cores, 
 making it scalable for the next generation of synoptic surveys.
@@ -34,7 +35,8 @@ Installation
 
 Installation can be done via pip (ideally in a conda environment): 
 
-.. code-block:: console
+.. code-block:: bash
+
    >> conda create env -n <env_name> python=3.10
    >> conda activate <env_name>
    >> pip install astro-prost

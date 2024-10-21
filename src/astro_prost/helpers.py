@@ -1,12 +1,13 @@
 import os
 import time
 import importlib
-import importlib.resources as pkg_resources
+import pickle
+import requests
 
+import importlib.resources as pkg_resources
 import matplotlib.pyplot as plt
 import numpy as np
 import importlib.resources as pkg_resources
-import requests
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, match_coordinates_sky
 from astropy.io import ascii
@@ -14,8 +15,10 @@ from dl import queryClient as qC
 from scipy import stats as st
 from scipy.integrate import quad
 from scipy.stats import halfnorm, norm
+from io import StringIO
+import pandas as pd
 
-from .photoz_helpers import evaluate, load_lupton_model, preprocess, ps1metadata
+from .photoz_helpers import evaluate, load_lupton_model, preprocess
 
 class GalaxyCatalog:
     """Class for source catalog containing candidate transient host galaxies.
@@ -126,7 +129,6 @@ class GalaxyCatalog:
             elapsed = end_time - start_time
             self.query_time = elapsed
 
-
 class Transient:
     """Class for transient source to be associated.
 
@@ -219,7 +221,7 @@ class Transient:
             prior = None
         return prior
 
-    def set_likelihood(self, type):
+    def get_likelihood(self, type):
         """Retrieves the transient host's likelihood for a given property.
 
         Parameters
@@ -436,7 +438,7 @@ class Transient:
             Description of returned object.
 
         """
-        likelihoods = self.set_likelihood("offset").pdf(fractional_offset_samples)
+        likelihoods = self.get_likelihood("offset").pdf(fractional_offset_samples)
         if reduce == "mean":
             return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
         elif reduce == "median":
@@ -464,7 +466,7 @@ class Transient:
         # assuming a typical 0.1 SN/century/10^10 Lsol (in K-band)
         # TODO -- convert to K-band luminosity of the host!
         # https://www.aanda.org/articles/aa/pdf/2005/15/aa1411.pdf
-        likelihoods = self.set_likelihood("absmag").pdf(absmag_samples)
+        likelihoods = self.get_likelihood("absmag").pdf(absmag_samples)
         if reduce == "mean":
             return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
         elif reduce == "median":
@@ -1087,6 +1089,7 @@ class SnRateAbsmag(st.rv_continuous):
 
 # from https://ps1images.stsci.edu/ps1_dr2_api.html
 def ps1cone(
+    metadata,
     ra,
     dec,
     radius,
@@ -1102,6 +1105,8 @@ def ps1cone(
 
     Parameters
     ----------
+    metadata : dict
+        Dictionary of astropy tables.
     ra : float
         Right ascension of search center, in decimal degrees.
     dec : float
@@ -1134,12 +1139,14 @@ def ps1cone(
     data["dec"] = dec
     data["radius"] = radius
     result = ps1search(
-        table=table, release=release, format=format, columns=columns, baseurl=baseurl, verbose=verbose, **data
+        ps1metadata=metadata, table=table, release=release,
+        format=format, columns=columns, baseurl=baseurl, verbose=verbose, **data
     )
     return result
 
 
 def ps1search(
+    ps1metadata,
     table="mean",
     release="dr1",
     format="csv",
@@ -1152,6 +1159,8 @@ def ps1search(
 
     Parameters
     ----------
+    ps1metadata : dictionary
+        A dictionary containing the tables to query.
     table : str
         The table to query.
     release : str
@@ -1173,26 +1182,29 @@ def ps1search(
         String containing retrieved data (empty if none found).
 
     """
-    data = kw.copy()
+    data = kw.copy()  # Copy the keyword arguments to modify them
+
+    # Construct the API URL
     url = f"{baseurl}/{release}/{table}.{format}"
+
+    # Check and validate columns
     if columns:
-        dcols = {}
-        for col in ps1metadata(table, release)["name"]:
-            dcols[col.lower()] = 1
-        badcols = []
-        for col in columns:
-            if col.lower().strip() not in dcols:
-                badcols.append(col)
+        # Get all available columns from the metadata
+        valid_columns = {col.lower().strip() for col in ps1metadata[release][table]["name"]}
+        badcols = set(col.lower().strip() for col in columns) - valid_columns
+
         if badcols:
-            raise ValueError("Some columns not found in table: {}".format(", ".join(badcols)))
-        # two different ways to specify a list of column values in the API
-        data["columns"] = "[{}]".format(",".join(columns))
+            raise ValueError(f"Some columns not found in table: {', '.join(badcols)}")
+
+        data["columns"] = f"[{','.join(columns)}]"
 
     r = requests.get(url, params=data)
 
     if verbose > 2:
         print(r.url)
+
     r.raise_for_status()
+
     if format == "json":
         return r.json()
     else:
@@ -1247,6 +1259,23 @@ def build_glade_candidates(
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
+    ra_min = transient_pos.ra.deg - 1
+    ra_max = transient_pos.ra.deg + 1
+    dec_min = transient_pos.dec.deg - 1
+    dec_max = transient_pos.dec.deg + 1
+
+    filtered_glade = glade_catalog[(glade_catalog["RAJ2000"] > ra_min) & (glade_catalog["RAJ2000"] < ra_max) &
+                    (glade_catalog["DEJ2000"] > dec_min) & (glade_catalog["DEJ2000"] < dec_max)]
+    glade_catalog = filtered_glade
+
+    candidate_hosts = glade_catalog[
+        SkyCoord(glade_catalog["RAJ2000"].values * u.deg, glade_catalog["DEJ2000"].values * u.deg)
+        .separation(transient_pos)
+        .arcsec
+        < search_rad.arcsec
+    ]
+    n_galaxies = len(candidate_hosts)
+
 
     dtype = [
         ("objID", np.int64),
@@ -1266,17 +1295,9 @@ def build_glade_candidates(
 
     galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
 
-    candidate_hosts = glade_catalog[
-        SkyCoord(glade_catalog["RAJ2000"].values * u.deg, glade_catalog["DEJ2000"].values * u.deg)
-        .separation(transient_pos)
-        .arcsec
-        < search_rad.arcsec
-    ]
-    n_galaxies = len(candidate_hosts)
-
     if n_galaxies < 1:
         # print(f"No sources found around {transient_name} in GLADE!")
-        return None
+        return None, []
 
     temp_pa = candidate_hosts["PAHyp"].values
     temp_pa[temp_pa != temp_pa] = 0  # assume no position angle for unmeasured gals
@@ -1489,7 +1510,7 @@ def build_decals_candidates(transient_name,
     AND ((pz.z_spec > 0) OR (pz.z_phot_mean > 0))"""
     )
 
-    candidate_hosts = ascii.read(result).to_pandas()
+    candidate_hosts = pd.read_csv(StringIO(result))
 
     n_galaxies = len(candidate_hosts)
 
@@ -1499,7 +1520,7 @@ def build_decals_candidates(transient_name,
                 f"No sources found around {transient_name} in DECaLS!"
                 "Double-check that the transient coords overlap the survey footprint."
             )
-        return None
+        return None, []
 
     dtype = [
         ("objID", np.int64),
@@ -1698,12 +1719,59 @@ def build_panstarrs_candidates(
 
     """
 
+    # load table metadata to avoid a query
+    metadata_path = pkg_resources.resource_filename('astro_prost', 'data/ps1_metadata.pkl')
+    with open(metadata_path, 'rb') as f:
+        metadata = pickle.load(f)
+
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
 
-    result = ps1cone(transient_pos.ra.deg, transient_pos.dec.deg, rad_deg, release="dr2")
+    if not cat_cols:
+        source_cols = [
+            "objID",
+            "raMean",
+            "decMean",
+            "gmomentXX",
+            "rmomentXX",
+            "imomentXX",
+            "zmomentXX",
+            "ymomentXX",
+            "gmomentYY",
+            "rmomentYY",
+            "imomentYY",
+            "zmomentYY",
+            "ymomentYY",
+            "gmomentXY",
+            "rmomentXY",
+            "imomentXY",
+            "zmomentXY",
+            "ymomentXY",
+            "nDetections",
+            "primaryDetection",
+            "gKronRad",
+            "rKronRad",
+            "iKronRad",
+            "zKronRad",
+            "yKronRad",
+            "gKronMag",
+            "rKronMag",
+            "iKronMag",
+            "zKronMag",
+            "yKronMag",
+            "gKronMagErr",
+            "rKronMagErr",
+            "iKronMagErr",
+            "zKronMagErr",
+            "yKronMagErr",
+        ]
+
+        result = ps1cone(metadata, transient_pos.ra.deg, transient_pos.dec.deg, rad_deg, columns=source_cols,
+        release="dr2")
+    else:
+        result = ps1cone(metadata, transient_pos.ra.deg, transient_pos.dec.deg, rad_deg, release="dr2")
 
     #columns needed for photometric redshift inference
     photoz_cols = [
@@ -1743,6 +1811,7 @@ def build_panstarrs_candidates(
     ]
 
     result_photoz = ps1cone(
+        metadata,
         transient_pos.ra.deg,
         transient_pos.dec.deg,
         rad_deg,
@@ -1754,8 +1823,9 @@ def build_panstarrs_candidates(
     if not result:
         return None
 
-    candidate_hosts = ascii.read(result).to_pandas()
-    candidate_hosts_pzcols = ascii.read(result_photoz).to_pandas()
+    candidate_hosts = pd.read_csv(StringIO(result))
+    candidate_hosts_pzcols = pd.read_csv(StringIO(result_photoz))
+
     candidate_hosts = candidate_hosts.set_index("objID")
     candidate_hosts_pzcols = candidate_hosts_pzcols.set_index("objID")
     candidate_hosts = (
@@ -1765,7 +1835,7 @@ def build_panstarrs_candidates(
     )
 
     candidate_hosts.replace(-999, np.nan, inplace=True)
-    candidate_hosts.sort_values(by=["distance"], inplace=True)
+    #candidate_hosts.sort_values(by=["distance"], inplace=True)
     candidate_hosts.reset_index(inplace=True, drop=True)
 
     # no good shape info?
@@ -1823,6 +1893,14 @@ def build_panstarrs_candidates(
         candidate_hosts["raMean"].values * u.deg, candidate_hosts["decMean"].values * u.deg
     )
 
+    temp_mag_r = candidate_hosts["KronMag"].values
+    temp_mag_r_std = candidate_hosts["KronMagErr"].values
+
+    # cap at 50% the mag
+    temp_mag_r_std[temp_mag_r_std > temp_mag_r] = 0.5 * temp_mag_r[temp_mag_r_std > temp_mag_r]
+    # set a floor of 5%
+    temp_mag_r_std[temp_mag_r_std < 0.05 * temp_mag_r] = 0.05 * temp_mag_r[temp_mag_r_std < 0.05 * temp_mag_r]
+
     dlr_samples = calc_dlr(
         transient_pos,
         galaxies_pos,
@@ -1835,22 +1913,13 @@ def build_panstarrs_candidates(
         n_samples=n_samples,
     )
 
-    temp_mag_r = candidate_hosts["KronMag"].values
-    temp_mag_r_std = candidate_hosts["KronMagErr"].values
-
-    # cap at 50% the mag
-    temp_mag_r_std[temp_mag_r_std > temp_mag_r] = 0.5 * temp_mag_r[temp_mag_r_std > temp_mag_r]
-    # set a floor of 5%
-    temp_mag_r_std[temp_mag_r_std < 0.05 * temp_mag_r] = 0.05 * temp_mag_r[temp_mag_r_std < 0.05 * temp_mag_r]
-
     # shred logic
     if len(candidate_hosts) > 1:
         if verbose > 0:
             print("Removing panstarrs shreds.")
         shred_idxs = find_panstarrs_shreds(
             candidate_hosts["objID"].values,
-            candidate_hosts["raMean"].values,
-            candidate_hosts["decMean"].values,
+            galaxies_pos,
             temp_sizes,
             temp_sizes_std,
             a_over_b,
@@ -1860,13 +1929,15 @@ def build_panstarrs_candidates(
             temp_mag_r,
             verbose=verbose,
         )
+
         if len(shred_idxs) > 0:
             left_idxs = ~candidate_hosts.index.isin(shred_idxs)
             candidate_hosts = candidate_hosts[left_idxs]
             temp_mag_r = temp_mag_r[left_idxs]
             temp_mag_r_std = temp_mag_r_std[left_idxs]
-            dlr_samples = dlr_samples[left_idxs, :]
             galaxies_pos = galaxies_pos[left_idxs]
+            dlr_samples = dlr_samples[left_idxs]
+
             if verbose > 0:
                 print(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
         else:
@@ -1878,7 +1949,7 @@ def build_panstarrs_candidates(
     if n_galaxies < 1:
         # print(f"No sources found around {transient_name} in Panstarrs DR2!"\
         # "Double-check that the SN coords overlap the survey footprint.")
-        return None
+        return None, []
 
     # get photozs from Andrew Engel's code!
     default_dust_path = "."
@@ -1946,16 +2017,25 @@ def build_panstarrs_candidates(
         if verbose > 1:
             print("Cross-matching with GLADE for redshifts...")
 
-        glade_coords = SkyCoord(glade_catalog["RAJ2000"], glade_catalog["DEJ2000"], unit=(u.deg, u.deg))
-        idx, seps, _ = match_coordinates_sky(galaxies_pos, glade_coords)
-        mask_within_1arcsec = seps.arcsec < 1
+        ra_min = transient_pos.ra.deg - 1
+        ra_max = transient_pos.ra.deg + 1
+        dec_min = transient_pos.dec.deg - 1
+        dec_max = transient_pos.dec.deg + 1
 
-        galaxies["z_best_mean"][mask_within_1arcsec] = glade_catalog["z_best"].values[
-            idx[mask_within_1arcsec]
-        ]
-        galaxies["z_best_std"][mask_within_1arcsec] = glade_catalog["z_best_std"].values[
-            idx[mask_within_1arcsec]
-        ]
+        filtered_glade = glade_catalog[(glade_catalog["RAJ2000"] > ra_min) & (glade_catalog["RAJ2000"] < ra_max) &
+                        (glade_catalog["DEJ2000"] > dec_min) & (glade_catalog["DEJ2000"] < dec_max)]
+        glade_catalog = filtered_glade
+        if len(glade_catalog) > 1:
+            glade_coords = SkyCoord(glade_catalog["RAJ2000"], glade_catalog["DEJ2000"], unit=(u.deg, u.deg))
+            idx, seps, _ = match_coordinates_sky(galaxies_pos, glade_coords)
+            mask_within_1arcsec = seps.arcsec < 1
+
+            galaxies["z_best_mean"][mask_within_1arcsec] = glade_catalog["z_best"].values[
+                idx[mask_within_1arcsec]
+            ]
+            galaxies["z_best_std"][mask_within_1arcsec] = glade_catalog["z_best_std"].values[
+                idx[mask_within_1arcsec]
+            ]
 
     z_best_samples = norm.rvs(
         galaxies["z_best_mean"][:, np.newaxis],  # Shape (N, 1) to allow broadcasting
@@ -2052,10 +2132,9 @@ def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi,
 
 def find_panstarrs_shreds(
     objids,
-    ra_allgals,
-    dec_allgals,
-    size,
-    size_std,
+    coords,
+    a,
+    a_std,
     a_over_b,
     a_over_b_std,
     phi,
@@ -2063,17 +2142,16 @@ def find_panstarrs_shreds(
     appmag,
     verbose=False,
 ):
-    """Finds potentially shredded sources in panstarrs and removes the shreds.
-       If any source is in another sources light radius, the dimmer source is dropped.
+    """
+    Finds potentially shredded sources in panstarrs and removes the shreds.
+    If any source is in another sources light radius, the dimmer source is dropped.
 
     Parameters
     ----------
     objids : array-like
         catalog IDs in panstarrs of all sources.
-    ra_allgals : array-like
-        Right ascension of catalog sources, in decimal degrees.
-    dec_allgals : array-like
-        Declination of catalog sources, in decimal degrees.
+    coord_allgals : array-like
+        Astropy coords of catalog sources.
     a : array-like
         Semi-major axes of candidates, in arcsec.
     a_std : array-like
@@ -2095,19 +2173,15 @@ def find_panstarrs_shreds(
     -------
     dropidxs: array
         The indices of the candidates flagged as shreds.
-
     """
-    # deprecated for now!
+
     dropidxs = []
 
-    for i in np.arange(len(ra_allgals)):
+    for i in np.arange(len(coords)):
         onegal_objid = objids[i]
-        onegal_ra = ra_allgals[i]
-        onegal_dec = dec_allgals[i]
-        onegal_coord = SkyCoord(onegal_ra, onegal_dec, unit=(u.deg, u.deg))
+        onegal_coord = coords[i]
 
-        restgal_ra = np.delete(ra_allgals, i)
-        restgal_dec = np.delete(dec_allgals, i)
+        restgal_coord = np.delete(coords, i)
         restgal_ab = np.delete(a_over_b, i)
         restgal_ab_std = np.delete(a_over_b_std, i)
         restgal_phi = np.delete(phi, i)
@@ -2115,8 +2189,6 @@ def find_panstarrs_shreds(
         restgal_a = np.delete(a, i)
         restgal_a_std = np.delete(a_std, i)
         restgal_appmag = np.delete(appmag, i)
-
-        restgal_coord = SkyCoord(restgal_ra, restgal_dec, unit=(u.deg, u.deg))
 
         dlr = calc_dlr(
             onegal_coord,
@@ -2136,7 +2208,7 @@ def find_panstarrs_shreds(
         original_min_idx = min_idx if min_idx < i else min_idx + 1
 
         if verbose == 3:
-            print(f"Considering source at: {onegal_ra:.6f}, {onegal_dec:.6f}:")
+            print(f"Considering source at: {onegal_coord.ra.deg:.6f}, {onegal_coord.dec.deg:.6f}:")
             print("Next-closest galaxy (by fractional offset):")
             print(f"{restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
             print(f"Size of this nearby galaxy:{restgal_a[min_idx]}")

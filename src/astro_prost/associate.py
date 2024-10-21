@@ -96,8 +96,10 @@ def associate_transient(
     (
         best_objid, best_prob, best_ra, best_dec,
         second_best_objid, second_best_prob, second_best_ra,
-        second_best_dec, query_time
+        second_best_dec, query_time, smallcone_prob, missedcat_prob
     ) = (
+        np.nan,
+        np.nan,
         np.nan,
         np.nan,
         np.nan,
@@ -116,7 +118,7 @@ def associate_transient(
         cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog)
 
         try:
-            cat.get_candidates(transient, timequery=True, verbose=verbose, cosmo=cosmo, cat_cols=cat_cols)
+            cat.get_candidates(transient, time_query=True, verbose=verbose, cosmo=cosmo, cat_cols=cat_cols)
         except requests.exceptions.HTTPError:
             print(f"Candidate retrieval failed for {transient.name} in catalog {cat_name}.")
             continue
@@ -305,6 +307,7 @@ def associate_sample(
     cat_cols=False,
     progress_bar=False,
     cosmology=None,
+    n_processes=None,
 ):
     """Wrapper function for associating sample of transients.
 
@@ -334,6 +337,8 @@ def associate_sample(
         If True, prints a loading bar for each association (when parallel=True).
     cosmology : astropy cosmology
         Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
+    n_processes : int
+        Number of parallel processes to run when parallel=True (defaults to n_cores-4 if unspecified).
 
     Returns
     -------
@@ -397,11 +402,16 @@ def associate_sample(
             # Set the environment variable in the parent process only
             os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
 
-            n_processes = os.cpu_count() - 5
+            if n_processes is None:
+                n_processes = os.cpu_count() - 4
+            elif n_processes > os.cpu_count():
+                print("WARNING! Set n_processes to greater than the number of cpu cores on this machine."+
+                       f" Falling back to n_processes = {os.cpu_count() - 4}.")
+                n_processes = os.cpu_count() - 4
 
-            # Create a list of tasks (one per transient)
+            # Create a list of tasks
             if verbose > 0:
-                print("Parallelizing associations with {n_processes} processes.")
+                print(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
 
             with WorkerPool(n_jobs=n_processes, start_method='spawn') as pool:
                 #jobs = [associate_transient(*event) for event in events]

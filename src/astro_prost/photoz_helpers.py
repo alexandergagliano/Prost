@@ -1,4 +1,3 @@
-import codecs
 import os
 import tarfile
 import requests
@@ -14,6 +13,28 @@ from pathlib import Path
 
 default_model_path = "./MLP_lupton.hdf5"
 default_dust_path = "."
+
+def convert_flux_to_luptitude(f, b, f_0=3631):
+    """Converts flux to luptitude, which gives reasonable magnitude conversions
+       even for small and negative values (see Lupton, Gunn, & Szalay, 1999).
+
+    Parameters
+    ----------
+    f : float or array-like
+        Original flux values.
+    b : type
+        Band-specific luptitude softening parameter.
+    f_0 : float
+        Zero-point flux in Janskys.
+
+    Returns
+    -------
+    luptitude : float or array-like
+        The converted luptitude values.
+
+    """
+    luptitude = -2.5 / np.log(10) * (np.arcsinh((f / f_0) / (2 * b)) + np.log(b))
+    return luptitude
 
 def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0):
     """Downloads directory of Galactic dust maps for extinction correction.
@@ -139,40 +160,6 @@ def checklegal(table, release):
             "Bad value for table (for {} must be one of {})".format(release, ", ".join(tablelist))
         )
 
-
-def ps1metadata(table="mean", release="dr1", baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs"):
-    """Return metadata for the specified catalog and table. Snagged from the
-       wonderful API at https://ps1images.stsci.edu/ps1_dr2_api.html.
-
-    Parameters
-    ----------
-
-    table : str
-        Table type. Can be 'mean', 'stack', or 'detection'.
-    release : str
-        The Pan-STARRS data release. Can be 'dr1' or 'dr2'.
-    baseurl : str
-        Base URL for the request.
-
-    Returns
-    ----------
-
-    tab : astropy table
-        Table with columns name, type, description.
-    """
-
-    checklegal(table, release)
-    url = f"{baseurl}/{release}/{table}/metadata"
-    r = requests.get(url)
-    r.raise_for_status()
-    v = r.json()
-
-    # convert to astropy table
-    tab = Table(
-        rows=[(x["name"], x["type"], x["description"]) for x in v], names=("name", "type", "description")
-    )
-    return tab
-
 def preprocess(df, path="../data/sfddata-master/", ebv=True):
     """Preprocesses the data inside pandas.DataFrame object
        returned by serial_objid_search to the space of inputs of our Neural Network.
@@ -206,9 +193,6 @@ def preprocess(df, path="../data/sfddata-master/", ebv=True):
         df["ebv"] = ebv
     else:
         df["ebv"] = 0.0
-
-    def convert_flux_to_luptitude(f, b, f_0=3631):
-        return -2.5 / np.log(10) * (np.arcsinh((f / f_0) / (2 * b)) + np.log(b))
 
     b_g = 1.7058474723241624e-09
     b_r = 4.65521985283191e-09

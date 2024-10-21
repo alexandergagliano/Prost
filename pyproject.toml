@@ -59,7 +59,7 @@ build-backend = "setuptools.build_meta"
 include-package-data = true  
 
 [tool.setuptools.package-data]
-"astro_prost" = ["data/*.csv", "data/MLP_lupton.hdf5"]  
+"astro_prost" = ["data/*.csv", "data/MLP_lupton.hdf5", "data/ps1_metadata.pkl"]  
 
 [tool.setuptools_scm]
 write_to = "src/astro_prost/_version.py"

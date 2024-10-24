@@ -14,13 +14,13 @@ def test_associate_noredshift():
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
+    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2019twa']
 
     # drop redshift info 
     transient_catalog['redshift'] = np.nan
 
     # define priors for properties
-    priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
+    priorfunc_z = halfnorm(loc=0.0001, scale=0.1)
     priorfunc_offset = uniform(loc=0, scale=10)
     priorfunc_absmag = uniform(loc=-30, scale=20)
 
@@ -64,5 +64,5 @@ def test_associate_noredshift():
     )
 
     host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))
-    true_coord = SkyCoord(328.3729167, 32.8013889, unit=(u.deg, u.deg))
+    true_coord = SkyCoord(118.027566, 24.338844, unit=(u.deg, u.deg))
     assert host_coord.separation(true_coord).arcsec <= 1

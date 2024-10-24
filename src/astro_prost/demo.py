@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from scipy.stats import gamma, halfnorm, uniform
 
 from astro_prost.associate import associate_sample, prepare_catalog
@@ -11,7 +12,7 @@ transient_catalog = pd.read_csv(
 )
 
 #only take the first 10 events
-transient_catalog = transient_catalog.sample(n=10)
+transient_catalog = transient_catalog.sample(n=1)
 
 # define priors for properties
 priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
@@ -39,8 +40,8 @@ likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
 # set up properties of the association run
 verbose = 1
-parallel = True
-save = True
+parallel = False
+save = False
 # if not parallel, results can be returned directly
 progress_bar = False
 cat_cols = True
@@ -53,6 +54,9 @@ transient_coord_cols = ("RA", "Dec")
 
 # the column containing the transient names
 transient_name_col = "IAUID"
+
+#force to nan for testing
+transient_catalog['redshift'] = np.nan
 
 transient_catalog = prepare_catalog(
     transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols

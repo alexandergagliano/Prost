@@ -93,6 +93,8 @@ def associate_transient(
     transient.set_likelihood("offset", likefunc_offset)
     transient.set_likelihood("absmag", likefunc_absmag)
 
+    transient.gen_z_samples(n_samples)
+
     (
         best_objid, best_prob, best_ra, best_dec,
         second_best_objid, second_best_prob, second_best_ra,

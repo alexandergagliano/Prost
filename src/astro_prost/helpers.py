@@ -182,9 +182,7 @@ class Transient:
 
         if redshift == redshift:
             self.redshift_std = 0.05 * self.redshift
-            self.gen_z_samples()
-        else:
-            self.redshift_std = np.nan
+
         self.priors = {}
         self.likes = {}
 
@@ -295,6 +293,8 @@ class Transient:
         # Sample initially based on whether redshift is NaN or not
         if np.isnan(self.redshift):
             samples = self.get_prior("redshift").rvs(size=n_samples)
+            self.redshift = np.nanmean(samples)
+            self.redshift_std = np.nanstd(samples)
         else:
             samples = norm.rvs(self.redshift, self.redshift_std, size=n_samples)
 
@@ -1517,7 +1517,7 @@ def build_decals_candidates(transient_name,
     if n_galaxies < 1:
         if verbose > 0:
             print(
-                f"No sources found around {transient_name} in DECaLS!"
+                f"No sources found around {transient_name} in DECaLS! "
                 "Double-check that the transient coords overlap the survey footprint."
             )
         return None, []
@@ -1949,8 +1949,9 @@ def build_panstarrs_candidates(
     n_galaxies = len(candidate_hosts)
 
     if n_galaxies < 1:
-        # print(f"No sources found around {transient_name} in Panstarrs DR2!"\
-        # "Double-check that the SN coords overlap the survey footprint.")
+        if verbose > 0:
+            print(f"No sources found around {transient_name} in Panstarrs DR2! "
+            "Double-check that the SN coords overlap the survey footprint.")
         return None, []
 
     # get photozs from Andrew Engel's code!

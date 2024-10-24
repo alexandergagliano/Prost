@@ -75,7 +75,7 @@ def associate_transient(
             redshift=float(row.redshift),
             n_samples=n_samples,
         )
-    except KeyError:
+    except (KeyError, AttributeError):
         transient = Transient(
             name=row["name"], position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg), n_samples=n_samples
         )

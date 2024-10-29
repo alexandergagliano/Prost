@@ -12,7 +12,7 @@ transient_catalog = pd.read_csv(
 )
 
 #only take the first 10 events
-transient_catalog = transient_catalog.sample(n=1)
+transient_catalog = transient_catalog.sample(n=10)
 
 # define priors for properties
 priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
@@ -39,7 +39,7 @@ priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "z": priorfunc
 likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
 # set up properties of the association run
-verbose = 1
+verbose = 2
 parallel = False
 save = False
 # if not parallel, results can be returned directly
@@ -47,16 +47,13 @@ progress_bar = False
 cat_cols = True
 
 # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-catalogs = ["panstarrs"]
+catalogs = ["decals"]
 
 # the name of the coord columns in the dataframe
 transient_coord_cols = ("RA", "Dec")
 
 # the column containing the transient names
 transient_name_col = "IAUID"
-
-#force to nan for testing
-transient_catalog['redshift'] = np.nan
 
 transient_catalog = prepare_catalog(
     transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols

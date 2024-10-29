@@ -1,4 +1,5 @@
 import astropy.units as u
+import requests
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -124,15 +125,18 @@ def get_ps1_pic(path, objid, ra, dec, size, band, safe=False, save=False):
     """
 
     fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")
-    fn = fits.open(fitsurl[0])
-    if save:
-        if safe:
-            fn.writeto(path + f"/PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits")
-        else:
-            fn.writeto(path + f"/PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits")
-    else:
-        return fn
+    response = requests.get(fitsurl[0], timeout=120)
+    response.raise_for_status()  # Check for HTTP errors
 
+    fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")[0]
+
+    with fits.open(fitsurl) as fn:
+        if save:
+            filename = f"/PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits" if safe else \
+                       f"/PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits"
+            fn.writeto(path + filename, overwrite=True)
+        else:
+            return fn
 
 def find_all(name, path):
     """Crawls through a directory and all its sub-directories looking for a file matching
@@ -226,9 +230,11 @@ def plot_match(
             .separation(SkyCoord(transient_ra * u.deg, transient_dec * u.deg))
             .arcsec
         )
+        print("Separation found:")
+        print(sep)
     else:
         sep = 0
-    if true_host_ra:
+    if true_host_ra is not None:
         sep_true = (
             SkyCoord(true_host_ra * u.deg, true_host_dec * u.deg)
             .separation(SkyCoord(transient_ra * u.deg, transient_dec * u.deg))
@@ -240,7 +246,7 @@ def plot_match(
     print(f"Getting img with size len {rad:.2f}...")
     pic_data = []
     for band in bands:
-        get_ps1_pic("./", None, transient_ra, transient_dec, int(rad * 4), band)
+        get_ps1_pic("./", None, transient_ra, transient_dec, int(rad * 4), band, save=True)
         a = find_all(f"PS1_ra={transient_ra}_dec={transient_dec}_{int(rad)}arcsec_{band}.fits", ".")
         if not a:
             raise FileNotFoundError(f"FITS file not found for RA={transient_ra}, DEC={transient_dec}, radius={int(rad)}, band={band}")

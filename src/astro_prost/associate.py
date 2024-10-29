@@ -1,7 +1,7 @@
 import os
 import pathlib
 from mpire import WorkerPool
-from time import time
+import time
 from urllib.error import HTTPError
 import astropy.units as u
 import numpy as np
@@ -184,8 +184,6 @@ def associate_transient(
                         plot_match(
                             [best_ra],
                             [best_dec],
-                            None,
-                            None,
                             cat.galaxies["z_best_mean"][best_idx],
                             cat.galaxies["z_best_std"][best_idx],
                             transient.position.ra.deg,
@@ -454,7 +452,7 @@ def associate_sample(
 
         # Save the updated catalog
         if save:
-            ts = int(time())
+            ts = int(time.time())
             save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
             transient_catalog.to_csv(save_name, index=False)
         else:

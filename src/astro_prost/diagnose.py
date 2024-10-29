@@ -1,5 +1,4 @@
 import astropy.units as u
-import requests
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -123,10 +122,6 @@ def get_ps1_pic(path, objid, ra, dec, size, band, safe=False, save=False):
     fn : fits file
         File retrieved from ps1
     """
-
-    fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")
-    response = requests.get(fitsurl[0], timeout=120)
-    response.raise_for_status()  # Check for HTTP errors
 
     fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")[0]
 

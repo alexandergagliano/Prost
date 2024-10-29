@@ -230,8 +230,6 @@ def plot_match(
             .separation(SkyCoord(transient_ra * u.deg, transient_dec * u.deg))
             .arcsec
         )
-        print("Separation found:")
-        print(sep)
     else:
         sep = 0
     if true_host_ra is not None:

@@ -1823,7 +1823,7 @@ def build_panstarrs_candidates(
     )
 
     if not result:
-        return None
+        return None, []
 
     candidate_hosts = pd.read_csv(StringIO(result))
     candidate_hosts_pzcols = pd.read_csv(StringIO(result_photoz))

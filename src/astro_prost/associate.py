@@ -96,10 +96,11 @@ def associate_transient(
     transient.gen_z_samples(n_samples=n_samples)
 
     (
-        best_objid, best_prob, best_ra, best_dec,
+        best_objid, best_prob, best_ra, best_dec, best_redshift,
         second_best_objid, second_best_prob, second_best_ra,
         second_best_dec, query_time, smallcone_prob, missedcat_prob
     ) = (
+        np.nan,
         np.nan,
         np.nan,
         np.nan,
@@ -159,6 +160,7 @@ def associate_transient(
                 best_prob = cat.galaxies["total_prob"][best_idx]
                 best_ra = cat.galaxies["ra"][best_idx]
                 best_dec = cat.galaxies["dec"][best_idx]
+                best_redshift = cat.galaxies["z_best_mean"][best_idx]
 
                 second_best_objid = np.int64(cat.galaxies["objID"][second_best_idx])
                 second_best_prob = cat.galaxies["total_prob"][second_best_idx]
@@ -206,6 +208,7 @@ def associate_transient(
         best_prob,
         best_ra,
         best_dec,
+        best_redshift,
         second_best_objid,
         second_best_prob,
         second_best_ra,
@@ -251,6 +254,7 @@ def prepare_catalog(
         "host_ra",
         "host_dec",
         "host_prob",
+        "host_redshift",
         "host_2_id",
         "host_2_ra",
         "host_2_dec",
@@ -428,7 +432,7 @@ def associate_sample(
         results_df = pd.DataFrame.from_records(
             main_results,
             columns=[
-                "idx", "host_id", "host_prob", "host_ra", "host_dec",
+                "idx", "host_id", "host_prob", "host_ra", "host_dec", "host_redshift",
                 "host_2_objid", "host_2_prob", "host_2_ra", "host_2_dec",
                 "query_time", "best_cat", "smallcone_prob", "missedcat_prob"
             ]

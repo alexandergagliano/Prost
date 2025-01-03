@@ -28,7 +28,6 @@ jobs:
       run: |
         sudo apt-get update
         python -m pip install --upgrade pip
-        pip install astropy-helpers  # Install astropy-helpers manually
         pip install -e .[dev]
     - name: Run unit tests with pytest /  pytest-copie
       run: |

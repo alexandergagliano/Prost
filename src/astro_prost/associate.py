@@ -159,11 +159,15 @@ def associate_transient(
                 best_prob = cat.galaxies["total_prob"][best_idx]
                 best_ra = cat.galaxies["ra"][best_idx]
                 best_dec = cat.galaxies["dec"][best_idx]
+                best_z_mean = cat.galaxies['z_best_mean'][best_idx]
+                best_z_std = cat.galaxies['z_best_std'][best_idx]
 
                 second_best_objid = np.int64(cat.galaxies["objID"][second_best_idx])
                 second_best_prob = cat.galaxies["total_prob"][second_best_idx]
                 second_best_ra = cat.galaxies["ra"][second_best_idx]
                 second_best_dec = cat.galaxies["dec"][second_best_idx]
+                second_best_z_mean = cat.galaxies['z_best_mean'][second_best_idx]
+                second_best_z_std = cat.galaxies['z_best_std'][second_best_idx]
 
                 best_cat = cat_name
                 query_time = cat.query_time
@@ -184,8 +188,8 @@ def associate_transient(
                         plot_match(
                             [best_ra],
                             [best_dec],
-                            cat.galaxies["z_best_mean"][best_idx],
-                            cat.galaxies["z_best_std"][best_idx],
+                            best_z_mean, 
+                            best_z_std,
                             transient.position.ra.deg,
                             transient.position.dec.deg,
                             transient.name,
@@ -206,10 +210,14 @@ def associate_transient(
         best_prob,
         best_ra,
         best_dec,
+        best_z_mean,
+        best_z_std,
         second_best_objid,
         second_best_prob,
         second_best_ra,
         second_best_dec,
+        second_best_z_mean,
+        second_best_z_std,
         query_time,
         best_cat,
         smallcone_prob,
@@ -251,10 +259,14 @@ def prepare_catalog(
         "host_ra",
         "host_dec",
         "host_prob",
+        "host_z_best",
+        "host_z_std",
         "host_2_id",
         "host_2_ra",
         "host_2_dec",
         "host_2_prob",
+        "host_2_z_best",
+        "host_2_z_std",
         "smallcone_prob",
         "missedcat_prob",
         "association_time",
@@ -414,7 +426,6 @@ def associate_sample(
                 print(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
 
             with WorkerPool(n_jobs=n_processes, start_method='spawn') as pool:
-                #jobs = [associate_transient(*event) for event in events]
                 results = pool.map(associate_transient, events, progress_bar=progress_bar)
                 pool.stop_and_join()
     else:
@@ -429,7 +440,9 @@ def associate_sample(
             main_results,
             columns=[
                 "idx", "host_id", "host_prob", "host_ra", "host_dec",
+                "host_z_best", "host_z_std",
                 "host_2_objid", "host_2_prob", "host_2_ra", "host_2_dec",
+                "host_2_z_best", "host_2_z_std",
                 "query_time", "best_cat", "smallcone_prob", "missedcat_prob"
             ]
         )

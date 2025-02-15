@@ -2215,7 +2215,7 @@ def find_panstarrs_shreds(
             print("Next-closest galaxy (by fractional offset):")
             print(f"{restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
             print(f"Size of this nearby galaxy:{restgal_a[min_idx]}")
-            print(f"Size uncertainty of this nearby galaxy:{restgal_sa_std[min_idx]}")
+            print(f"Size uncertainty of this nearby galaxy:{restgal_ra_std[min_idx]}")
             print("Axis ratio:", restgal_ab[min_idx])
             print("Axis ratio uncertainty:", restgal_ab_std[min_idx])
             print("Phi:", restgal_phi[min_idx])

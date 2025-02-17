@@ -21,11 +21,8 @@ def associate_transient(
     glade_catalog,
     n_samples,
     verbose,
-    priorfunc_z,
-    priorfunc_offset,
-    priorfunc_absmag,
-    likefunc_offset,
-    likefunc_absmag,
+    priors,
+    likes,
     cosmo,
     catalogs,
     cat_cols,
@@ -44,17 +41,10 @@ def associate_transient(
         Number of samples for the monte-carlo sampling of associations.
     verbose : int
         Level of logging during run (can be 0, 1, or 2).
-    priorfunc_z : scipy stats continuous distribution
-        Prior distribution on redshift. This class can be user-defined
-        but needs .sample(size=n) and .pdf(x) functions.
-    priorfunc_offset : scipy stats continuous distribution
-        Prior distribution on fractional offset.
-    priorfunc_absmag : scipy stats continuous distribution
-        Prior distribution on host absolute magnitude.
-    likefunc_offset : scipy stats continuous distribution
-        Likelihood distribution on fractional offset.
-    likefunc_absmag : scipy stats continuous distribution.
-        Likelihood distribution on host absolute magnitude.
+    priors : dict
+        Dictionary of priors for the run (at least one of redshift, offset, absolute magnitude).!
+    likes : dict
+        Dictionary of likelihoods for the run (at least one of offset, absolute magnitude).
     cosmo : astropy cosmology
         Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
     catalogs : list
@@ -86,14 +76,19 @@ def associate_transient(
             f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
         )
 
-    transient.set_prior("redshift", priorfunc_z)
-    transient.set_prior("offset", priorfunc_offset)
-    transient.set_prior("absmag", priorfunc_absmag)
+    included_properties = list(priors.items()).intersection(set(['redshift', 'absmag', 'offset']))
 
-    transient.set_likelihood("offset", likefunc_offset)
-    transient.set_likelihood("absmag", likefunc_absmag)
+    for key, val in priors.items():
+        if key in included_properties:
+            transient.set_prior(key, val)
 
-    transient.gen_z_samples(n_samples=n_samples)
+    for key, val in likes.items():
+        if key in included_properties:
+            transient.set_prior(key, val)
+
+    if 'redshift' in priors.keys():
+        transient.gen_z_samples(n_samples=n_samples)
+
 
     (
         best_objid, best_prob, best_ra, best_dec,
@@ -188,7 +183,7 @@ def associate_transient(
                         plot_match(
                             [best_ra],
                             [best_dec],
-                            best_z_mean, 
+                            best_z_mean,
                             best_z_std,
                             transient.position.ra.deg,
                             transient.position.dec.deg,
@@ -328,7 +323,7 @@ def associate_sample(
     transient_catalog : Pandas DataFrame
         Dataframe containing transient name and coordinates.
     priors : dict
-        Dictionary of prior distributions on redshift, fractional offset, absolute magnitude
+        Dictionary of prior distributions on redshift, fractional offset, and/or absolute magnitude
     likes : dict
         Dictionary of likelihood distributions on redshift, fractional offset, absolute magnitude
     catalogs : list
@@ -361,10 +356,12 @@ def associate_sample(
     if not cosmology:
         cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
 
-    for key in ["offset", "absmag", "z"]:
-        if key not in priors:
-            raise ValueError(f"ERROR: Please set a prior function for {key}.")
-        elif (key not in likes) and (key != "z"):
+    possible_keys = ["offset", "absmag", "redshift"]
+    if not any(key in priors for key in possible_keys):
+        raise ValueError(f"ERROR: Please set a prior function for at least one of {possible_keys}.")
+
+    for key in priors:
+        if key != 'redshift' and key not in likes:
             raise ValueError(f"ERROR: Please set a likelihood function for {key}.")
 
     # always load GLADE -- we now use it for spec-zs.
@@ -377,14 +374,6 @@ def associate_sample(
     except FileNotFoundError:
         glade_catalog = None
 
-    # unpack priors and likelihoods
-    priorfunc_z = priors["z"]
-    priorfunc_offset = priors["offset"]
-    priorfunc_absmag = priors["absmag"]
-
-    likefunc_offset = likes["offset"]
-    likefunc_absmag = likes["absmag"]
-
     results = []
 
     events = [
@@ -394,11 +383,8 @@ def associate_sample(
             glade_catalog,
             n_samples,
             verbose,
-            priorfunc_z,
-            priorfunc_offset,
-            priorfunc_absmag,
-            likefunc_offset,
-            likefunc_absmag,
+            priors,
+            likes,
             cosmo,
             catalogs,
             cat_cols,

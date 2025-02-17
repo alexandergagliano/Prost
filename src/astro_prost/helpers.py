@@ -20,6 +20,14 @@ import pandas as pd
 
 from .photoz_helpers import evaluate, load_lupton_model, preprocess
 
+PROB_FLOOR = np.finfo(float).eps
+REDSHIFT_FLOOR = 0.001 # minimum redshift of z=0.001
+SIZE_FLOOR = 0.25 # 1 pixel, for panstarrs
+ABSMAG_FLOOR = -10 # guess at a minimum absmag for a galaxy?
+SHAPE_FLOOR = 1.e-10
+SIGMA_ABSMAG_FLOOR = SIGMA_SIZE_FLOOR = SIGMA_REDSHIFT_FLOOR = 0.05 # 5% minimum uncertainty
+SIGMA_ABSMAG_CEIL = SIGMA_SIZE_CEIL = SIGMA_REDSHIFT_CEIL = 0.5 # 50% maximum uncertainty
+
 class GalaxyCatalog:
     """Class for source catalog containing candidate transient host galaxies.
 
@@ -181,7 +189,7 @@ class Transient:
         self.second_best_host = -1
 
         if redshift == redshift:
-            self.redshift_std = 0.05 * self.redshift
+            self.redshift_std = SIGMA_REDSHIFT_FLOOR * self.redshift
 
         self.priors = {}
         self.likes = {}
@@ -288,8 +296,6 @@ class Transient:
         if n_samples is None:
             n_samples = self.n_samples
 
-        floor = 0.001  # Set the floor value for redshift
-
         # Sample initially based on whether redshift is NaN or not
         if np.isnan(self.redshift):
             samples = self.get_prior("redshift").rvs(size=n_samples)
@@ -299,8 +305,8 @@ class Transient:
             samples = norm.rvs(self.redshift, self.redshift_std, size=n_samples)
 
         # Resample only those below the floor
-        while np.any(samples < floor):
-            mask = samples < floor
+        while np.any(samples < REDSHIFT_FLOOR):
+            mask = samples < REDSHIFT_FLOOR
             samples[mask] = (self.get_prior("redshift").rvs(size=np.sum(mask))
                              if np.isnan(self.redshift)
                              else norm.rvs(self.redshift, self.redshift_std, size=np.sum(mask)))
@@ -511,70 +517,83 @@ class Transient:
         # just copied now assuming 0 positional uncertainty -- this can be updated later (TODO!)
         offset_arcsec_samples = np.repeat(offset_arcsec[:, np.newaxis], n_samples, axis=1)
 
-        prior_z = self.calc_prior_redshift(z_gal_samples, reduce=None)
-        l_z = self.calc_like_redshift(z_gal_mean, z_gal_std, reduce=None)
+        post_set = []
 
-        if np.isnan(self.redshift):
-            # Marginalize over the sampled supernova redshifts
-            # by integrating the likelihood over the redshift prior
-            sorted_indices = np.argsort(z_gal_samples, axis=1)
-            sorted_z_gal_samples = np.take_along_axis(z_gal_samples, sorted_indices, axis=1)
-            sorted_integrand = np.take_along_axis(prior_z * l_z, sorted_indices, axis=1)
+        if self.get_prior("redshift") is not None:
+            prior_z = self.calc_prior_redshift(z_gal_samples, reduce=None)
+            l_z = self.calc_like_redshift(z_gal_mean, z_gal_std, reduce=None)
 
-            # Perform integration using simps or trapz
-            p_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
-            p_z = p_z[:, np.newaxis]
-        else:
-            p_z = prior_z * l_z
+            if np.isnan(self.redshift):
+                # Marginalize over the sampled supernova redshifts
+                # by integrating the likelihood over the redshift prior
+                sorted_indices = np.argsort(z_gal_samples, axis=1)
+                sorted_z_gal_samples = np.take_along_axis(z_gal_samples, sorted_indices, axis=1)
+                sorted_integrand = np.take_along_axis(prior_z * l_z, sorted_indices, axis=1)
 
-        # depends on zgal, NOT zSN
-        prior_absmag = self.calc_prior_absmag(absmag_samples, reduce=None)
-        l_absmag = self.calc_like_absmag(absmag_samples, reduce=None)
+                # Perform integration using simps or trapz
+                post_redshift = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
+                post_redshift = post_redshift[:, np.newaxis]
+            else:
+                post_redshift = prior_z * l_z
+            post_set.append(post_redshift)
 
-        # Calculate angular diameter distances for all samples
-        fractional_offset_samples = offset_arcsec_samples / galaxy_dlr_samples
+        if self.get_prior("absmag") is not None:
+            # depends on zgal, NOT zSN
+            prior_absmag = self.calc_prior_absmag(absmag_samples, reduce=None)
+            l_absmag = self.calc_like_absmag(absmag_samples, reduce=None)
+            post_absmag = prior_absmag * l_absmag
+            post_set.append(post_absmag)
 
-        prior_offsets = self.calc_prior_offset(fractional_offset_samples, reduce=None)
-        l_offsets = self.calc_like_offset(fractional_offset_samples, reduce=None)  # Shape (N,)
+        if self.get_prior("offset") is not None:
+            # Calculate angular diameter distances for all samples
+            fractional_offset_samples = offset_arcsec_samples / galaxy_dlr_samples
+
+            prior_offsets = self.calc_prior_offset(fractional_offset_samples, reduce=None)
+            l_offsets = self.calc_like_offset(fractional_offset_samples, reduce=None)  # Shape (N,)
+            post_offset = prior_offsets * l_offsets
+            post_set.append(post_offset)
+
         # Compute the posterior probabilities for all galaxies
-        p_gals = (p_z) * (prior_offsets * l_offsets) * (prior_absmag * l_absmag)
+        post_gals_stacked = np.stack(post_set, axis=0)       # shape -> (n_properties, n_gals, n_samples)
+        post_gals = np.prod(post_gals_stacked, axis=0)          # shape -> (n_gals, n_samples)
 
         # other probabilities
-        p_hostless = np.array(
-            [0] * n_samples
-        )  # some very low value that the SN is actually hostless, across all samples.
+        post_hostless = np.ones(n_samples)*PROB_FLOOR  # some very low value that the SN is actually hostless, across all samples.
 
         if self.redshift == self.redshift:
-            p_outside = self.probability_host_outside_cone(search_rad=search_rad, verbose=verbose, n_samples=n_samples, cosmo=cosmo)
+            post_outside = self.probability_host_outside_cone(search_rad=search_rad, verbose=verbose, n_samples=n_samples, cosmo=cosmo)
         else:
-            p_outside = 0
+            post_outside = PROB_FLOOR
 
-        p_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, verbose=verbose, n_samples=n_samples, cosmo=cosmo)
+        post_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, verbose=verbose, n_samples=n_samples, cosmo=cosmo)
 
         # sum across all galaxies for these overall metrics
-        p_tot = np.nansum(p_gals, axis=0) + p_hostless + p_outside + p_unobs
+        post_tot = np.nansum(post_gals, axis=0) + post_hostless + post_outside + post_unobs
 
         # floor to machine precision
-        p_tot[p_tot < np.finfo(float).eps] = np.finfo(float).eps
+        post_tot[post_tot < PROB_FLOOR] = PROB_FLOOR
 
-        p_none_norm = (p_outside + p_hostless + p_unobs) / p_tot
-        p_any_norm = np.nansum(p_gals, axis=0) / p_tot
+        p_none_norm = (post_outside + post_hostless + post_unobs) / post_tot
+        p_any_norm = np.nansum(post_gals, axis=0) / post_tot
+        post_gals_norm = post_gals / post_tot
+        post_outside_norm = post_outside / post_tot
+        post_unobs_norm = post_unobs / post_tot
 
-        p_gals_norm = p_gals / p_tot
-        p_offsets_norm = prior_offsets * l_offsets / p_tot
-        p_z_norm = p_z / p_tot
-        p_absmag_norm = prior_absmag * l_absmag / p_tot
-        p_outside_norm = p_outside / p_tot
-        p_unobs_norm = p_unobs / p_tot
+        if self.get_prior("offset") is not None:
+            post_offset_norm = post_offset / post_tot
+        if self.get_prior("redshift") is not None:
+            post_redshift_norm = post_redshift / post_tot
+        if self.get_prior("absmag") is not None:
+            post_absmag_norm = post_absmag / post_tot
 
         # Sort and get last 2 indices in descending order
-        top_idxs = np.argsort(np.nanmedian(p_gals_norm, axis=1))[::-1]
+        top_idxs = np.argsort(np.nanmedian(post_gals_norm, axis=1))[::-1]
 
         self.associated_catalog = galaxy_catalog.name
         self.any_prob = np.nanmedian(p_any_norm)
         self.none_prob = np.nanmedian(p_none_norm)
-        self.smallcone_prob = np.nanmedian(p_outside_norm)
-        self.missedcat_prob = np.nanmedian(p_unobs_norm)
+        self.smallcone_prob = np.nanmedian(post_outside_norm)
+        self.missedcat_prob = np.nanmedian(post_unobs_norm)
 
         if self.any_prob > self.none_prob:
             if verbose > 0:
@@ -587,16 +606,20 @@ class Transient:
             self.best_host = -1
             self.second_best_host = top_idxs[0]  # set best host as second-best -- best is no host
             if verbose > 0:
-                if np.nanmedian(p_outside_norm) > np.nanmedian(p_unobs_norm):
+                if np.nanmedian(post_outside_norm) > np.nanmedian(post_unobs_norm):
                     print("Association failed. Host is likely outside search cone.")
                 else:
                     print("Association failed. Host is likely missing from the catalog.")
 
         # consolidate across samples
-        galaxy_catalog.galaxies["z_prob"] = np.nanmedian(p_z_norm, axis=1)
-        galaxy_catalog.galaxies["offset_prob"] = np.nanmedian(p_offsets_norm, axis=1)
-        galaxy_catalog.galaxies["absmag_prob"] = np.nanmedian(p_absmag_norm, axis=1)
-        galaxy_catalog.galaxies["total_prob"] = np.nanmedian(p_gals_norm, axis=1)
+        galaxy_catalog.galaxies["total_prob"] = np.nanmedian(post_gals_norm, axis=1)
+
+        if self.get_prior("offset") is not None:
+            galaxy_catalog.galaxies["offset_prob"] = np.nanmedian(post_offset_norm, axis=1)
+        if self.get_prior("redshift") is not None:
+            galaxy_catalog.galaxies["z_prob"] = np.nanmedian(post_redshift_norm, axis=1)
+        if self.get_prior("absmag") is not None:
+            galaxy_catalog.galaxies["absmag_prob"] = np.nanmedian(post_absmag_norm, axis=1)
 
         return galaxy_catalog
 
@@ -619,20 +642,27 @@ class Transient:
 
         Returns
         -------
-        p_unobserved : array-like
+        post_unobserved : array-like
             n_samples of posterior probabilities of the host not being in the catalog.
 
         """
+        # only set if we have absmag and redshift priors -- otherwise set to 0!
+        if (self.get_prior("redshift") is None) or (self.get_prior("absmag") is None):
+            return np.ones(n_samples)*PROB_FLOOR
+
+        post_set = []
+
         n_gals = int(0.5 * n_samples)
         z_sn = self.redshift
         z_sn_std = self.redshift_std
+        sn_distance = cosmo.luminosity_distance(z_sn).to(u.pc).value  # in pc
 
         if np.isnan(z_sn):
             # draw galaxies from the same distribution
             z_gal_mean = self.gen_z_samples(n_samples=n_gals, ret=True)
-            z_gal_std = 0.05 * z_gal_mean
+            z_gal_std = SIGMA_REDSHIFT_FLOOR * z_gal_mean
             z_gal_samples = np.maximum(
-                0.001,
+                REDSHIFT_FLOOR,
                 norm.rvs(
                     loc=z_gal_mean[:, np.newaxis], scale=z_gal_std[:, np.newaxis], size=(n_gals, n_samples)
                 ),
@@ -645,14 +675,14 @@ class Transient:
             sorted_integrand = np.take_along_axis(prior_z * l_z, sorted_indices, axis=1)
 
             # Perform integration using simps or trapz
-            p_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
-            p_z = p_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
+            post_z = np.trapz(sorted_integrand, sorted_z_gal_samples, axis=1)
+            post_z = post_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
         else:
             # Use the known supernova redshift
-            z_best_mean = np.maximum(0.001, norm.rvs(loc=z_sn, scale=0.5 * z_sn_std, size=(n_gals)))
-            z_best_std = 0.05 * z_best_mean  # assume all well-constrained redshifts
+            z_best_mean = np.maximum(REDSHIFT_FLOOR, norm.rvs(loc=z_sn, scale=z_sn_std, size=(n_gals)))
+            z_best_std = SIGMA_REDSHIFT_FLOOR * z_best_mean  # assume all well-constrained redshifts
             z_best_samples = np.maximum(
-                0.001,
+                REDSHIFT_FLOOR,
                 norm.rvs(
                     loc=z_best_mean[:, np.newaxis], scale=z_best_std[:, np.newaxis], size=(n_gals, n_samples)
                 ),
@@ -660,34 +690,8 @@ class Transient:
 
             prior_z = self.calc_prior_redshift(z_best_samples, reduce=None)
             l_z = self.calc_like_redshift(z_best_mean, z_best_std, reduce=None)
-            p_z = prior_z * l_z
-
-        galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=1.0, scale=10)  # in kpc
-        galaxy_physical_radius_prior_std = 0.05 * galaxy_physical_radius_prior_means
-        galaxy_physical_radius_prior_samples = norm.rvs(
-            loc=galaxy_physical_radius_prior_means[:, np.newaxis],
-            scale=galaxy_physical_radius_prior_std[:, np.newaxis],
-            size=(n_gals, n_samples),
-        )
-
-        sn_distance = cosmo.luminosity_distance(z_sn).to(u.pc).value  # in pc
-
-        min_phys_rad = 1.0
-        max_phys_rad = (search_rad.arcsec / 206265) * sn_distance / 1.0e3  # in kpc
-
-        physical_offset_mean = np.linspace(min_phys_rad, max_phys_rad, n_gals)
-        physical_offset_std = 0.05 * physical_offset_mean
-
-        physical_offset_samples = norm.rvs(
-            physical_offset_mean[:, np.newaxis], physical_offset_std[:, np.newaxis], size=(n_gals, n_samples)
-        )
-
-        fractional_offset_samples = (
-            physical_offset_samples / galaxy_physical_radius_prior_samples
-        )  # Shape: (n_samples, n_samples)
-
-        prior_offset_unobs = self.calc_prior_offset(fractional_offset_samples, reduce=None)
-        l_offset_unobs = self.calc_like_offset(fractional_offset_samples, reduce=None)
+            post_z = prior_z * l_z
+        post_set.append(post_z)
 
         absmag_lim_samples = limiting_mag - 5 * (np.log10(sn_distance / 10))
 
@@ -697,11 +701,44 @@ class Transient:
         prior_absmag = self.calc_prior_absmag(absmag_samples, reduce=None)
         l_absmag = self.calc_like_absmag(absmag_samples, reduce=None)
 
-        prob_unobs = prior_absmag * l_absmag * p_z * prior_offset_unobs * l_offset_unobs
+        post_absmag = prior_absmag*l_absmag
+        post_set.append(post_absmag)
 
-        p_unobserved = np.nanmean(prob_unobs, axis=0)  # average over all galaxies
+        if self.get_prior("offset") is not None:
+            galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=1.0, scale=10)  # in kpc
+            galaxy_physical_radius_prior_std = SIGMA_SIZE_FLOOR * galaxy_physical_radius_prior_means
+            galaxy_physical_radius_prior_samples = norm.rvs(
+                loc=galaxy_physical_radius_prior_means[:, np.newaxis],
+                scale=galaxy_physical_radius_prior_std[:, np.newaxis],
+                size=(n_gals, n_samples),
+            )
 
-        return p_unobserved
+            min_phys_rad = 1.0
+            max_phys_rad = (search_rad.arcsec / 206265) * sn_distance / 1.0e3  # in kpc
+
+            physical_offset_mean = np.linspace(min_phys_rad, max_phys_rad, n_gals)
+            physical_offset_std = SIGMA_SIZE_FLOOR * physical_offset_mean
+
+            physical_offset_samples = norm.rvs(
+                physical_offset_mean[:, np.newaxis], physical_offset_std[:, np.newaxis], size=(n_gals, n_samples)
+            )
+
+            fractional_offset_samples = (
+                physical_offset_samples / galaxy_physical_radius_prior_samples
+            )  # Shape: (n_samples, n_samples)
+
+            prior_offset_unobs = self.calc_prior_offset(fractional_offset_samples, reduce=None)
+            l_offset_unobs = self.calc_like_offset(fractional_offset_samples, reduce=None)
+
+            post_offset = prior_offset_unobs * l_offset_unobs
+            post_set.append(post_offset)
+
+        # Compute the posterior probabilities for all galaxies
+        prob_unobs_stacked = np.stack(post_set, axis=0)       # shape -> (n_properties, n_gals, n_samples)
+        post_unobs = np.prod(prob_unobs_stacked, axis=0)          # shape -> (n_gals, n_samples)
+        post_unobs = np.nanmean(post_unobs, axis=0)  # average over all galaxies -- keep n_samples
+
+        return post_unobs
 
     def probability_host_outside_cone(self, cosmo, search_rad=60, verbose=False, n_samples=1000):
         """Calculates the posterior probability of the host being outside the cone search chosen
@@ -720,11 +757,19 @@ class Transient:
 
         Returns
         -------
-        p_outside : array-like
+        post_outside : array-like
             An array of n_samples posterior probabilities of the host being outside the search cone.
 
         """
+
+        # only calculate if we have redshift and offset priors -- otherwise fix to 0
+        if (self.get_prior("redshift") is None) or (self.get_prior("offset") is None):
+            return np.ones(n_samples)*PROB_FLOOR
+
         n_gals = int(n_samples / 2)
+
+        post_set = []
+
         z_sn = self.redshift
         z_sn_std = self.redshift_std
 
@@ -733,11 +778,11 @@ class Transient:
             z_best_mean = self.gen_z_samples(
                 n_samples=n_gals, ret=True
             )  # draw from prior if redshift is missing
-            z_best_std = 0.05 * z_best_mean
+            z_best_std = SIGMA_REDSHIFT_FLOOR * z_best_mean
 
             # scatter around some nominal uncertainty
             z_best_samples = np.maximum(
-                0.001,
+                REDSHIFT_FLOOR,
                 norm.rvs(
                     loc=z_best_mean[:, np.newaxis], scale=z_best_std[:, np.newaxis], size=(n_gals, n_samples)
                 ),
@@ -758,10 +803,10 @@ class Transient:
             # z_sn_std = 0.05 * z_sn
             # z_sn_samples = np.maximum(0.001, norm.rvs(z_sn, z_sn_std, size=n_samples))
             # some higher spread for host redshift photo-zs
-            z_best_mean = np.maximum(0.001, norm.rvs(loc=z_sn, scale=0.5 * z_sn_std, size=(n_gals)))
-            z_best_std = 0.05 * z_best_mean  # assume all well-constrained redshifts
+            z_best_mean = np.maximum(REDSHIFT_FLOOR, norm.rvs(loc=z_sn, scale=z_sn_std, size=(n_gals)))
+            z_best_std = SIGMA_REDSHIFT_FLOOR * z_best_mean  # assume all well-constrained redshifts
             z_best_samples = np.maximum(
-                0.001,
+                REDSHIFT_FLOOR,
                 norm.rvs(
                     loc=z_best_mean[:, np.newaxis], scale=z_best_std[:, np.newaxis], size=(n_gals, n_samples)
                 ),
@@ -771,19 +816,7 @@ class Transient:
             l_z = self.calc_like_redshift(z_best_mean, z_best_std, reduce=None)
 
             p_z = prior_z * l_z
-
-        # sample brightnesses
-        absmag_mean = self.get_prior("absmag").rvs(size=n_gals)
-        absmag_std = 0.05 * np.abs(absmag_mean)
-
-        absmag_samples = np.maximum(
-            0.001,
-            norm.rvs(
-                loc=absmag_mean[:, np.newaxis], scale=absmag_std[:, np.newaxis], size=(n_gals, n_samples)
-            ),
-        )
-
-        prior_absmag = self.calc_prior_absmag(absmag_samples, reduce=None)
+            post_set.append(p_z)
 
         # Calculate the distance to the supernova for each sampled redshift
         sn_distances = cosmo.comoving_distance(self.redshift_samples).value  # in Mpc
@@ -793,7 +826,7 @@ class Transient:
         max_phys_rad = 5 * min_phys_rad
 
         galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=0, scale=10)  # in kpc
-        galaxy_physical_radius_prior_std = 0.05 * galaxy_physical_radius_prior_means
+        galaxy_physical_radius_prior_std = SIGMA_SIZE_FLOOR * galaxy_physical_radius_prior_means
         galaxy_physical_radius_prior_samples = norm.rvs(
             loc=galaxy_physical_radius_prior_means[:, np.newaxis],
             scale=galaxy_physical_radius_prior_std[:, np.newaxis],
@@ -805,15 +838,36 @@ class Transient:
 
         prior_offset = self.calc_prior_offset(fractional_offset_samples, reduce=None)
         l_offset = self.calc_like_offset(fractional_offset_samples, reduce=None)
-        l_absmag = self.calc_like_absmag(absmag_samples, reduce=None)
+        post_offset = prior_offset * l_offset
+        post_set.append(post_offset)
 
-        prob_outside = prior_absmag * l_absmag * p_z * prior_offset * l_offset
+        # don't need it, but could include absmag prior too
+        if self.get_prior("absmag") is not None:
+            # sample brightnesses
+            absmag_mean = self.get_prior("absmag").rvs(size=n_gals)
+            absmag_std = 0.05 * np.abs(absmag_mean)
 
-        # average over all simulated galaxies -- keep the sample
-        p_outside = np.nanmean(prob_outside, axis=0)
+            absmag_samples = np.maximum(
+                REDSHIFT_FLOOR,
+                norm.rvs(
+                    loc=absmag_mean[:, np.newaxis], scale=absmag_std[:, np.newaxis], size=(n_gals, n_samples)
+                ),
+            )
 
-        return p_outside
+            prior_absmag = self.calc_prior_absmag(absmag_samples, reduce=None)
 
+            l_absmag = self.calc_like_absmag(absmag_samples, reduce=None)
+            post_absmag = prior_absmag * l_absmag
+            post_set.append(post_absmag)
+
+        # Compute the posterior probabilities for all galaxies
+        prob_outside_stacked = np.stack(post_set, axis=0)       # shape -> (n_properties, n_gals, n_samples)
+        post_outside = np.prod(prob_outside_stacked, axis=0)          # shape -> (n_gals, n_samples)
+
+        # average over all simulated galaxies -- keep the samples
+        post_outside = np.nanmean(post_outside, axis=0)
+
+        return post_outside
 
 class PriorzObservedTransients(st.rv_continuous):
     """A continuous probability distribution for a redshift prior defined by
@@ -904,7 +958,7 @@ class PriorzObservedTransients(st.rv_continuous):
         """
         # Create redshift bins
         z_bins = np.linspace(self.z_min, self.z_max, self.n_bins + 1)
-        z_centers = 0.5 * (z_bins[:-1] + z_bins[1:])  # Centers of redshift bins
+        z_centers = (z_bins[:-1] + z_bins[1:])/2  # Centers of redshift bins
 
         # Calculate the comoving volume element dV/dz for each redshift bin
         dv_dz = self.cosmo.differential_comoving_volume(z_centers).value  # in Mpc^3 per steradian per dz
@@ -1307,7 +1361,8 @@ def build_glade_candidates(
     # to semi-major half-axis (half-light radius) in arcsec
     temp_sizes = 0.5 * 3 * 10 ** (candidate_hosts["logd25Hyp"].values)
 
-    temp_sizes[temp_sizes < 0.25] = 0.25  # 1 pixel, at least for PS1
+    temp_sizes =np.maximum(SIZE_FLOOR, temp_sizes)
+
     temp_sizes_std = np.minimum(
         temp_sizes, np.abs(temp_sizes) * np.log(10) * candidate_hosts["e_logd25Hyp"].values
     )
@@ -1347,20 +1402,22 @@ def build_glade_candidates(
     # of a galaxy at the isophotal level 25mag/arcsec2 in the B-band,
     # to semi-major half-axis (half-light radius) in arcsec
     temp_sizes = 0.5 * 3 * 10 ** (candidate_hosts["logd25Hyp"].values)
-    temp_sizes[temp_sizes < 0.25] = 0.25  # 1 pixel, at least for PS1
+
+    temp_sizes = np.maximum(SIZE_FLOOR, temp_sizes)
+
     temp_sizes_std = np.minimum(
         temp_sizes, np.abs(temp_sizes) * np.log(10) * candidate_hosts["e_logd25Hyp"].values
     )
 
-    temp_sizes_std[temp_sizes_std != temp_sizes_std] = 0.05 * temp_sizes[temp_sizes_std != temp_sizes_std]
-    temp_sizes_std[temp_sizes_std < 0.05 * temp_sizes] = 0.05 * temp_sizes[temp_sizes_std < 0.05 * temp_sizes]
+    temp_sizes_std[temp_sizes_std != temp_sizes_std] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std != temp_sizes_std]
+    temp_sizes_std[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes]
 
     # Convert distances to corresponding redshift (no sampling yet, just conversion)
     z_best_mean = candidate_hosts["z_best"].values
     z_std = candidate_hosts["z_best_std"].values
 
     z_best_samples = np.maximum(
-        0.001,
+        REDSHIFT_FLOOR,
         norm.rvs(
             loc=z_best_mean[:, np.newaxis], scale=z_std[:, np.newaxis], size=(len(candidate_hosts), n_samples)
         ),
@@ -1371,13 +1428,13 @@ def build_glade_candidates(
 
     # set uncertainty floor
     nanbool = galaxy_a_over_b_std != galaxy_a_over_b_std
-    galaxy_a_over_b_std[nanbool] = 0.05 * galaxy_a_over_b[nanbool]
+    galaxy_a_over_b_std[nanbool] = SIGMA_SIZE_FLOOR * galaxy_a_over_b[nanbool]
 
     temp_pa = candidate_hosts["PAHyp"].values
-    temp_pa[temp_pa != temp_pa] = 0  # assume no position angle for unmeasured gals
+    temp_pa[temp_pa != temp_pa] = SHAPE_FLOOR  # assume no position angle for unmeasured gals (round is a decent assumption for the distant ones)
 
     phi = np.radians(temp_pa)
-    phi_std = 0.05 * phi  # uncertainty floor
+    phi_std = SIGMA_SIZE_FLOOR * phi  # uncertainty floor
 
     dlr_samples = calc_dlr(
         transient_pos,
@@ -1394,14 +1451,14 @@ def build_glade_candidates(
     galaxies["z_best_mean"] = np.nanmean(z_best_samples, axis=1)
     galaxies["z_best_std"] = np.nanstd(z_best_samples, axis=1)
 
-    z_best_samples[z_best_samples < 0] = 0.001  # set photometric redshift floor
-    z_best_samples[z_best_samples != z_best_samples] = 0.001  # set photometric redshift floor
+    z_best_samples[z_best_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
+    #z_best_samples[z_best_samples != z_best_samples] = REDSHIFT_FLOOR # set photometric redshift floor
 
     temp_mag_r = candidate_hosts["Bmag"].values
     temp_mag_r_std = np.abs(candidate_hosts["e_Bmag"].values)
 
     # set a floor of 5%
-    temp_mag_r_std[temp_mag_r_std < 0.05 * temp_mag_r] = 0.05 * temp_mag_r[temp_mag_r_std < 0.05 * temp_mag_r]
+    temp_mag_r_std[temp_mag_r_std < SIGMA_ABSMAG_FLOOR * temp_mag_r] = SIGMA_ABSMAG_FLOOR * temp_mag_r[temp_mag_r_std < SIGMA_ABSMAG_FLOOR * temp_mag_r]
 
     absmag_samples = (
         norm.rvs(
@@ -1568,31 +1625,44 @@ def build_decals_candidates(transient_name,
     galaxies["dec"] = galaxies_pos.dec.deg
 
     temp_sizes = candidate_hosts["shape_r"].values
-    temp_sizes[temp_sizes < 0.25] = 0.25  # 1 pixel, at least for PS1
+    temp_sizes[temp_sizes < SIZE_FLOOR] = SIZE_FLOOR
     temp_sizes_std = candidate_hosts["shape_r_ivar"].values
-    temp_sizes_std = np.maximum(temp_sizes_std, 1.0e-10)
-    temp_sizes_std = np.minimum(np.sqrt(1 / temp_sizes_std), temp_sizes)
+    temp_sizes_std = np.sqrt(1 / temp_sizes_std)
+    temp_sizes_std = np.nanmax(temp_sizes_std, SIGMA_SIZE_FLOOR*temp_sizes)
 
-    temp_sizes_std[temp_sizes_std != temp_sizes_std] = 0.05 * temp_sizes[temp_sizes_std != temp_sizes_std]
-    temp_sizes_std[temp_sizes_std < 0.05 * temp_sizes] = 0.05 * temp_sizes[temp_sizes_std < 0.05 * temp_sizes]
+    #temp_sizes_std[temp_sizes_std != temp_sizes_std] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std != temp_sizes_std]
+    #temp_sizes_std[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes]
 
     galaxy_photoz_mean = candidate_hosts["z_phot_mean"].values
     galaxy_photoz_std = candidate_hosts["z_phot_std"].values
     galaxy_specz = candidate_hosts["z_spec"].values
 
-    temp_e1 = candidate_hosts["shape_e1"].astype("float").values
-    temp_e1_std = candidate_hosts["shape_e1_ivar"].values
-    temp_e1_std[temp_e1_std < 0.05 * temp_e1] = 0.05 * temp_e1[temp_e1_std < 0.05 * temp_e1]
-    temp_e1_std[temp_e1_std > 1.0e-10] = np.sqrt(1 / temp_e1_std[temp_e1_std > 1.0e-10])
+    temp_e1 = candidate_hosts["shape_e1"].astype(float)
+    temp_e1_ivar = candidate_hosts["shape_e1_ivar"].astype(float)
 
-    temp_e2 = candidate_hosts["shape_e2"].astype("float").values
-    temp_e2_std = candidate_hosts["shape_e2_ivar"].values
-    temp_e2_std[temp_e2_std < 0.05 * temp_e2] = 0.05 * temp_e2[temp_e2_std < 0.05 * temp_e2]
-    temp_e2_std[temp_e1_std > 1.0e-10] = np.sqrt(1 / temp_e2_std[temp_e2_std > 1.0e-10])
+    temp_e2 = candidate_hosts["shape_e2"].astype(float)
+    temp_e2_ivar = candidate_hosts["shape_e2_ivar"].astype(float)
+
+    # 1) Convert inverse variance -> std:   std = sqrt(1 / ivar).
+    #    Handle any invalid (or zero) ivar by setting them to 1e-10 or similar.
+    temp_e1_std = np.sqrt(1.0 / np.maximum(temp_e1_ivar, SHAPE_FLOOR))
+    temp_e2_std = np.sqrt(1.0 / np.maximum(temp_e2_ivar, SHAPE_FLOOR))
+
+    # 2) Enforce a 5% floor based on the absolute ellipticity values, e.g. σ_e >= 0.05 * |e|.
+    #    Only do this if that’s your chosen policy for a “minimum fractional error.”
+    mask_e1_floor = (temp_e1_std < SIGMA_SIZE_FLOOR * np.abs(temp_e1))
+    temp_e1_std[mask_e1_floor] = SIGMA_SIZE_FLOOR * np.abs(temp_e1[mask_e1_floor])
+
+    mask_e2_floor = (temp_e2_std < SIGMA_SIZE_FLOOR * np.abs(temp_e2))
+    temp_e2_std[mask_e2_floor] = SIGMA_SIZE_FLOOR * np.abs(temp_e2[mask_e2_floor])
+
+    # 3) Also clamp to a hard floor so that no std is < SHAPE_FLOOR
+    temp_e1_std = np.maximum(temp_e1_std, SHAPE_FLOOR)
+    temp_e2_std = np.maximum(temp_e2_std, SHAPE_FLOOR)
 
     # Calculate ellipticity and axis ratio for all samples
     e = np.sqrt(temp_e1**2 + temp_e2**2)
-    e = np.maximum(e, 1.0e-10)
+    e = np.maximum(e, SHAPE_FLOOR)
 
     a_over_b = (1 + e) / (1 - e)
 
@@ -1605,17 +1675,26 @@ def build_decals_candidates(transient_name,
     # Position angle and angle calculations for all samples
     phi = -np.arctan2(temp_e2, temp_e1) / 2
 
+    # now propagate uncertainty from the shape params -- this is a bit messy because
+    # it requires partial derivatives d/de1 and d/de2 of arctan2, but let's try:
+    # d/de2(arctan2) = e1/(e1^2 + e2^2)
+    # d/de1(arctan2) = -e2/(e1^2 + e2^2)
+
+    # so d/de2(-arctan2/2)= -e1/2*(e1^2 + e2^2)
+    # so d/de1(-arctan2/2)= e2/2*(e1^2 + e2^2)
+
     denom = temp_e1**2 + temp_e2**2
-    denom = np.maximum(1.0e-10, denom)
+    denom = np.maximum(denom, SHAPE_FLOOR)
 
-    partial_phi_e1 = temp_e2 / denom
-    partial_phi_e2 = -temp_e1 / denom
+    partial_phi_e2 = -temp_e1 / (2.0 * denom)   # d(phi)/d(e2)
+    partial_phi_e1 =  temp_e2 / (2.0 * denom)   # d(phi)/d(e1)
 
-    # Propagate uncertainties
-    phi_std = 0.5 * np.sqrt((partial_phi_e1**2 * temp_e1_std**2) + (partial_phi_e2**2 * temp_e2_std**2))
-    phi_std = np.abs(phi_std)
-    phi_std[phi_std != phi_std] = 0.05 * phi[phi_std != phi_std]
-    phi_std = np.maximum(1.0e-10, np.maximum(0.05 * np.abs(phi), phi_std))  # 5% uncertainty floor
+    # Now propagate uncertainties from e1 and e2
+    phi_std = np.sqrt((partial_phi_e1**2) * (e1_std**2) + (partial_phi_e2**2) * (e2_std**2))
+
+    # First clamp phi_std to be at least SIGMA_SIZE_FLOOR * |phi|
+    phi_std = np.maximum(phi_std, SIGMA_SIZE_FLOOR * np.abs(phi))
+    phi_std = np.maximum(phi_std, SHAPE_FLOOR)
 
     dlr_samples = calc_dlr(
         transient_pos, galaxies_pos, temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
@@ -1623,10 +1702,11 @@ def build_decals_candidates(transient_name,
 
     galaxies["z_best_mean"] = galaxy_photoz_mean
     galaxies["z_best_std"] = np.abs(galaxy_photoz_std)
-    galaxies["z_best_std"][galaxy_specz > 0] = 0.05 * galaxy_specz[galaxy_specz > 0]  # floor of 5%
-    galaxies["z_best_mean"][galaxy_specz > 0] = galaxy_specz[galaxy_specz > 0]
-    galaxies["z_best_std"][np.abs(galaxy_photoz_std) > 0.5 * galaxy_photoz_mean] = (
-        0.5 * galaxy_photoz_mean[np.abs(galaxy_photoz_std) > 0.5 * galaxy_photoz_mean]
+    #if we have spec-zs, replace those as the best redshift
+    galaxies["z_best_mean"][galaxy_specz > REDSHIFT_FLOOR] = galaxy_specz[galaxy_specz > REDSHIFT_FLOOR]
+    galaxies["z_best_std"][galaxy_specz > REDSHIFT_FLOOR] = SIGMA_REDSHIFT_FLOOR * galaxy_specz[galaxy_specz > REDSHIFT_FLOOR]  # floor of 5% for spec-zs
+    galaxies["z_best_std"][galaxy_photoz_std > (SIGMA_REDSHIFT_CEIL * galaxy_photoz_mean)] = (
+        SIGMA_REDSHIFT_CEIL * galaxy_photoz_mean[galaxy_photoz_std > (SIGMA_REDSHIFT_CEIL * galaxy_photoz_mean)]
     )  # ceiling of 50%
 
     galaxies["ls_id"] = candidate_hosts["ls_id"].values
@@ -1641,8 +1721,8 @@ def build_decals_candidates(transient_name,
         galaxies["z_best_std"][:, np.newaxis],  # Shape (N, 1)
         size=(n_galaxies, n_samples),  # Shape (N, M)
     )
-    z_best_samples[z_best_samples < 0] = 0.001  # set photometric redshift floor
-    z_best_samples[z_best_samples != z_best_samples] = 0.001  # set photometric redshift floor
+    z_best_samples[z_best_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
+    #z_best_samples[z_best_samples != z_best_samples] = REDSHIFT_FLOOR  # set photometric redshift floor
 
     temp_mag_r = candidate_hosts["dered_mag_r"].values
 
@@ -1654,9 +1734,9 @@ def build_decals_candidates(transient_name,
     )
 
     # cap at 50% the mag
-    temp_mag_r_std[temp_mag_r_std > temp_mag_r] = 0.5 * temp_mag_r[temp_mag_r_std > temp_mag_r]
+    temp_mag_r_std[temp_mag_r_std > (SIGMA_ABSMAG_CEIL * temp_mag_r)] = SIGMA_ABSMAG_CEIL * temp_mag_r[temp_mag_r_std > (SIGMA_ABSMAG_CEIL * temp_mag_r)]
     # set a floor of 5%
-    temp_mag_r_std[temp_mag_r_std < 0.05 * temp_mag_r] = 0.05 * temp_mag_r[temp_mag_r_std < 0.05 * temp_mag_r]
+    temp_mag_r_std[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)] = SIGMA_ABSMAG_FLOOR * temp_mag_r[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)]
 
     absmag_samples = (
         norm.rvs(
@@ -1877,7 +1957,7 @@ def build_panstarrs_candidates(
     temp_sizes_std = np.maximum(temp_sizes_std, 1e-10)  # Prevent division by zero
 
     # temp_sizes_std[temp_sizes_std != temp_sizes_std] = 0.05*temp_sizes[temp_sizes_std != temp_sizes_std]
-    temp_sizes_std[temp_sizes_std < 0.05 * temp_sizes] = 0.05 * temp_sizes[temp_sizes_std < 0.05 * temp_sizes]
+    temp_sizes_std[temp_sizes_std < (SIGMA_SIZE_FLOOR * temp_sizes)] = SIGMA_SIZE_FLOOR* temp_sizes[temp_sizes_std <  (SIGMA_SIZE_FLOOR * temp_sizes)]
 
     gal_u = candidate_hosts["momentXY"].values
     gal_q = candidate_hosts["momentXX"].values - candidate_hosts["momentYY"].values
@@ -1889,7 +1969,7 @@ def build_panstarrs_candidates(
     kappa = np.minimum(kappa, 0.99)
     a_over_b = (1 + kappa + 2 * np.sqrt(kappa)) / (1 - kappa)
     a_over_b = np.clip(a_over_b, 0.1, 10)
-    a_over_b_std = 0.05 * np.abs(a_over_b)  # uncertainty floor
+    a_over_b_std = SIGMA_SIZE_FLOOR * np.abs(a_over_b)  # uncertainty floor
 
     galaxies_pos = SkyCoord(
         candidate_hosts["raMean"].values * u.deg, candidate_hosts["decMean"].values * u.deg
@@ -1899,9 +1979,9 @@ def build_panstarrs_candidates(
     temp_mag_r_std = candidate_hosts["KronMagErr"].values
 
     # cap at 50% the mag
-    temp_mag_r_std[temp_mag_r_std > temp_mag_r] = 0.5 * temp_mag_r[temp_mag_r_std > temp_mag_r]
+    temp_mag_r_std[temp_mag_r_std > (SIGMA_ABSMAG_CEIL*temp_mag_r)] = SIGMA_ABSMAG_CEIL * temp_mag_r[temp_mag_r_std > (SIGMA_ABSMAG_CEIL*temp_mag_r)]
     # set a floor of 5%
-    temp_mag_r_std[temp_mag_r_std < 0.05 * temp_mag_r] = 0.05 * temp_mag_r[temp_mag_r_std < 0.05 * temp_mag_r]
+    temp_mag_r_std[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)] = SIGMA_ABSMAG_FLOOR * temp_mag_r[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)]
 
     dlr_samples = calc_dlr(
         transient_pos,
@@ -1965,8 +2045,8 @@ def build_panstarrs_candidates(
 
     x = preprocess(candidate_hosts, path=os.path.join(default_dust_path, "sfddata-master"))
     posteriors, point_estimates, errors = evaluate(x, model, range_z)
-    point_estimates[point_estimates < 0.001] = 0.001  # set photometric redshift floor
-    point_estimates[point_estimates != point_estimates] = 0.001  # set photometric redshift floor
+    point_estimates[point_estimates < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
+    #point_estimates[point_estimates != point_estimates] = 0.001  # set photometric redshift floor
 
     # 30% uncertainty floor
     err_bool = errors < 0.3 * point_estimates
@@ -2046,7 +2126,7 @@ def build_panstarrs_candidates(
         size=(n_galaxies, n_samples),  # Shape (N, M)
     )
 
-    z_best_samples[z_best_samples < 0.001] = 0.001  # set photometric redshift floor
+    z_best_samples[z_best_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
 
     absmag_samples = (
         norm.rvs(
@@ -2215,7 +2295,7 @@ def find_panstarrs_shreds(
             print("Next-closest galaxy (by fractional offset):")
             print(f"{restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
             print(f"Size of this nearby galaxy:{restgal_a[min_idx]}")
-            print(f"Size uncertainty of this nearby galaxy:{restgal_ra_std[min_idx]}")
+            print(f"Size uncertainty of this nearby galaxy:{restgal_a_std[min_idx]}")
             print("Axis ratio:", restgal_ab[min_idx])
             print("Axis ratio uncertainty:", restgal_ab_std[min_idx])
             print("Phi:", restgal_phi[min_idx])
@@ -2233,13 +2313,13 @@ def find_panstarrs_shreds(
                 # has a dlr that contains this galaxy), drop it
                 dropidxs.append(i)
                 if verbose == 3:
-                    print(f"Dropping objID {onegal_objid} with ra, dec= {onegal_ra:.6f},{onegal_dec:.6f}")
+                    print(f"Dropping objID {onegal_objid} with ra, dec= {onegal_coord.ra.deg:.6f},{onegal_coord.dec.deg:.6f}")
             else:
                 dropidxs.append(original_min_idx)
                 # The other galaxy is dimmer, drop it
                 if verbose == 3:
                     print(
                         f"Dropping objID {objids[original_min_idx]} with"
-                        f"ra, dec = {ra_allgals[original_min_idx]:.6f}, {dec_allgals[original_min_idx]:.6f}"
+                        f"ra, dec = {restgal_coord[original_min_idx].ra.deg:.6f}, {restgal_coord[original_min_idx].dec.deg:.6f}"
                     )
     return np.array(dropidxs)

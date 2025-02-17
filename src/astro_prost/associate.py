@@ -33,7 +33,7 @@ def setup_logger(log_file=None, verbose=2):
     """
     logger = logging.getLogger("Prost_logger")
 
-    if logger.hasHandlers():  # 🔥 Prevents duplicate handlers
+    if logger.hasHandlers():  
         logger.handlers.clear()  # Remove existing handlers before adding new ones
 
     log_levels = {0:logging.WARNING, 1:logging.INFO, 2:logging.DEBUG}

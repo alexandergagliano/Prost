@@ -31,7 +31,7 @@ def test_noredshiftconditioning():
     likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
-    verbose = 1
+    verbose = 2
     parallel = False
     save = False
     progress_bar = False
@@ -68,4 +68,3 @@ def test_noredshiftconditioning():
     true_coord = SkyCoord(118.027566, 24.338844, unit=(u.deg, u.deg))
     assert host_coord.separation(true_coord).arcsec <= 1
 
-test_noredshiftconditioning()

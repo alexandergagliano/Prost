@@ -64,5 +64,3 @@ def test_associate_decals():
     host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))
     true_coord = SkyCoord(158.8835833, 37.6495600, unit=(u.deg, u.deg))
     assert host_coord.separation(true_coord).arcsec <= 1
-
-test_associate_decals()

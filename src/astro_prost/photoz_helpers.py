@@ -1,7 +1,6 @@
 import os
 import tarfile
 import requests
-
 import numpy as np
 import pandas as pd
 import requests
@@ -10,6 +9,11 @@ from astropy.table import Table
 from sfdmap2 import sfdmap
 from filelock import FileLock
 from pathlib import Path
+import platform
+
+if platform.system() == "Darwin":  # Only on macOS
+    tf.config.set_visible_devices([], 'GPU')  # turn off GPU execution on Macs
+tf.config.run_functions_eagerly(False)
 
 default_model_path = "./MLP_lupton.hdf5"
 default_dust_path = "."
@@ -420,12 +424,12 @@ def evaluate(x, mymodel, range_z, verbose=None):
         standard deviations of posteriors for each source.
     """
 
-    posteriors = mymodel.predict(x, verbose)
+    assert x.shape[1] == 31, f"Expected input shape (*, 31), got {x.shape}"
+    posteriors = mymodel.predict(x)
     point_estimates = np.sum(posteriors * range_z, axis=1)
     for i in range(len(posteriors)):
         posteriors[i, :] /= np.sum(posteriors[i, :])
     errors = np.ones(len(posteriors))
     for i in range(len(posteriors)):
         errors[i] = np.std(np.random.choice(a=range_z, size=1000, p=posteriors[i, :], replace=True))
-
     return posteriors, point_estimates, errors

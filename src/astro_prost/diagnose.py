@@ -169,6 +169,7 @@ def plot_match(
     transient_z,
     bayesflag,
     fn,
+    logger,
     true_host_ra=None,
     true_host_dec=None,
 ):
@@ -181,10 +182,6 @@ def plot_match(
         (Can provide up to 10 hosts)
     host_dec : list
         List of declination coordinates for associated hosts, in decimal degrees.
-    true_host_ra : float
-        Right ascension of the true galaxy in decimal degrees.
-    true_host_dec : float
-        Declination of the true galaxy in decimal degrees.
     host_z_mean : float
         Point estimate of host-galaxy redshift.
     host_z_std : float
@@ -202,7 +199,12 @@ def plot_match(
         If 1, bayes factor is weak. If 2, bayes factor is strong.
     fn : str
         Name of saved image.
-
+    logger : logger
+        Logger object for storing results of the run.
+    true_host_ra : float
+        Right ascension of the true galaxy in decimal degrees.
+    true_host_dec : float
+        Declination of the true galaxy in decimal degrees.
     """
     cols = np.array(
         [
@@ -236,7 +238,7 @@ def plot_match(
         if (true_host_ra) and (true_host_dec) and (sep_true > sep):
             sep = sep_true
     rad = np.nanmax([30.0, 2 * sep])  # arcsec to pixels, scaled by 1.5x host-SN separation
-    print(f"Getting img with size len {rad:.2f}...")
+    logger.info(f"Getting img with size len {rad:.2f}...")
     pic_data = []
     for band in bands:
         get_ps1_pic("./", None, transient_ra, transient_dec, int(rad * 4), band, save=True)

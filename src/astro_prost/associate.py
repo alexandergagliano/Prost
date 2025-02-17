@@ -11,9 +11,52 @@ from astropy.coordinates import SkyCoord
 from astropy.cosmology import LambdaCDM
 import importlib.resources as pkg_resources
 import importlib
-
+import logging
 from .diagnose import plot_match
 from .helpers import GalaxyCatalog, Transient
+
+NPROCESS_MAX = os.cpu_count() - 4
+
+def setup_logger(log_file=None, verbose=2):
+    """
+    Sets up a logger that logs messages to both the console and a file (if specified).
+
+    Parameters
+    ----------
+    log_file : str, optional
+        Path to the log file.
+
+    Returns
+    -------
+    logging.Logger
+        Configured logger instance.
+    """
+    logger = logging.getLogger("Prost_logger")
+
+    if logger.hasHandlers():  # 🔥 Prevents duplicate handlers
+        logger.handlers.clear()  # Remove existing handlers before adding new ones
+
+    log_levels = {0:logging.WARNING, 1:logging.INFO, 2:logging.DEBUG}
+    logger.setLevel(log_levels[verbose])  # Set the logging level
+
+    # Define log format (adds timestamps, log level, and message)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    # Console handler (prints to stdout)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # Optional file handler
+    if log_file:
+        log_path = os.path.dirname(log_file)
+        os.makedirs(log_path, exist_ok=True)
+
+        file_handler = logging.FileHandler(log_file, mode="a")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
 
 def associate_transient(
     idx,
@@ -26,6 +69,7 @@ def associate_transient(
     cosmo,
     catalogs,
     cat_cols,
+    logger
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -64,37 +108,43 @@ def associate_transient(
             position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg),
             redshift=float(row.redshift),
             n_samples=n_samples,
+            logger=logger,
         )
     except (KeyError, AttributeError):
         transient = Transient(
-            name=row["name"], position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg), n_samples=n_samples
+            name=row["name"], position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg), n_samples=n_samples, logger=logger
         )
 
     if verbose > 0:
-        print(
+        logger.info(
             f"Associating {transient.name} at RA, DEC = "
             f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
         )
 
-    included_properties = list(priors.items()).intersection(set(['redshift', 'absmag', 'offset']))
+    included_properties = list(set(priors.keys()).intersection(set(['redshift', 'absmag', 'offset'])))
 
     for key, val in priors.items():
         if key in included_properties:
             transient.set_prior(key, val)
+            logger.info(f"Setting prior for {key}.")
 
     for key, val in likes.items():
         if key in included_properties:
-            transient.set_prior(key, val)
+            logger.info(f"Setting likelihood for {key}.")
+            transient.set_likelihood(key, val)
 
     if 'redshift' in priors.keys():
         transient.gen_z_samples(n_samples=n_samples)
 
-
     (
-        best_objid, best_prob, best_ra, best_dec,
-        second_best_objid, second_best_prob, second_best_ra,
-        second_best_dec, query_time, smallcone_prob, missedcat_prob
+        best_objid, best_prob, best_ra, best_dec, best_z_mean,
+        best_z_std, second_best_objid, second_best_prob, second_best_ra,
+        second_best_dec, second_best_z_mean, second_best_z_std, query_time, smallcone_prob, missedcat_prob
     ) = (
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
         np.nan,
         np.nan,
         np.nan,
@@ -115,13 +165,13 @@ def associate_transient(
         cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog)
 
         try:
-            cat.get_candidates(transient, time_query=True, verbose=verbose, cosmo=cosmo, cat_cols=cat_cols)
+            cat.get_candidates(transient, time_query=True, logger=logger, verbose=verbose, cosmo=cosmo, cat_cols=cat_cols)
         except requests.exceptions.HTTPError:
-            print(f"Candidate retrieval failed for {transient.name} in catalog {cat_name}.")
+            logger.info(f"Candidate retrieval failed for {transient.name} in catalog {cat_name}.")
             continue
 
         if cat.ngals > 0:
-            cat = transient.associate(cat, cosmo, verbose=verbose)
+            cat = transient.associate(cat, cosmo, logger, verbose=verbose)
 
             if transient.best_host != -1:
                 best_idx = transient.best_host
@@ -140,15 +190,20 @@ def associate_transient(
                         "z_best_mean",
                         "z_best_std",
                     ]
-                    print("Properties of best host:")
+                    logger.info("Properties of best host:")
                     for key in print_cols:
-                        print(key)
-                        print(cat.galaxies[key][best_idx])
-
-                    print("Properties of second best host:")
+                        if "prob" in key:
+                            logger.info(f"\t{key}: {cat.galaxies[key][best_idx]:.4e}")
+                        else:
+                            logger.info(f"\t{key}: {cat.galaxies[key][best_idx]:.4f}")
+                    logger.info("")
+                    logger.info("Properties of second best host:")
                     for key in print_cols:
-                        print(key)
-                        print(cat.galaxies[key][second_best_idx])
+                        if "prob" in key:
+                            logger.info(f"\t{key}: {cat.galaxies[key][second_best_idx]:.4e}")
+                        else:
+                            logger.info(f"\t{key}: {cat.galaxies[key][second_best_idx]:.4f}")
+                logger.info("")
 
                 best_objid = np.int64(cat.galaxies["objID"][best_idx])
                 best_prob = cat.galaxies["total_prob"][best_idx]
@@ -174,7 +229,7 @@ def associate_transient(
                         extra_cat_cols[field] = cat.galaxies[field][best_idx]
 
                 if verbose > 0:
-                    print(
+                    logger.info(
                         f"Chosen {cat_name} galaxy has catalog ID of {best_objid}"
                         f" and RA, DEC = {best_ra:.6f}, {best_dec:.6f}"
                     )
@@ -191,14 +246,15 @@ def associate_transient(
                             transient.redshift,
                             0,
                             f"{transient.name}_{cat_name}",
+                            logger
                         )
                     except HTTPError:
-                        print("Couldn't get an image. Waiting 60s before moving on.")
+                        logger.info("Couldn't get an image. Waiting 60s before moving on.")
                         time.sleep(60)
                         continue
 
     if (transient.best_host == -1) and (verbose > 0):
-        print("No good host found!")
+        logger.info("No good host found!")
     return (
         idx,
         best_objid,
@@ -304,6 +360,7 @@ def prepare_catalog(
 def associate_sample(
     transient_catalog,
     catalogs,
+    run_name=None,
     priors=None,
     likes=None,
     n_samples=1000,
@@ -311,6 +368,7 @@ def associate_sample(
     parallel=True,
     save=True,
     save_path="./",
+    log_path=None,
     cat_cols=False,
     progress_bar=False,
     cosmology=None,
@@ -338,6 +396,8 @@ def associate_sample(
         If True, saves resulting association table to save_path.
     save_path : str
         Path where the association table should be saved (when save=True).
+    log_path : str
+        Path where the logfile should be saved. If none, log everything to screen
     cat_cols : boolean
         If True, contatenates catalog columns to resulting DataFrame.
     progress_bar : boolean
@@ -353,6 +413,16 @@ def associate_sample(
         The transient dataframe with columns corresponding to the associated transient.
 
     """
+    ts = int(time.time())
+    if log_path is not None:
+        if run_name is not None:
+            log_fn = f"{log_path}/Prost_log_{run_name}_{ts}.txt"
+        else:
+            log_fn = f"{log_path}/Prost_log_{ts}.txt"
+        logger = setup_logger(log_fn, verbose)
+        logger.info(f"Created log file at {log_fn}.")
+    else:
+        logger = setup_logger(verbose=verbose)
     if not cosmology:
         cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
 
@@ -388,6 +458,7 @@ def associate_sample(
             cosmo,
             catalogs,
             cat_cols,
+            logger
         )
         for idx, row in transient_catalog.iterrows()
     ]
@@ -400,16 +471,14 @@ def associate_sample(
             # Set the environment variable in the parent process only
             os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
 
-            if n_processes is None:
-                n_processes = os.cpu_count() - 4
-            elif n_processes > os.cpu_count():
-                print("WARNING! Set n_processes to greater than the number of cpu cores on this machine."+
-                       f" Falling back to n_processes = {os.cpu_count() - 4}.")
-                n_processes = os.cpu_count() - 4
+            if (n_processes is None) or (n_processes > NPROCESS_MAX):
+                logger.info("WARNING! Set n_processes to greater than the number of cpu cores on this machine."+
+                       f" Falling back to n_processes = {NPROCESS_MAX}.")
+                n_processes = NPROCESS_MAX
 
             # Create a list of tasks
             if verbose > 0:
-                print(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
+                logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
 
             with WorkerPool(n_jobs=n_processes, start_method='spawn') as pool:
                 results = pool.map(associate_transient, events, progress_bar=progress_bar)
@@ -447,11 +516,10 @@ def associate_sample(
         for col in id_cols:
             transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors='coerce').astype('Int64')
 
-        print("Association of all transients is complete.")
+        logger.info("Association of all transients is complete.")
 
         # Save the updated catalog
         if save:
-            ts = int(time.time())
             save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
             transient_catalog.to_csv(save_name, index=False)
         else:

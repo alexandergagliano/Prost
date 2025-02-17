@@ -23,12 +23,13 @@ def test_associate_parallel():
     likefunc_offset = gamma(a=0.75)
     likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
 
-    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "z": priorfunc_z}
+    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "redshift": priorfunc_z}
     likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
     verbose = 1
     save = False
+    parallel = True
     progress_bar = False
     cat_cols = False
 
@@ -67,7 +68,7 @@ def test_associate_parallel():
         priors=priors,
         likes=likes,
         catalogs=catalogs,
-        parallel=True,
+        parallel=parallel,
         verbose=verbose,
         save=save,
         progress_bar=progress_bar,

@@ -54,7 +54,7 @@ class GalaxyCatalog:
         self.data = data
         self.n_samples = n_samples
 
-    def get_candidates(self, transient, cosmo, time_query=False, verbose=False, cat_cols=False):
+    def get_candidates(self, transient, cosmo, logger, time_query=False, verbose=False, cat_cols=False):
         """Hydrates the catalog attribute catalog.galaxies with a list of candidates.
 
         Parameters
@@ -97,6 +97,7 @@ class GalaxyCatalog:
                 n_samples=self.n_samples,
                 verbose=verbose,
                 cosmo=cosmo,
+                logger=logger,
                 glade_catalog=self.data,
                 cat_cols=cat_cols
             )
@@ -107,6 +108,7 @@ class GalaxyCatalog:
                 transient.position,
                 search_rad=search_rad,
                 cosmo=cosmo,
+                logger=logger,
                 n_samples=self.n_samples,
                 verbose=verbose,
                 cat_cols=cat_cols
@@ -119,13 +121,14 @@ class GalaxyCatalog:
                     transient.position,
                     search_rad=search_rad,
                     cosmo=cosmo,
+                    logger=logger,
                     glade_catalog=self.data,
                     n_samples=self.n_samples,
                     verbose=verbose,
                     cat_cols=cat_cols
                 )
             else:
-                print("ERROR: Please provide GLADE catalog as 'data' when initializing GalaxyCatalog object.")
+                logger.info("ERROR: Please provide GLADE catalog as 'data' when initializing GalaxyCatalog object.")
                 self.galaxies, self.cat_col_fields = np.array([]), np.array([])
         if self.galaxies is None:
             self.ngals = 0
@@ -178,7 +181,7 @@ class Transient:
 
     """
 
-    def __init__(self, name, position, redshift=np.nan, spec_class="", phot_class="", n_samples=1000):
+    def __init__(self, name, position,  logger, redshift=np.nan, spec_class="", phot_class="", n_samples=1000):
         self.name = name
         self.position = position
         self.redshift = redshift
@@ -186,6 +189,7 @@ class Transient:
         self.phot_class = phot_class
         self.n_samples = n_samples
         self.best_host = -1
+        self.logger = logger
         self.second_best_host = -1
 
         if redshift == redshift:
@@ -223,7 +227,7 @@ class Transient:
         try:
             prior = self.priors[type]
         except KeyError:
-            print(f"ERROR: No prior set for {type}.")
+            self.logger.info(f"ERROR: No prior set for {type}.")
             prior = None
         return prior
 
@@ -244,7 +248,7 @@ class Transient:
         try:
             like = self.likes[type]
         except KeyError:
-            print(f"ERROR: No likelihood set for {type}.")
+            self.logger.info(f"ERROR: No likelihood set for {type}.")
             like = None
         return like
 
@@ -480,7 +484,7 @@ class Transient:
         else:
             return likelihoods
 
-    def associate(self, galaxy_catalog, cosmo, verbose=False):
+    def associate(self, galaxy_catalog, cosmo, logger, verbose=False):
         """Runs the main transient association module.
 
         Parameters
@@ -550,6 +554,7 @@ class Transient:
 
             prior_offsets = self.calc_prior_offset(fractional_offset_samples, reduce=None)
             l_offsets = self.calc_like_offset(fractional_offset_samples, reduce=None)  # Shape (N,)
+
             post_offset = prior_offsets * l_offsets
             post_set.append(post_offset)
 
@@ -567,7 +572,7 @@ class Transient:
 
         post_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, verbose=verbose, n_samples=n_samples, cosmo=cosmo)
 
-        # sum across all galaxies for these overall metrics
+        # sum across all galaxies
         post_tot = np.nansum(post_gals, axis=0) + post_hostless + post_outside + post_unobs
 
         # floor to machine precision
@@ -597,7 +602,8 @@ class Transient:
 
         if self.any_prob > self.none_prob:
             if verbose > 0:
-                print("Association successful!")
+                logger.info("Association successful!")
+                logger.info("")
             # get best and second-best matches
             self.best_host = top_idxs[0]
             if ngals > 1:
@@ -607,9 +613,9 @@ class Transient:
             self.second_best_host = top_idxs[0]  # set best host as second-best -- best is no host
             if verbose > 0:
                 if np.nanmedian(post_outside_norm) > np.nanmedian(post_unobs_norm):
-                    print("Association failed. Host is likely outside search cone.")
+                    logger.info("Association failed. Host is likely outside search cone.\n")
                 else:
-                    print("Association failed. Host is likely missing from the catalog.")
+                    logger.info("Association failed. Host is likely missing from the catalog.\n")
 
         # consolidate across samples
         galaxy_catalog.galaxies["total_prob"] = np.nanmedian(post_gals_norm, axis=1)
@@ -691,12 +697,17 @@ class Transient:
             prior_z = self.calc_prior_redshift(z_best_samples, reduce=None)
             l_z = self.calc_like_redshift(z_best_mean, z_best_std, reduce=None)
             post_z = prior_z * l_z
+
         post_set.append(post_z)
 
-        absmag_lim_samples = limiting_mag - 5 * (np.log10(sn_distance / 10))
-
-        absmag_samples = np.linspace(absmag_lim_samples, 0, n_gals)
-        absmag_samples = absmag_samples[:, np.newaxis]
+        absmag_lim = limiting_mag - 5 * (np.log10(sn_distance / 10))
+        absmag_mean = np.linspace(absmag_lim, ABSMAG_FLOOR, n_gals)
+        absmag_std = SIGMA_ABSMAG_FLOOR*np.abs(absmag_mean)
+        absmag_samples = norm.rvs(
+            loc=absmag_mean[:, np.newaxis],
+            scale=absmag_std[:, np.newaxis],
+            size=(n_gals, n_samples)
+        )
 
         prior_absmag = self.calc_prior_absmag(absmag_samples, reduce=None)
         l_absmag = self.calc_like_absmag(absmag_samples, reduce=None)
@@ -1255,7 +1266,7 @@ def ps1search(
     r = requests.get(url, params=data)
 
     if verbose > 2:
-        print(r.url)
+        logger.info(r.url)
 
     r.raise_for_status()
 
@@ -1270,6 +1281,7 @@ def build_glade_candidates(
     transient_pos,
     glade_catalog,
     cosmo,
+    logger,
     search_rad=None,
     n_samples=1000,
     verbose=False,
@@ -1350,7 +1362,7 @@ def build_glade_candidates(
     galaxies = np.zeros(len(candidate_hosts), dtype=dtype)
 
     if n_galaxies < 1:
-        # print(f"No sources found around {transient_name} in GLADE!")
+        logger.info(f"No sources found around {transient_name} in GLADE!")
         return None, []
 
     temp_pa = candidate_hosts["PAHyp"].values
@@ -1485,6 +1497,7 @@ def build_glade_candidates(
 def build_decals_candidates(transient_name,
                             transient_pos,
                             cosmo,
+                            logger,
                             search_rad=None,
                             n_samples=1000,
                             verbose=False,
@@ -1573,7 +1586,7 @@ def build_decals_candidates(transient_name,
 
     if n_galaxies < 1:
         if verbose > 0:
-            print(
+            logger.info(
                 f"No sources found around {transient_name} in DECaLS! "
                 "Double-check that the transient coords overlap the survey footprint."
             )
@@ -1626,9 +1639,9 @@ def build_decals_candidates(transient_name,
 
     temp_sizes = candidate_hosts["shape_r"].values
     temp_sizes[temp_sizes < SIZE_FLOOR] = SIZE_FLOOR
-    temp_sizes_std = candidate_hosts["shape_r_ivar"].values
-    temp_sizes_std = np.sqrt(1 / temp_sizes_std)
-    temp_sizes_std = np.nanmax(temp_sizes_std, SIGMA_SIZE_FLOOR*temp_sizes)
+    temp_sizes_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_sizes)**2, candidate_hosts["shape_r_ivar"].values)
+    temp_sizes_std = np.sqrt(1 / temp_sizes_ivar)
+    #temp_sizes_std = np.maximum(temp_sizes_std, SIGMA_SIZE_FLOOR*temp_sizes)
 
     #temp_sizes_std[temp_sizes_std != temp_sizes_std] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std != temp_sizes_std]
     #temp_sizes_std[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes]
@@ -1637,19 +1650,15 @@ def build_decals_candidates(transient_name,
     galaxy_photoz_std = candidate_hosts["z_phot_std"].values
     galaxy_specz = candidate_hosts["z_spec"].values
 
-    temp_e1 = candidate_hosts["shape_e1"].astype(float)
-    temp_e1_ivar = candidate_hosts["shape_e1_ivar"].astype(float)
+    temp_e1 = candidate_hosts["shape_e1"].astype(float).values
+    temp_e1_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_e1)**2, candidate_hosts["shape_e1_ivar"].astype(float).values)
 
-    temp_e2 = candidate_hosts["shape_e2"].astype(float)
-    temp_e2_ivar = candidate_hosts["shape_e2_ivar"].astype(float)
+    temp_e2 = candidate_hosts["shape_e2"].astype(float).values
+    temp_e2_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_e2)**2, candidate_hosts["shape_e2_ivar"].astype(float).values)
 
-    # 1) Convert inverse variance -> std:   std = sqrt(1 / ivar).
-    #    Handle any invalid (or zero) ivar by setting them to 1e-10 or similar.
-    temp_e1_std = np.sqrt(1.0 / np.maximum(temp_e1_ivar, SHAPE_FLOOR))
-    temp_e2_std = np.sqrt(1.0 / np.maximum(temp_e2_ivar, SHAPE_FLOOR))
+    temp_e1_std = np.sqrt(1.0 / temp_e1_ivar)
+    temp_e2_std = np.sqrt(1.0 / temp_e2_ivar)
 
-    # 2) Enforce a 5% floor based on the absolute ellipticity values, e.g. σ_e >= 0.05 * |e|.
-    #    Only do this if that’s your chosen policy for a “minimum fractional error.”
     mask_e1_floor = (temp_e1_std < SIGMA_SIZE_FLOOR * np.abs(temp_e1))
     temp_e1_std[mask_e1_floor] = SIGMA_SIZE_FLOOR * np.abs(temp_e1[mask_e1_floor])
 
@@ -1690,7 +1699,7 @@ def build_decals_candidates(transient_name,
     partial_phi_e1 =  temp_e2 / (2.0 * denom)   # d(phi)/d(e1)
 
     # Now propagate uncertainties from e1 and e2
-    phi_std = np.sqrt((partial_phi_e1**2) * (e1_std**2) + (partial_phi_e2**2) * (e2_std**2))
+    phi_std = np.sqrt((partial_phi_e1**2) * (temp_e1_std**2) + (partial_phi_e2**2) * (temp_e2_std**2))
 
     # First clamp phi_std to be at least SIGMA_SIZE_FLOOR * |phi|
     phi_std = np.maximum(phi_std, SIGMA_SIZE_FLOOR * np.abs(phi))
@@ -1759,6 +1768,7 @@ def build_panstarrs_candidates(
     transient_name,
     transient_pos,
     cosmo,
+    logger,
     search_rad=None,
     n_samples=1000,
     verbose=False,
@@ -1998,7 +2008,7 @@ def build_panstarrs_candidates(
     # shred logic
     if len(candidate_hosts) > 1:
         if verbose > 0:
-            print("Removing panstarrs shreds.")
+            logger.info("Removing panstarrs shreds.")
         shred_idxs = find_panstarrs_shreds(
             candidate_hosts["objID"].values,
             galaxies_pos,
@@ -2009,6 +2019,7 @@ def build_panstarrs_candidates(
             phi,
             phi_std,
             temp_mag_r,
+            logger,
             verbose=verbose,
         )
 
@@ -2021,16 +2032,16 @@ def build_panstarrs_candidates(
             dlr_samples = dlr_samples[left_idxs]
 
             if verbose > 0:
-                print(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
+                logger.info(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
         else:
             if verbose > 0:
-                print("No panstarrs shreds found.")
+                logger.info("No panstarrs shreds found.")
 
     n_galaxies = len(candidate_hosts)
 
     if n_galaxies < 1:
         if verbose > 0:
-            print(f"No sources found around {transient_name} in Panstarrs DR2! "
+            logger.info(f"No sources found around {transient_name} in Panstarrs DR2! "
             "Double-check that the SN coords overlap the survey footprint.")
         return None, []
 
@@ -2048,9 +2059,9 @@ def build_panstarrs_candidates(
     point_estimates[point_estimates < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
     #point_estimates[point_estimates != point_estimates] = 0.001  # set photometric redshift floor
 
-    # 30% uncertainty floor
-    err_bool = errors < 0.3 * point_estimates
-    errors[err_bool] = 0.3 * point_estimates[err_bool]
+    # inflated sigma floor for this photoz model
+    err_bool = errors < (5*SIGMA_REDSHIFT_FLOOR * point_estimates)
+    errors[err_bool] = (5*SIGMA_REDSHIFT_FLOOR * point_estimates[err_bool])
 
     dtype = [
         ("objID", np.int64),
@@ -2098,7 +2109,7 @@ def build_panstarrs_candidates(
     # if the source is within 1arcsec of a GLADE host, take that spec-z.
     if glade_catalog is not None:
         if verbose > 1:
-            print("Cross-matching with GLADE for redshifts...")
+            logger.info("Cross-matching with GLADE for redshifts...")
 
         ra_min = transient_pos.ra.deg - 1
         ra_max = transient_pos.ra.deg + 1
@@ -2223,7 +2234,8 @@ def find_panstarrs_shreds(
     phi,
     phi_std,
     appmag,
-    verbose=False,
+    logger,
+    verbose=False
 ):
     """
     Finds potentially shredded sources in panstarrs and removes the shreds.
@@ -2291,19 +2303,19 @@ def find_panstarrs_shreds(
         original_min_idx = min_idx if min_idx < i else min_idx + 1
 
         if verbose == 3:
-            print(f"Considering source at: {onegal_coord.ra.deg:.6f}, {onegal_coord.dec.deg:.6f}:")
-            print("Next-closest galaxy (by fractional offset):")
-            print(f"{restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
-            print(f"Size of this nearby galaxy:{restgal_a[min_idx]}")
-            print(f"Size uncertainty of this nearby galaxy:{restgal_a_std[min_idx]}")
-            print("Axis ratio:", restgal_ab[min_idx])
-            print("Axis ratio uncertainty:", restgal_ab_std[min_idx])
-            print("Phi:", restgal_phi[min_idx])
-            print("Phi uncertainty:", restgal_phi_std[min_idx])
-            print("Angular offset (arcsec):")
-            print(seps[min_idx])
-            print("Fractional separation:")
-            print(np.nanmin(seps / dlr))
+            logger.info(f"Considering source at: {onegal_coord.ra.deg:.6f}, {onegal_coord.dec.deg:.6f}:")
+            logger.info("Next-closest galaxy (by fractional offset):")
+            logger.info(f"{restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
+            logger.info(f"Size of this nearby galaxy:{restgal_a[min_idx]}")
+            logger.info(f"Size uncertainty of this nearby galaxy:{restgal_a_std[min_idx]}")
+            logger.info("Axis ratio:", restgal_ab[min_idx])
+            logger.info("Axis ratio uncertainty:", restgal_ab_std[min_idx])
+            logger.info("Phi:", restgal_phi[min_idx])
+            logger.info("Phi uncertainty:", restgal_phi_std[min_idx])
+            logger.info("Angular offset (arcsec):")
+            logger.info(seps[min_idx])
+            logger.info("Fractional separation:")
+            logger.info(np.nanmin(seps / dlr))
 
         # If within the dlr of another galaxy, remove the dimmer galaxy
         if (seps / dlr)[min_idx] < 1:
@@ -2313,12 +2325,12 @@ def find_panstarrs_shreds(
                 # has a dlr that contains this galaxy), drop it
                 dropidxs.append(i)
                 if verbose == 3:
-                    print(f"Dropping objID {onegal_objid} with ra, dec= {onegal_coord.ra.deg:.6f},{onegal_coord.dec.deg:.6f}")
+                    logger.info(f"Dropping objID {onegal_objid} with ra, dec= {onegal_coord.ra.deg:.6f},{onegal_coord.dec.deg:.6f}")
             else:
                 dropidxs.append(original_min_idx)
                 # The other galaxy is dimmer, drop it
                 if verbose == 3:
-                    print(
+                    logger.info(
                         f"Dropping objID {objids[original_min_idx]} with"
                         f"ra, dec = {restgal_coord[original_min_idx].ra.deg:.6f}, {restgal_coord[original_min_idx].dec.deg:.6f}"
                     )

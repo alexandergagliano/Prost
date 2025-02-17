@@ -23,7 +23,7 @@ def test_associate_decals():
     likefunc_offset = gamma(a=0.75)
     likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
 
-    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "z": priorfunc_z}
+    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "redshift": priorfunc_z}
     likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
@@ -49,12 +49,14 @@ def test_associate_decals():
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
     hostTable = associate_sample(
         transient_catalog,
+        run_name="decals_test",
         priors=priors,
         likes=likes,
         catalogs=catalogs,
         parallel=parallel,
         verbose=verbose,
         save=save,
+        log_path='./',
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
@@ -63,3 +65,4 @@ def test_associate_decals():
     true_coord = SkyCoord(158.8835833, 37.6495600, unit=(u.deg, u.deg))
     assert host_coord.separation(true_coord).arcsec <= 1
 
+test_associate_decals()

@@ -1945,7 +1945,7 @@ def build_panstarrs_candidates(
 
     if (not result) and (verbose > 1):
         logging.warning(f"Found no pan-starrs {release} sources near {transient_name}.")
-        return None
+        return None, []
 
     candidate_hosts = pd.read_csv(StringIO(result))
     if len(candidate_hosts) < 1:

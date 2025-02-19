@@ -147,7 +147,7 @@ def associate_transient(
     glade_catalog : pandas.DataFrame
         GLADE catalog of galaxies, with sizes and photo-zs.
     n_samples : int
-        Number of samples for the monte-carlo sampling of associations.
+        Number of samples for the Monte Carlo sampling of associations.
     priors : dict
         Dictionary of priors for the run (at least one of redshift, offset, absolute magnitude).!
     likes : dict
@@ -225,11 +225,11 @@ def associate_transient(
 
     # Define the fields that we extract for best and second-best hosts
     fields = ["objID", "total_posterior", "ra", "dec", "redshift_mean", "redshift_std"]
-
-    # Initialize best and second-best fields with NaNs
-    for key in ["best", "second_best"]:
-        for field in fields:
-            result[f"{key}_{field}"] = np.nan
+    
+    for prop in calc_host_props:
+        fields.append(f"{prop}_mean")
+        fields.append(f"{prop}_std")
+        fields.append(f"{prop}_posterior")
 
     if cat_priority is not None:
         catalogs = sorted(

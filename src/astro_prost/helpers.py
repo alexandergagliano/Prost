@@ -191,7 +191,6 @@ def setup_logger(log_file=None, verbose=2, is_main=False):
         add_console_handler(logger, formatter)
     return logger
 
-
 def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, release='dr9'):
     """Queries the decals catalogs (https://www.legacysurvey.org/decamls/).
 

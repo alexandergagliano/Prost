@@ -218,14 +218,14 @@ def associate_transient(
         "best_cat": None,
         "best_cat_release": None,
         "query_time": np.nan,
-        "smallcone_prob": np.nan,
-        "missedcat_prob": np.nan,
+        "smallcone_posterior": np.nan,
+        "missedcat_posterior": np.nan,
         "extra_cat_cols": {}
     }
 
     # Define the fields that we extract for best and second-best hosts
     fields = ["objID", "total_posterior", "ra", "dec", "redshift_mean", "redshift_std"]
-    
+
     for prop in calc_host_props:
         fields.append(f"{prop}_mean")
         fields.append(f"{prop}_std")
@@ -271,8 +271,8 @@ def associate_transient(
                     "best_cat": cat_name,
                     "best_cat_release": cat_release,
                     "query_time": cat.query_time,
-                    "smallcone_prob": transient.smallcone_prob,
-                    "missedcat_prob": transient.missedcat_prob
+                    "smallcone_posterior": transient.smallcone_posterior,
+                    "missedcat_posterior": transient.missedcat_posterior
                 })
 
                 # Collect extra catalog columns if needed

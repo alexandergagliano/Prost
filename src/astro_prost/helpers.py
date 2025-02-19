@@ -1316,12 +1316,12 @@ class Transient:
         top_idxs = np.argsort(np.nanmedian(post_gals_norm, axis=1))[::-1]
 
         self.associated_catalog = galaxy_catalog.name
-        self.any_prob = np.nanmedian(p_any_norm)
-        self.none_prob = np.nanmedian(p_none_norm)
-        self.smallcone_prob = np.nanmedian(post_outside_norm)
-        self.missedcat_prob = np.nanmedian(post_unobs_norm)
+        self.any_posterior = np.nanmedian(p_any_norm)
+        self.none_posterior = np.nanmedian(p_none_norm)
+        self.smallcone_posterior = np.nanmedian(post_outside_norm)
+        self.missedcat_posterior = np.nanmedian(post_unobs_norm)
 
-        if self.any_prob > self.none_prob:
+        if self.any_posterior > self.none_posterior:
             self.logger.info("Association successful!")
             self.logger.info("")
             # get best and second-best matches

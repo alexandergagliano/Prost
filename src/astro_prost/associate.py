@@ -253,7 +253,7 @@ def associate_transient(
     cat_priority,
     cat_cols,
     log_fn,
-    calc_host_props=True
+    calc_host_props=False
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -296,7 +296,11 @@ def associate_transient(
 
     # TODO change overloaded variable here
     if calc_host_props:
-        calc_host_props = ['redshift', 'absmag', 'offset']
+        required = {'redshift', 'absmag', 'offset'}
+        calc_host_props = list(required)
+        missing = required - set(priors.keys())
+        if missing:
+            raise ValueError(f"To calculate all properties, priors must be defined for: {', '.join(missing)}.")
     else:
         calc_host_props = list(priors.keys())
 

@@ -13,7 +13,7 @@ def test_associate_parallel():
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-    transient_catalog = transient_catalog.sample(n=5)
+    transient_catalog = transient_catalog.sample(n=10)
 
     # define priors for properties
     priorfunc_z = halfnorm(loc=0.0001, scale=0.5)

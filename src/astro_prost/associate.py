@@ -18,18 +18,69 @@ from collections import OrderedDict
 import warnings
 import re
 
+# Parallel processing settings
 NPROCESS_MAX = os.cpu_count() - 4
+
+# Default survey releases
 DEFAULT_RELEASES = {
     "glade": "latest",
     "decals": "dr9",
     "panstarrs": "dr2"
 }
 
-#divide by zero, filter by default
+# Boilerplate trace method for the logger class
+def trace(self, message, *args, **kws):
+    """Logs a message at the TRACE level, which is lower than DEBUG (verbose = 3).
+
+    Parameters
+    ----------
+    message : str
+        The message to be logged.
+    *args : tuple
+        Additional positional arguments to be passed to the logging call.
+    **kws : dict
+        Additional keyword arguments to be passed to the logging call.
+
+    Returns
+    -------
+    None
+    """
+    if self.isEnabledFor(TRACE_LEVEL):
+        self._log(TRACE_LEVEL, message, args, **kws)
+
+# Define a TRACE level below DEBUG -- for lengthy printouts
+TRACE_LEVEL = 5
+logging.addLevelName(TRACE_LEVEL, "TRACE")
+logging.Logger.trace = trace
+
+# Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
 
 def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props):
-    """Dynamically logs host properties based on available fields."""
+    """Log selected host galaxy properties for a transient.
+
+    Parameters
+    ----------
+    logger : logging.Logger
+        Logger instance to output messages.
+    transient_name : str
+        Name of the transient.
+    cat : GalaxyCatalog
+        Catalog containing candidate host galaxies.
+    host_idx : int
+        Index of the host galaxy in the catalog.
+    title : str
+        Header text for the log output.
+    print_props : list of str
+        List of property names to log directly (e.g., 'objID', 'ra', 'dec').
+    calc_host_props : list of str
+        List of properties (e.g., 'redshift', 'absmag', 'offset') for which mean, std, and posterior values are logged.
+
+    Returns
+    -------
+    None
+        Logs the formatted host properties.
+    """
 
     prop_lines = [f"\n    {title} for {transient_name}:"]
 
@@ -76,7 +127,20 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
     logger.info("\n".join(prop_lines))
 
 def get_catalogs(user_input):
-    """Parses input tuples, sanitizes catalog names, and applies default releases if missing."""
+    """Convert user input into a dictionary mapping catalog names to release versions.
+
+    Parameters
+    ----------
+    user_input : iterable
+        An iterable of catalog entries, where each entry is either a string (catalog name)
+        or a tuple (catalog name, release version).
+
+    Returns
+    -------
+    dict
+        A dictionary with keys as sanitized catalog names and values as the corresponding release version.
+    """
+
     return {
         sanitize_input(cat) if isinstance(cat, str) else sanitize_input(cat[0]):
         cat[1] if isinstance(cat, tuple) else DEFAULT_RELEASES[sanitize_input(cat)]
@@ -84,30 +148,56 @@ def get_catalogs(user_input):
     }
 
 def sanitize_input(cat_name):
-    """Cleans up catalog names for use by prost (removes spaces, makes lowercase)
+    """Cleans up catalog names for use by Prost by removing spaces, underscores, and hyphens, and converting to lowercase.
 
     Parameters
     ----------
-    cat_name : type
-        Name of the catalog to query (right now only decals, glade, and panstarrs are supported!)
+    cat_name : str
+        The catalog name to be sanitized. Supported catalog names include 'decals', 'glade', and 'panstarrs'.
 
     Returns
     -------
-    float
-        The sanitized catalog name
+    str
+        The sanitized catalog name.
     """
     cat_name_clean = re.sub(r"[_\-\s]", "", cat_name)
     return cat_name_clean.lower()
 
 
 def add_console_handler(logger, formatter):
-    """Attach a console handler to the logger."""
+    """Attach a console (stream) handler to the logger.
+
+    Parameters
+    ----------
+    logger : logging.Logger
+        The logger to which the console handler will be added.
+    formatter : logging.Formatter
+        The formatter used to format log messages.
+
+    Returns
+    -------
+    None
+    """
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
 def add_file_handler(logger, log_file, formatter):
-    """Attach a file handler to the logger."""
+    """Attach a file handler to the logger.
+
+    Parameters
+    ----------
+    logger : logging.Logger
+        The logger to which the file handler will be added.
+    log_file : str
+        The file path where log messages will be written.
+    formatter : logging.Formatter
+        The formatter used to format log messages.
+
+    Returns
+    -------
+    None
+    """
     log_path = os.path.dirname(log_file)
     os.makedirs(log_path, exist_ok=True)
     file_handler = logging.FileHandler(log_file, mode="a")
@@ -134,26 +224,21 @@ def setup_logger(log_file=None, verbose=2, is_main=False):
     if logger.hasHandlers():
         return logger
 
-    log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG, 3: logging.DEBUG}
-    logger.setLevel(log_levels.get(verbose, logging.DEBUG))
+    log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG, 3: TRACE_LEVEL}
+    logger.setLevel(log_levels.get(verbose, logging.INFO)) #default to info (debug = 1)
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
     # Main process: Set up log file and store its path
-    if is_main:
-        if log_file:
-            add_file_handler(logger, log_file, formatter)
-            os.environ['LOG_PATH_ENV'] = log_file  # Store log path for worker processes
-        else:
-            add_console_handler(logger, formatter)
+    log_file = log_file if is_main else os.environ.get('LOG_PATH_ENV')
 
-    # Worker processes: Inherit log file or default to console
+    if log_file:
+        add_file_handler(logger, log_file, formatter)
+        if is_main:
+            # Store log path for workers
+            os.environ['LOG_PATH_ENV'] = log_file
     else:
-        log_file = os.environ.get('LOG_PATH_ENV')
-        if log_file:
-            add_file_handler(logger, log_file, formatter)
-        else:
-            add_console_handler(logger, formatter)
+        add_console_handler(logger, formatter)
     return logger
 
 def associate_transient(
@@ -161,7 +246,6 @@ def associate_transient(
     row,
     glade_catalog,
     n_samples,
-    verbose,
     priors,
     likes,
     cosmo,
@@ -180,17 +264,15 @@ def associate_transient(
         Index of the transient from a larger catalog (used to cross-match properties after association).
     row : pandas Series
         Full row of transient properties.
-    glade_catalog : Pandas DataFrame
+    glade_catalog : pandas.DataFrame
         GLADE catalog of galaxies, with sizes and photo-zs.
     n_samples : int
         Number of samples for the monte-carlo sampling of associations.
-    verbose : int
-        Level of logging during run (can be 0, 1, or 2).
     priors : dict
         Dictionary of priors for the run (at least one of redshift, offset, absolute magnitude).!
     likes : dict
         Dictionary of likelihoods for the run (at least one of offset, absolute magnitude).
-    cosmo : astropy cosmology
+    cosmo : astropy.cosmology
         Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
     catalogs : dict
         Dict of source catalogs to query, with required key "name" and optional key "release".
@@ -199,6 +281,8 @@ def associate_transient(
         the catalogs are provided in.
     cat_cols : boolean
         If true, concatenates the source catalog fields to the returned dataframe.
+    log_fn : str, optional
+        The fn associated with the logger.Logger object.
     calc_host_props : boolean
         If true, calculates host galaxy properties even if not needed for association
     ned_search : boolean
@@ -213,7 +297,7 @@ def associate_transient(
 
     logger = setup_logger(log_fn, is_main=False)
 
-    # TODO fix overloaded variable here
+    # TODO change overloaded variable here
     if calc_host_props:
         calc_host_props = ['redshift', 'absmag', 'offset']
     else:
@@ -232,11 +316,10 @@ def associate_transient(
             name=row["name"], position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg), n_samples=n_samples, logger=logger
         )
 
-    if verbose > 0:
-        logger.info(
-            f"\n\nAssociating {transient.name} at RA, DEC = "
-            f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
-        )
+    logger.info(
+        f"\n\nAssociating {transient.name} at RA, DEC = "
+        f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
+    )
 
     for key, val in priors.items():
         transient.set_prior(key, val)
@@ -280,22 +363,21 @@ def associate_transient(
         cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog, release=cat_release)
 
         try:
-            cat.get_candidates(transient, time_query=True, logger=logger, verbose=verbose, cosmo=cosmo, calc_host_props=calc_host_props, cat_cols=cat_cols)
+            cat.get_candidates(transient, time_query=True, logger=logger, cosmo=cosmo, calc_host_props=calc_host_props, cat_cols=cat_cols)
         except requests.exceptions.HTTPError:
             logger.warning(f"Candidate retrieval failed for {transient.name} in catalog {cat_name} due to an HTTPError.")
             continue
 
         if cat.ngals > 0:
-            cat = transient.associate(cat, cosmo, logger, verbose=verbose, calc_host_props=calc_host_props)
+            cat = transient.associate(cat, cosmo, calc_host_props=calc_host_props)
 
             if transient.best_host != -1:
                 best_idx = transient.best_host
                 second_best_idx = transient.second_best_host
 
-                if verbose > 1:
-                    print_props = ['objID', 'ra', 'dec', 'total_posterior']
-                    log_host_properties(logger, transient.name, cat, best_idx, f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props)
-                    log_host_properties(logger, transient.name, cat, second_best_idx, f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props)
+                print_props = ['objID', 'ra', 'dec', 'total_posterior']
+                log_host_properties(logger, transient.name, cat, best_idx, f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props)
+                log_host_properties(logger, transient.name, cat, second_best_idx, f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props)
 
                 # Populate results using a loop instead of manual assignments
                 for key, idx in {"host": best_idx, "host_2": second_best_idx}.items():
@@ -315,13 +397,12 @@ def associate_transient(
                 if cat_cols:
                     result["extra_cat_cols"] = {field: cat.galaxies[field][best_idx] for field in cat.cat_col_fields}
 
-                if verbose > 0:
-                    logger.info(
-                        f"Chosen galaxy has catalog ID of {result['host_objID']} "
-                        f"and RA, DEC = {result['host_ra']:.6f}, {result['host_dec']:.6f}"
-                    )
+                logger.info(
+                    f"Chosen galaxy has catalog ID of {result['host_objID']} "
+                    f"and RA, DEC = {result['host_ra']:.6f}, {result['host_dec']:.6f}"
+                )
 
-                if verbose > 1:
+                if logger.getEffectiveLevel() == logging.DEBUG:
                     try:
                         plot_match(
                             [result["host_ra"]],
@@ -343,7 +424,7 @@ def associate_transient(
                 # Stop searching after first valid match
                 break
 
-    if transient.best_host == -1 and verbose > 0:
+    if transient.best_host == -1:
         logger.info("No good host found!")
 
     return result
@@ -360,7 +441,7 @@ def prepare_catalog(
 
     Parameters
     ----------
-    transient_catalog : Pandas DataFrame
+    transient_catalog : pandas.DataFrame
         Contains the details of the transients to be associated.
     transient_name_col : str
         Column corresponding to transient name.
@@ -375,7 +456,7 @@ def prepare_catalog(
 
     Returns
     -------
-    Pandas DataFrame
+    pandas.DataFrame
         The transformed dataframe with standardized columns.
 
     """
@@ -417,7 +498,7 @@ def associate_sample(
     priors=None,
     likes=None,
     n_samples=1000,
-    verbose=False,
+    verbose=1,
     parallel=True,
     save=True,
     save_path="./",
@@ -433,7 +514,7 @@ def associate_sample(
 
     Parameters
     ----------
-    transient_catalog : Pandas DataFrame
+    transient_catalog : pandas.DataFrame
         Dataframe containing transient name and coordinates.
     priors : dict
         Dictionary of prior distributions on redshift, fractional offset, and/or absolute magnitude
@@ -446,7 +527,7 @@ def associate_sample(
     n_samples : int
         List of samples to draw for monte-carlo association.
     verbose : int
-        Verbosity level; can be 0 - 3.
+        Verbosity level for logging; can be 0 - 3.
     parallel : boolean
         If True, runs in parallel with multiprocessing via mpire. Cannot be set with ipython!
     save : boolean
@@ -459,7 +540,7 @@ def associate_sample(
         If True, contatenates catalog columns to resulting DataFrame.
     progress_bar : boolean
         If True, prints a loading bar for each association (when parallel=True).
-    cosmology : astropy cosmology
+    cosmology : astropy.cosmology
         Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
     n_processes : int
         Number of parallel processes to run when parallel=True (defaults to n_cores-4 if unspecified).
@@ -471,7 +552,7 @@ def associate_sample(
 
     Returns
     -------
-    Pandas DataFrame
+    pandas.DataFrame
         The transient dataframe with columns corresponding to the associated transient.
 
     """
@@ -532,7 +613,6 @@ def associate_sample(
             row,
             glade_catalog,
             n_samples,
-            verbose,
             priors,
             likes,
             cosmo,
@@ -555,8 +635,7 @@ def associate_sample(
                 n_processes = NPROCESS_MAX
 
             # Create a list of tasks
-            if verbose > 0:
-                logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
+            logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
 
             with WorkerPool(n_jobs=n_processes, start_method='spawn') as pool:
                 results = pool.map(associate_transient, events, progress_bar=progress_bar)

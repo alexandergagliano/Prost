@@ -40,7 +40,7 @@ def convert_flux_to_luptitude(f, b, f_0=3631):
     luptitude = -2.5 / np.log(10) * (np.arcsinh((f / f_0) / (2 * b)) + np.log(b))
     return luptitude
 
-def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0):
+def build_sfd_dir(logger, file_path="./sfddata-master.tar.gz", data_dir="./"):
     """Downloads directory of Galactic dust maps for extinction correction.
 
     Parameters
@@ -49,8 +49,8 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0)
         Location of Galactic dust maps.
     data_dir : str
         Location to download Galactic dust maps, if file_path doesn't exist.
-    verbose : int
-        Logging level; can be 0, 1, or 2.
+    logger : logger object
+        Logger for printing to console or to file.
 
 
     """
@@ -66,15 +66,13 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0)
         with FileLock(lock_path):
             # If the dust map directory already exists, no need to proceed
             if os.path.isdir(target_dir):
-                if verbose > 0:
-                    print(f"{target_dir} already exists. Skipping extraction.")
+                logger.info(f"{target_dir} already exists. Skipping extraction.")
                 return
 
             # Download the archive if it doesn't exist
             if not os.path.exists(file_path):
                 url = "https://github.com/kbarbary/sfddata/archive/master.tar.gz"
-                if verbose > 0:
-                    print(f"Downloading dust map data from {url}...")
+                logger.info(f"Downloading dust map data from {url}...")
                 response = requests.get(url, stream=True)
                 if response.status_code == 200:
                     with open(file_path, "wb") as f:
@@ -84,8 +82,7 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0)
                     raise ValueError(f"Failed to download the file: {url} - Status code: {response.status_code}")
 
             # Extract the tarball into the data directory
-            if verbose > 0:
-                print(f"Extracting {file_path}...")
+            logger.info(f"Extracting {file_path}...")
             with tarfile.open(file_path) as tar:
                 tar.extractall(data_dir)
 
@@ -98,18 +95,17 @@ def build_sfd_dir(file_path="./sfddata-master.tar.gz", data_dir="./", verbose=0)
         if os.path.exists(lock_path):
             os.remove(lock_path)
 
-        if verbose > 0:
-            print("Done creating dust directory.")
+        logger.info("Done creating dust directory.")
 
-def get_photoz_weights(file_path=default_model_path, verbose=0):
+def get_photoz_weights(logger, file_path=default_model_path):
     """Get weights for MLP pan-starrs photo-z model.
 
     Parameters
     ----------
     file_path : str
         Path to MLP model (defaults to './MLP_lupton.hdf5')
-    verbose : int
-        Logging level; can be 0, 1, or 2.
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
 
     """
 
@@ -125,8 +121,7 @@ def get_photoz_weights(file_path=default_model_path, verbose=0):
 
         # Download the file if it does not exist
         url = "https://uofi.box.com/shared/static/n1yiy818mv5b5riy2h3dg5yk2by3swos.hdf5"
-        if verbose > 0:
-            print(f"Downloading photo-z weights from {url}...")
+        logger.info(f"Downloading photo-z weights from {url}...")
         response = requests.get(url, stream=True)
         if response.status_code == 200:
             with open(file_path, "wb") as f:
@@ -134,8 +129,7 @@ def get_photoz_weights(file_path=default_model_path, verbose=0):
         else:
             raise ValueError(f"Failed to download the file: {url} - Status code: {response.status_code}")
 
-        if verbose > 0:
-            print("Done getting photo-z weights.")
+        logger.info("Done getting photo-z weights.")
 
 def checklegal(table, release):
     """Checks if this combination of table and release is acceptable.
@@ -324,18 +318,19 @@ def preprocess(df, path="../data/sfddata-master/", ebv=True):
 
     return x
 
-def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path):
+def load_lupton_model(logger, model_path=default_model_path, dust_path=default_dust_path):
     """Helper function that defines and loads the weights of our NN model
         and the output space of the NN.
 
     Parameters
     ----------
 
+    logger : logger object
+        Logger for printing to console or to file.
     model_path : str
         Path to the model weights.
     dust_path : str
         Path to dust map data files.
-
 
     Returns
     ----------
@@ -346,8 +341,8 @@ def load_lupton_model(model_path=default_model_path, dust_path=default_dust_path
         Array of binned redshift space corresponding to the output space of the NN
     """
 
-    build_sfd_dir(data_dir=dust_path)
-    get_photoz_weights(file_path=model_path)
+    build_sfd_dir(logger, data_dir=dust_path)
+    get_photoz_weights(logger, file_path=model_path)
 
     def model():
         input = tf.keras.layers.Input(shape=(31,))

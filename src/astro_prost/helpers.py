@@ -7,35 +7,44 @@ import requests
 import importlib.resources as pkg_resources
 import matplotlib.pyplot as plt
 import numpy as np
-import importlib.resources as pkg_resources
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, match_coordinates_sky
 from astropy.io import ascii
 from dl import queryClient as qC
 from scipy import stats as st
 from scipy.integrate import quad
-from scipy.stats import halfnorm, norm
+from scipy.stats import halfnorm, norm, gaussian_kde, rv_continuous
 from io import StringIO
 import pandas as pd
 
 from .photoz_helpers import evaluate, load_lupton_model, preprocess
 
+# Precision & default values
 PROB_FLOOR = np.finfo(float).eps
-REDSHIFT_FLOOR = 0.001 # minimum redshift of z=0.001
-SIZE_FLOOR = 0.25 # 1 pixel, for panstarrs
-ABSMAG_FLOOR = -10 # guess at a minimum absmag for a galaxy?
-SHAPE_FLOOR = 1.e-10
 DUMMY_FILL_VAL = -999
+
+# Conversion constants
 RAD_TO_ARCSEC = 206265
-SIGMA_ABSMAG_FLOOR = SIGMA_SIZE_FLOOR = SIGMA_REDSHIFT_FLOOR = 0.05 # 5% minimum uncertainty
-SIGMA_ABSMAG_CEIL = SIGMA_SIZE_CEIL = SIGMA_REDSHIFT_CEIL = 0.5 # 50% maximum uncertainty
-CATALOG_FUNCTIONS = {"panstarrs": None, "decals": None, "glade": None}
+
+# Redshift & galaxy properties
+REDSHIFT_FLOOR = 0.001  # minimum redshift of z=0.001
+SIZE_FLOOR = 0.25  # 1 pixel, for Pan-STARRS
+ABSMAG_FLOOR = -10  # guess at a minimum absolute magnitude for a galaxy?
+OFFSET_FLOOR = SHAPE_FLOOR = 1.e-10
+
+# Uncertainty floors & ceilings
+SIGMA_ABSMAG_FLOOR = SIGMA_SIZE_FLOOR = SIGMA_REDSHIFT_FLOOR = 0.05  # 5% minimum uncertainty
+SIGMA_ABSMAG_CEIL = SIGMA_SIZE_CEIL = SIGMA_REDSHIFT_CEIL = 0.5  # 50% maximum uncertainty
+
+# Default settings for catalogs
 DEFAULT_LIMITING_MAG = {"panstarrs": 22, "decals": 26, "glade": 17}
 CATALOG_SHRED_SETTINGS = {
-    "panstarrs": True,  # Only enable for Pan-STARRS
+    "panstarrs": True,  # Only enable for Pan-STARRS by default
     "decals": False,
     "glade": False,
 }
+
+# Data Structure Definitions
 PROP_DTYPES = [
         ("objID", np.int64),
         ("objID_info", "U20"),
@@ -61,15 +70,475 @@ PROP_DTYPES = [
     ]
 
 
-def build_galaxy_array(candidate_hosts, cat_cols, transient_name, catalog, release, logger, verbose=0):
+def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, release='dr9'):
+    """Queries the decals catalogs (https://www.legacysurvey.org/decamls/).
+
+    Parameters
+    ----------
+    search_pos : astropy SkyCoord object
+        Search position (transient location in this code).
+    search_rad : astropy Angle object
+        Size of the search radius.
+    cat_cols : boolean
+        If True, concatenates all columns from the catalog to the final output.
+    calc_host_props : list
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
+    release : str
+        Data release of the catalog; can be 'dr9' or 'dr10'.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Dataframe containing the retrieved sources.
+
+    """
+    if release not in ["dr9", "dr10"]:
+        raise ValueError(f"Invalid DECaLS version '{release}'. Please choose 'dr9' or 'dr10'.")
+
+    if search_rad is None:
+        search_rad = Angle(60 * u.arcsec)
+
+    rad_deg = search_rad.deg
+
+    result = qC.query(
+        sql=f"""SELECT
+        t.ls_id,
+        t.shape_r,
+        t.shape_r_ivar,
+        t.shape_e1,
+        t.shape_e1_ivar,
+        t.shape_e2,
+        t.shape_e2_ivar,
+        t.ra,
+        t.type,
+        t.dec,
+        t.dered_mag_r,
+        t.mag_r,
+        t.flux_r,
+        t.flux_ivar_r,
+        t.nobs_g,
+        t.nobs_r,
+        t.nobs_z,
+        t.fitbits,
+        t.ra_ivar,
+        t.dec_ivar,
+        t.dered_flux_r,
+        pz.z_phot_mean,
+        pz.z_phot_median,
+        pz.z_phot_std,
+        pz.z_spec
+    FROM
+        ls_{release}.tractor t
+    INNER JOIN
+        ls_{release}.photo_z pz
+    ON
+        t.ls_id= pz.ls_id
+    WHERE
+        q3c_radial_query(t.ra, t.dec, {search_pos.ra.deg:.5f}, {search_pos.dec.deg:.5f}, {rad_deg})
+    AND (t.nobs_r > 0) AND (t.dered_flux_r > 0) AND (t.snr_r > 0)
+    AND nullif(t.dered_mag_r, 'NaN') is not null AND (t.fitbits != 8192)
+    AND ((pz.z_spec > 0) OR (pz.z_phot_mean > 0))"""
+    )
+
+    candidate_hosts = pd.read_csv(StringIO(result))
+    candidate_hosts.rename(columns={'ls_id':'objID'}, inplace=True)
+
+    if len(candidate_hosts) < 1:
+        return None
+    else:
+        return candidate_hosts
+
+def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, release='dr2'):
+    """Queries the panstarrs catalogs (https://catalogs.mast.stsci.edu/panstarrs/).
+
+    Parameters
+    ----------
+    search_pos : astropy SkyCoord object
+        Search position (transient location in this code).
+    search_rad : astropy Angle object
+        Size of the search radius.
+    cat_cols : boolean
+        If True, concatenates all columns from the catalog to the final output.
+    calc_host_props : list
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
+    release : str
+        Data release of the catalog; can be 'dr1' or 'dr2'.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Dataframe containing the retrieved sources (after some basic quality cuts).
+
+    """
+    if release not in ["dr1", "dr2"]:
+        raise ValueError(f"Invalid Pan-STARRS version '{release}'. Please choose 'dr1' or 'dr2'.")
+    elif (release == 'dr1') and (('redshift' in calc_host_props) or ('absmag' in calc_host_props)):
+        raise ValueError("Redshift estimation with Pan-STARRS data can only be done with release 'dr2'.")
+
+    if search_rad is None:
+        search_rad = Angle(60 * u.arcsec)
+
+    rad_deg = search_rad.deg
+
+    # load table metadata to avoid a query
+    pkg_data_file = pkg_resources.files('astro_prost') / 'data' / 'panstarrs_metadata.pkl'
+
+    with pkg_resources.as_file(pkg_data_file) as metadata_path:
+        with open(metadata_path, 'rb') as f:
+            metadata = pickle.load(f)
+
+    if not cat_cols:
+        source_cols = [
+            "objID",
+            "raMean",
+            "decMean",
+            "gmomentXX",
+            "rmomentXX",
+            "imomentXX",
+            "zmomentXX",
+            "ymomentXX",
+            "gmomentYY",
+            "rmomentYY",
+            "imomentYY",
+            "zmomentYY",
+            "ymomentYY",
+            "gmomentXY",
+            "rmomentXY",
+            "imomentXY",
+            "zmomentXY",
+            "ymomentXY",
+            "nDetections",
+            "primaryDetection",
+            "gKronRad",
+            "rKronRad",
+            "iKronRad",
+            "zKronRad",
+            "yKronRad",
+            "gKronMag",
+            "rKronMag",
+            "iKronMag",
+            "zKronMag",
+            "yKronMag",
+            "gKronMagErr",
+            "rKronMagErr",
+            "iKronMagErr",
+            "zKronMagErr",
+            "yKronMagErr",
+        ]
+
+        result = panstarrs_cone(metadata, search_pos.ra.deg, search_pos.dec.deg, rad_deg, columns=source_cols,
+        release=release)
+    else:
+        result = panstarrs_cone(metadata, search_pos.ra.deg, search_pos.dec.deg, rad_deg, release=release)
+
+    if not result:
+        logging.debug(f"Found no pan-starrs {release} sources near {transient_name}.")
+        return None
+
+    candidate_hosts = pd.read_csv(StringIO(result))
+
+    if len(candidate_hosts) < 1:
+        return None
+
+    if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
+        candidate_hosts = candidate_hosts.set_index("objID")
+
+        #columns needed for photometric redshift inference
+        photoz_cols = [
+            "objID",
+            "raMean",
+            "decMean",
+            "gFKronFlux",
+            "rFKronFlux",
+            "iFKronFlux",
+            "zFKronFlux",
+            "yFKronFlux",
+            "gFPSFFlux",
+            "rFPSFFlux",
+            "iFPSFFlux",
+            "zFPSFFlux",
+            "yFPSFFlux",
+            "gFApFlux",
+            "rFApFlux",
+            "iFApFlux",
+            "zFApFlux",
+            "yFApFlux",
+            "gFmeanflxR5",
+            "rFmeanflxR5",
+            "iFmeanflxR5",
+            "zFmeanflxR5",
+            "yFmeanflxR5",
+            "gFmeanflxR6",
+            "rFmeanflxR6",
+            "iFmeanflxR6",
+            "zFmeanflxR6",
+            "yFmeanflxR6",
+            "gFmeanflxR7",
+            "rFmeanflxR7",
+            "iFmeanflxR7",
+            "zFmeanflxR7",
+            "yFmeanflxR7",
+        ]
+
+        result_photoz = panstarrs_cone(
+            metadata,
+            search_pos.ra.deg,
+            search_pos.dec.deg,
+            rad_deg,
+            columns=photoz_cols,
+            table="forced_mean",
+            release=release,
+        )
+
+        candidate_hosts_pzcols = pd.read_csv(StringIO(result_photoz))
+
+        candidate_hosts_pzcols = candidate_hosts_pzcols.set_index("objID")
+        candidate_hosts = (
+            candidate_hosts.join(candidate_hosts_pzcols, lsuffix="_DROP")
+            .filter(regex="^(?!.*DROP)")
+            .reset_index()
+        )
+
+    candidate_hosts.replace(DUMMY_FILL_VAL, np.nan, inplace=True)
+    candidate_hosts.reset_index(inplace=True, drop=True)
+
+    for prop in ['momentXX', 'momentYY', 'momentXY', 'KronRad', 'KronMag', 'KronMagErr']:
+        prop_list = [f"{flt}{prop}" for flt in 'grizy']
+        candidate_hosts[prop] = candidate_hosts[prop_list].median(axis=1)
+
+    # some VERY basic filtering to say that it's confidently detected
+    candidate_hosts = candidate_hosts[candidate_hosts["nDetections"] > 2]
+    candidate_hosts = candidate_hosts[candidate_hosts["primaryDetection"] == 1]
+
+    drop_cols = ['raMean', 'decMean']
+
+    if 'absmag' in calc_host_props:
+        drop_cols.append('KronMag')
+    if 'offset' in calc_host_props:
+        drop_cols.append('KronRad')
+
+    candidate_hosts.dropna(subset=drop_cols, inplace=True)
+    candidate_hosts.rename(columns={'raMean':'ra', 'decMean':'dec'}, inplace=True)
+    candidate_hosts.reset_index(drop=True, inplace=True)
+
+    return candidate_hosts
+
+def calc_shape_props_panstarrs(candidate_hosts):
+    """Wrapper to calculate the shape parameters for pan-starrs galaxies.
+
+    Parameters
+    ----------
+    candidate_hosts : pandas.DataFrame
+        Dataset containing sources with shape information.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        (temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std),
+        where:
+          - temp_sizes: Semi-major axes (arcsec)
+          - temp_sizes_std: Uncertainty in semi-major axes
+          - a_over_b: axis ratio
+          - a_over_b_std: Uncertainty in axis ratio
+          - phi: Position angles (radians)
+          - phi_std: Uncertainty in position angles
+
+    """
+    temp_sizes = candidate_hosts["KronRad"].values
+
+    # assume some fiducial shape floor
+    temp_sizes_std = SIGMA_SIZE_FLOOR * candidate_hosts["KronRad"].values
+    temp_sizes_std = np.maximum(temp_sizes_std, SHAPE_FLOOR)  # Prevent division by zero
+
+    temp_sizes_std[temp_sizes_std < (SIGMA_SIZE_FLOOR * temp_sizes)] = SIGMA_SIZE_FLOOR* temp_sizes[temp_sizes_std <  (SIGMA_SIZE_FLOOR * temp_sizes)]
+
+    gal_u = candidate_hosts["momentXY"].values
+    gal_q = candidate_hosts["momentXX"].values - candidate_hosts["momentYY"].values
+
+    phi = 0.5 * np.arctan2(gal_u, gal_q)
+    phi_std = 0.05 * np.abs(phi)
+    phi_std = np.maximum(SHAPE_FLOOR, phi_std)
+    kappa = gal_q**2 + gal_u**2
+    kappa = np.minimum(kappa, 0.99)
+    a_over_b = (1 + kappa + 2 * np.sqrt(kappa)) / (1 - kappa)
+    a_over_b = np.clip(a_over_b, 0.1, 10)
+    a_over_b_std = SIGMA_SIZE_FLOOR * np.abs(a_over_b)  # uncertainty floor
+
+    #return result
+    return temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
+
+def calc_shape_props_decals(candidate_hosts):
+    """Wrapper to calculate the shape parameters for decals galaxies.
+
+    Parameters
+    ----------
+    candidate_hosts : pandas.DataFrame
+        Dataset containing sources with shape information.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        (temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std),
+        where:
+          - temp_sizes: Semi-major axes (arcsec)
+          - temp_sizes_std: Uncertainty in semi-major axes
+          - a_over_b: axis ratio
+          - a_over_b_std: Uncertainty in axis ratio
+          - phi: Position angles (radians)
+          - phi_std: Uncertainty in position angles
+    """
+    temp_sizes = candidate_hosts["shape_r"].values
+    temp_sizes[temp_sizes < SIZE_FLOOR] = SIZE_FLOOR
+    temp_sizes_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_sizes)**2, candidate_hosts["shape_r_ivar"].values)
+    temp_sizes_std = np.sqrt(1 / temp_sizes_ivar)
+
+    temp_e1 = candidate_hosts["shape_e1"].astype(float).values
+    temp_e1_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_e1)**2, candidate_hosts["shape_e1_ivar"].astype(float).values)
+
+    temp_e2 = candidate_hosts["shape_e2"].astype(float).values
+    temp_e2_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_e2)**2, candidate_hosts["shape_e2_ivar"].astype(float).values)
+
+    temp_e1_std = np.sqrt(1.0 / temp_e1_ivar)
+    temp_e2_std = np.sqrt(1.0 / temp_e2_ivar)
+
+    mask_e1_floor = (temp_e1_std < SIGMA_SIZE_FLOOR * np.abs(temp_e1))
+    temp_e1_std[mask_e1_floor] = SIGMA_SIZE_FLOOR * np.abs(temp_e1[mask_e1_floor])
+
+    mask_e2_floor = (temp_e2_std < SIGMA_SIZE_FLOOR * np.abs(temp_e2))
+    temp_e2_std[mask_e2_floor] = SIGMA_SIZE_FLOOR * np.abs(temp_e2[mask_e2_floor])
+
+    # 3) Also clamp to a hard floor so that no std is < SHAPE_FLOOR
+    temp_e1_std = np.maximum(temp_e1_std, SHAPE_FLOOR)
+    temp_e2_std = np.maximum(temp_e2_std, SHAPE_FLOOR)
+
+    # Calculate ellipticity and axis ratio for all samples
+    e = np.sqrt(temp_e1**2 + temp_e2**2)
+    e = np.maximum(e, SHAPE_FLOOR)
+
+    a_over_b = (1 + e) / (1 - e)
+
+    # Compute uncertainty in e (sigma_e)
+    e_std = (1 / e) * np.sqrt(temp_e1**2 * temp_e1_std**2 + temp_e2**2 * temp_e2_std**2)
+
+    # Compute uncertainty in a_over_b (sigma_a_over_b)
+    a_over_b_std = (2 / (1 - e) ** 2) * e_std
+
+    # Position angle and angle calculations for all samples
+    phi = -np.arctan2(temp_e2, temp_e1) / 2
+
+    # now propagate uncertainty from the shape params -- this is a bit messy because
+    # it requires partial derivatives d/de1 and d/de2 of arctan2, but let's try:
+    # d/de2(arctan2) = e1/(e1^2 + e2^2)
+    # d/de1(arctan2) = -e2/(e1^2 + e2^2)
+
+    # so d/de2(-arctan2/2)= -e1/2*(e1^2 + e2^2)
+    # so d/de1(-arctan2/2)= e2/2*(e1^2 + e2^2)
+
+    denom = temp_e1**2 + temp_e2**2
+    denom = np.maximum(denom, SHAPE_FLOOR)
+
+    partial_phi_e2 = -temp_e1 / (2.0 * denom)   # d(phi)/d(e2)
+    partial_phi_e1 =  temp_e2 / (2.0 * denom)   # d(phi)/d(e1)
+
+    # Now propagate uncertainties from e1 and e2
+    phi_std = np.sqrt((partial_phi_e1**2) * (temp_e1_std**2) + (partial_phi_e2**2) * (temp_e2_std**2))
+
+    # First clamp phi_std to be at least SIGMA_SIZE_FLOOR * |phi|
+    phi_std = np.maximum(phi_std, SIGMA_SIZE_FLOOR * np.abs(phi))
+    phi_std = np.maximum(phi_std, SHAPE_FLOOR)
+
+    return temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
+
+def calc_shape_props_glade(candidate_hosts):
+    """Wrapper to calculate the shape parameters for pan-starrs galaxies.
+
+    Parameters
+    ----------
+    candidate_hosts : pandas.DataFrame
+        Dataset containing sources with shape information.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        (temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std),
+        where:
+          - temp_sizes: Semi-major axes (arcsec)
+          - temp_sizes_std: Uncertainty in semi-major axes
+          - a_over_b: axis ratio
+          - a_over_b_std: Uncertainty in axis ratio
+          - phi: Position angles (radians)
+          - phi_std: Uncertainty in position angles
+    """
+    temp_pa = candidate_hosts["PAHyp"].values
+
+    # assume no position angle for unmeasured gals
+    temp_pa[temp_pa != temp_pa] = 0
+
+    # (n) HyperLEDA decimal logarithm of the length of the projected major axis
+    # of a galaxy at the isophotal level 25mag/arcsec2 in the B-band,
+    # to semi-major half-axis (half-light radius) in arcsec
+    temp_sizes = 0.5 * 3 * 10 ** (candidate_hosts["logd25Hyp"].values)
+
+    temp_sizes = np.maximum(SIZE_FLOOR, temp_sizes)
+
+    temp_sizes_std = np.minimum(
+        temp_sizes, np.abs(temp_sizes) * np.log(10) * candidate_hosts["e_logd25Hyp"].values
+    )
+
+    temp_sizes_std[temp_sizes_std != temp_sizes_std] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std != temp_sizes_std]
+    temp_sizes_std[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes]
+
+    a_over_b = 10 ** (candidate_hosts["logr25Hyp"].values)
+    a_over_b_std = a_over_b * np.log(10) * candidate_hosts["e_logr25Hyp"].values
+
+    # set uncertainty floor
+    nanbool = a_over_b_std != a_over_b_std
+    a_over_b_std[nanbool] = SIGMA_SIZE_FLOOR * a_over_b[nanbool]
+
+    temp_pa = candidate_hosts["PAHyp"].values
+
+    # assume no position angle for unmeasured gals
+    # (round is a decent assumption for the most distant ones)
+    temp_pa[temp_pa != temp_pa] = SHAPE_FLOOR
+
+    phi = np.radians(temp_pa)
+    phi_std = SIGMA_SIZE_FLOOR * phi  # uncertainty floor
+
+    return temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
+
+def build_galaxy_array(candidate_hosts, cat_cols, transient_name, catalog, release, logger):
+    """Builds a structured NumPy array of galaxy properties for host association.
+
+    Parameters
+    ----------
+    candidate_hosts : pandas.DataFrame
+        DataFrame with candidate host galaxy properties.
+    cat_cols : bool
+        If True, include extra catalog columns not in PROP_DTYPES.
+    transient_name : str
+        Name of the transient (for logging purposes).
+    catalog : str
+        Name of the catalog (e.g., 'panstarrs', 'decals', 'glade').
+    release : str
+        Catalog release version (e.g., 'dr2').
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
+
+    Returns
+    -------
+    galaxies : numpy.ndarray
+        Structured array of galaxy properties with dtype defined by PROP_DTYPES
+        (extended to include catalog properties if cat_cols is True).
+    cat_col_fields : list
+        List of extra catalog column names from the catalog.
+    """
     n_galaxies = len(candidate_hosts)
     base_fields = ['objID', 'ra','dec']
     calc_fields = [x[0] for x in PROP_DTYPES]
 
     if n_galaxies < 1:
-        if verbose > 0:
-            logger.info(f"No sources found around {transient_name} in {catalog} {release}! "
-            "Double-check that the SN coords overlap the survey footprint.")
+        logger.info(f"No sources found around {transient_name} in {catalog} {release}! "
+        "Double-check that the SN coords overlap the survey footprint.")
         return None, []
 
     if cat_cols:
@@ -95,48 +564,47 @@ def build_galaxy_array(candidate_hosts, cat_cols, transient_name, catalog, relea
         galaxies[col] = candidate_hosts[col].values
     return galaxies, cat_col_fields
 
-def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, calc_host_props, verbose):
-    """Generalized function to fetch catalog data.
+def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, calc_host_props):
+    """
+    Fetch and process catalog data for a given transient.
+
+    This function selects the appropriate catalog function based on the catalog name
+    (stored in `self.catalog_functions`), sets default parameters (e.g. limiting magnitude),
+    and passes common parameters (transient info, search radius, cosmology, etc.) to the
+    catalog-specific function. For the 'glade' catalog, it requires that `self.data` is provided.
 
     Parameters
     ----------
-    transient : type
-        Description of parameter `transient`.
-    search_rad : type
-        Description of parameter `search_rad`.
-    cosmo : type
-        Description of parameter `cosmo`.
-    logger : type
-        Description of parameter `logger`.
-    cat_cols : type
-        Description of parameter `cat_cols`.
+    transient : object
+        A transient object with at least `name` and `position` attributes.
+    search_rad : astropy.units.Angle
+        Cone search radius.
+    cosmo : astropy.cosmology
+        Cosmological model for distance conversions.
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
+    cat_cols : bool
+        If True, include extra catalog columns in the returned data.
     calc_host_props : list
-        Description of parameter `calc_host_props`.
-    verbose : type
-        Description of parameter `verbose`.
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
 
     Returns
     -------
-    type
-        Description of returned object.
+    tuple
+        A tuple (catalog_data, extra_columns) where:
+          - catalog_data is the processed candidate host data (e.g. a pandas.DataFrame or structured array),
+          - extra_columns is a list of additional catalog column names (empty if `cat_cols` is False).
 
+    Raises
+    ------
+    ValueError
+        If the catalog name is unknown or if required catalog data (e.g. for 'glade') is missing.
     """
-    global CATALOG_FUNCTIONS  # Declare it as global so we can modify it
-
-    # Now that functions are available, update the global dictionary
-    CATALOG_FUNCTIONS.update({
-        "panstarrs": build_panstarrs_candidates,
-        "decals": build_decals_candidates,
-        "glade": build_glade_candidates,
-    })
-
-    if self.name not in CATALOG_FUNCTIONS:
+    if self.name not in self.catalog_functions:
         raise ValueError(f"Unknown catalog: {self.name}. Open a pull request to add functionality for other catalogs!")
 
+    catalog_func = self.catalog_functions[self.name]
     self.limiting_mag = DEFAULT_LIMITING_MAG.get(self.name, None)
-
-    # Fetch the function dynamically
-    catalog_func = CATALOG_FUNCTIONS[self.name]
 
     # Common parameters for all catalogs
     init_params = {
@@ -147,7 +615,6 @@ def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, cal
         "logger": logger,
         "calc_host_props": calc_host_props,
         "n_samples": self.n_samples,
-        "verbose": verbose,
         "cat_cols": cat_cols,
         "release": self.release
     }
@@ -167,26 +634,31 @@ def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, cal
     return catalog_func(**init_params)
 
 class GalaxyCatalog:
-    """Class for source catalog containing candidate transient host galaxies.
+    """Class for a catalog containing candidate transient host galaxies.
 
     Parameters
     ----------
     name : str
-        Name of the transient catalog. Currently 'glade', 'decals', and
-        'panstarrs' are supported.
-    data : Pandas DataFrame
-        Locally-saved GLADE catalog for redshifts at low-z.
+        Name of the transient catalog. Currently 'glade', 'decals', and 'panstarrs' are supported.
+    data : pandas.DataFrame or None
+        Locally-saved catalog data (e.g., GLADE) used for host association at low redshift.
     n_samples : int
-        Number of samples to draw in monte-carlo association.
+        Number of Monte Carlo samples to draw during the association process.
 
     Attributes
     ----------
-    name
-    data
-    n_samples
-    release
-    shred_cut
-
+    name : str
+        Identifier for the catalog. Current supported values are 'glade', 'decals', and 'panstarrs'.
+    data : pandas.DataFrame or None
+        The catalog data provided to the object. Used for catalogs that do not require an external query.
+    n_samples : int
+        The number of samples used for probabilistic host association calculations.
+    release : str or None
+        The version or data release of the catalog (e.g., 'dr1/dr2' for pan-starrs; 'dr9/dr100' for decals).
+        Can be None if not applicable.
+    shred_cut : bool
+        A flag indicating whether to automatically remove likely source shreds (duplicate detections)
+        from the candidate list. The default is determined by the catalog type (only pan-starrs is True).
     """
 
     def __init__(self, name, release=None, data=None, n_samples=1000):
@@ -194,9 +666,16 @@ class GalaxyCatalog:
         self.data = data
         self.n_samples = n_samples
         self.release = release
-        self.shred_cut = CATALOG_SHRED_SETTINGS[self.name]
+        self.shred_cut = CATALOG_SHRED_SETTINGS.get(self.name, False)
 
-    def get_candidates(self, transient, cosmo, logger, time_query=False, verbose=False, calc_host_props=['offset' ,'absmag', 'redshift'], cat_cols=False):
+        # Define catalog function mapping as an instance attribute
+        self.catalog_functions = {
+            "panstarrs": build_panstarrs_candidates,
+            "decals": build_decals_candidates,
+            "glade": build_glade_candidates,
+        }
+
+    def get_candidates(self, transient, cosmo, logger, time_query=False, calc_host_props=['offset' ,'absmag', 'redshift'], cat_cols=False):
         """Hydrates the catalog attribute catalog.galaxies with a list of candidates.
 
         Parameters
@@ -205,12 +684,12 @@ class GalaxyCatalog:
             Source to associate, of custom class Transient.
         cosmo : astropy cosmology
             Assumed cosmology for conversions (defaults to LambdaCDM if not set).
+        logger : logging.Logger
+            Logger instance for messages to console or output file.
         time_query : boolean
             If True, times the catalog query and stores the result in self.query_time.
-        verbose : int
-            Verbosity level; can be 0, 1, or 2.
         calc_host_props : list
-            The list of host properties to calculate (may or may not be required for association)
+            Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
         cat_cols : boolean
             If True, contatenates catalog columns to resulting DataFrame.
         """
@@ -232,7 +711,7 @@ class GalaxyCatalog:
         if time_query:
             start_time = time.time()
 
-        self.galaxies, self.cat_col_fields = fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, calc_host_props, verbose)
+        self.galaxies, self.cat_col_fields = fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, calc_host_props)
 
         if self.galaxies is None:
             self.ngals = 0
@@ -253,6 +732,8 @@ class Transient:
         Name of transient.
     position : astropy.coord SkyCoord object
         Position of transient.
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
     redshift : float
         Photometric or spectroscopic redshift of transient.
     spec_class : str
@@ -260,30 +741,39 @@ class Transient:
     phot_class : str
         Photometric class of transient, if available.
     n_samples : int
-        Number of iterations for monte-carlo association.
+        Number of iterations for Monte Carlo association.
 
     Attributes
     ----------
     best_host : int
-        Catalog index of highest-probability host galaxy.
+        Catalog index of host with the highest posterior probability of association.
+        Set to -1 if no valid host.
     second_best_host : int
-        Catalog index of second-highest-probability host galaxy.
-    redshift : type
-        Description of attribute `redshift`.
-    redshift_std : type
-        Description of attribute `redshift_std`.
+        Catalog index of host with the second highest posterior probability of association.
+    redshift : float
+        Redshift of the transient. This is either the spectroscopic/photometric
+        redshift or an inferred value from sampling from the prior.
+    redshift_std : float
+        Uncertainty in transient redshift.
     gen_z_samples : function
-        Draws samples from transient redshift for monte-carlo association run.
+        Generates samples for the transient's redshift from the measured redshift (if available)
+        or a user-specified prior distribution.
     priors : dict
-        Prior distributions on host fractional offset, absolute brightness, and redshift.
+        Prior distributions for host properties used in association.
+        Keys are a subset of 'offset', 'absmag', and 'redshift'.
     likes : dict
-        Likelihood distributions on host fractional offset, and absolute brightness.
-    name
-    position
-    redshift
-    spec_class
-    phot_class
-    n_samples
+        Likelihood functions for host properties used in association.
+        Keys are a subset of 'offset', 'absmag', and 'redshift'.
+    name : str
+        Name of the transient.
+    position : astropy.coordinates.SkyCoord
+        The transient's position.
+    spec_class : str
+        Spectroscopic classification of the transient, if available. Defaults to an empty string.
+    phot_class : str
+        Photometric classification of the transient, if available. Defaults to an empty string.
+    n_samples : int
+        Number of samples used for probabilistic association. Defaults to 1000.
 
     """
 
@@ -302,7 +792,7 @@ class Transient:
         if (redshift == redshift) and (redshift_std != redshift_std):
             redshift_std = SIGMA_REDSHIFT_FLOOR * self.redshift
             self.redshift_std = redshift_std
-            logger.info(f"Setting redshift uncertainty for {name} to floor of {redshift_std:.5f}.")
+            self.logger.info(f"Setting redshift uncertainty for {name} to floor of {redshift_std:.5f}.")
 
         self.priors = {}
         self.likes = {}
@@ -325,7 +815,7 @@ class Transient:
         Parameters
         ----------
         type : str
-            Type of prior to retrieve (can be redshift, offset, absmag).
+            Type of prior to retrieve (can be redshift, offset, or absmag).
 
         Returns
         -------
@@ -388,7 +878,7 @@ class Transient:
             self.gen_z_samples()
 
     def gen_z_samples(self, ret=False, n_samples=None):
-        """Generates transient redshift samples for monte-carlo association.
+        """Generates transient redshift samples for Monte Carlo association.
             If redshift is not measured, samples are drawn from the prior.
 
         Parameters
@@ -400,7 +890,7 @@ class Transient:
 
         Returns
         -------
-        samples : array-like
+        samples : np.ndarray
             If ret=True, redshift samples.
 
         """
@@ -433,7 +923,7 @@ class Transient:
 
         Parameters
         ----------
-        redshift_samples : array-like
+        redshift_samples : np.ndarray
             Array of transient redshift samples.
         reduce : str
             How to collapse the samples into a prior point-estimate.
@@ -441,7 +931,7 @@ class Transient:
 
         Returns
         -------
-        pdf : float or array-like
+        pdf : float or np.ndarray
             prior probability point estimate or samples.
 
         """
@@ -458,7 +948,7 @@ class Transient:
 
         Parameters
         ----------
-        fractional_offset_samples : array-like
+        fractional_offset_samples : np.ndarray
             Array of transient fractional offset samples.
         reduce : str
             How to collapse the samples into a prior point-estimate.
@@ -479,20 +969,20 @@ class Transient:
             return pdf
 
     def calc_prior_absmag(self, absmag_samples, reduce="mean"):
-        """Short summary.
+        """Computes the prior probability for host galaxy absolute magnitude.
 
         Parameters
         ----------
-        absmag_samples : type
-            Description of parameter `absmag_samples`.
+        absmag_samples : np.ndarray
+            2D array of (n_galaxies, n_samples).
         reduce : str
             How to collapse the samples into a prior point-estimate.
             Defaults to calculating the mean across samples.
 
         Returns
         -------
-        type
-            Description of returned object.
+        np.ndarray
+            The collapsed prior probability across samples for all galaxies.
 
         """
         pdf = self.get_prior("absmag").pdf(absmag_samples)
@@ -504,22 +994,22 @@ class Transient:
             return pdf
 
     def calc_like_redshift(self, redshift_mean, redshift_std, reduce="mean"):
-        """Short summary.
+        """Calculates the likelihood of a redshift with uncertainties.
 
         Parameters
         ----------
-        redshift_mean : type
-            Description of parameter `redshift_mean`.
-        redshift_std : type
-            Description of parameter `redshift_std`.
+        redshift_mean : np.ndarray
+            Redshift means for candidate hosts.
+        redshift_std : np.ndarray
+            Redshift stds for candidate hosts.
         reduce : str
             How to collapse the samples into a prior point-estimate.
             Defaults to calculating the mean across samples.
 
         Returns
         -------
-        type
-            Description of returned object.
+        np.ndarray
+            The collapsed likelihood probability across samples for all galaxies.
 
         """
         z_sn_samples = self.redshift_samples[np.newaxis, :]  # Shape: (n_sn_samples, 1)
@@ -539,20 +1029,20 @@ class Transient:
             return likelihoods
 
     def calc_like_offset(self, fractional_offset_samples, reduce="mean"):
-        """Short summary.
+        """Calculates the likelihoods of a set of fractional offsets.
 
         Parameters
         ----------
-        fractional_offset_samples : type
-            Description of parameter `fractional_offset_samples`.
+        fractional_offset_samples : np.ndarray
+            Array of (n_galaxies, n_samples) fractional offsets.
         reduce : str
             How to collapse the samples into a prior point-estimate.
             Defaults to calculating the mean across samples.
 
         Returns
         -------
-        type
-            Description of returned object.
+        np.ndarray
+            The collapsed likelihood probability across samples for all galaxies.
 
         """
         likelihoods = self.get_likelihood("offset").pdf(fractional_offset_samples)
@@ -564,20 +1054,20 @@ class Transient:
             return likelihoods
 
     def calc_like_absmag(self, absmag_samples, reduce="mean"):
-        """Short summary.
+        """Calculates the likelihoods of a set of absolute magnitudes.
 
         Parameters
         ----------
-        absmag_samples : type
-            Description of parameter `absmag_samples`.
+        fractional_offset_samples : np.ndarray
+            Array of (n_galaxies, n_samples) absmag values.
         reduce : str
             How to collapse the samples into a prior point-estimate.
             Defaults to calculating the mean across samples.
 
         Returns
         -------
-        type
-            Description of returned object.
+        np.ndarray
+            The collapsed likelihood probability across samples for all galaxies.
 
         """
         # assuming a typical 0.1 SN/century/10^10 Lsol (in K-band)
@@ -585,13 +1075,13 @@ class Transient:
         # https://www.aanda.org/articles/aa/pdf/2005/15/aa1411.pdf
         likelihoods = self.get_likelihood("absmag").pdf(absmag_samples)
         if reduce == "mean":
-            return np.nanmean(likelihoods, axis=1)  # Resulting shape: (n_galaxies,)
+            return np.nanmean(likelihoods, axis=1)
         elif reduce == "median":
             return np.nanmedian(likelihoods, axis=1)
         else:
             return likelihoods
 
-    def associate(self, galaxy_catalog, cosmo, logger, calc_host_props=['offset'], verbose=False):
+    def associate(self, galaxy_catalog, cosmo, calc_host_props=['offset']):
         """Runs the main transient association module.
 
         Parameters
@@ -600,8 +1090,6 @@ class Transient:
             The catalog populated with candidate hosts and their attributes.
         cosmo : astropy cosmology
             Assumed cosmology.
-        verbose : boolean
-            If True, prints detailed information about the association.
 
         Returns
         -------
@@ -668,19 +1156,21 @@ class Transient:
             post_offset = prior_offset * like_offset
             post_set.append(post_offset)
 
-        # Compute the posterior probabilities for all galaxies
-        post_gals_stacked = np.stack(post_set, axis=0)       # shape -> (n_properties, n_gals, n_samples)
-        post_gals = np.prod(post_gals_stacked, axis=0)          # shape -> (n_gals, n_samples)
+        # Compute the posterior probabilities for all galaxies, multiplying host properties
+        # shape -> (n_properties, n_gals, n_samples)
+        post_gals_stacked = np.stack(post_set, axis=0)
+        # shape -> (n_gals, n_samples)
+        post_gals = np.prod(post_gals_stacked, axis=0)
 
         # some very low value that the SN is actually hostless, across all samples.
         post_hostless = np.ones(n_samples)*PROB_FLOOR
 
         if self.redshift == self.redshift:
-            post_outside = self.probability_host_outside_cone(search_rad=search_rad, verbose=verbose, n_samples=n_samples, cosmo=cosmo, calc_host_props=calc_host_props)
+            post_outside = self.probability_host_outside_cone(search_rad=search_rad, n_samples=n_samples, cosmo=cosmo, calc_host_props=calc_host_props)
         else:
             post_outside = PROB_FLOOR
 
-        post_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, verbose=verbose, n_samples=n_samples, cosmo=cosmo, calc_host_props=calc_host_props)
+        post_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, n_samples=n_samples, cosmo=cosmo, calc_host_props=calc_host_props)
 
         # sum across all galaxies
         post_tot = np.nansum(post_gals, axis=0) + post_hostless + post_outside + post_unobs
@@ -711,9 +1201,8 @@ class Transient:
         self.missedcat_prob = np.nanmedian(post_unobs_norm)
 
         if self.any_prob > self.none_prob:
-            if verbose > 0:
-                logger.info("Association successful!")
-                logger.info("")
+            self.logger.info("Association successful!")
+            self.logger.info("")
             # get best and second-best matches
             self.best_host = top_idxs[0]
             if ngals > 1:
@@ -721,11 +1210,10 @@ class Transient:
         else:
             self.best_host = -1
             self.second_best_host = top_idxs[0]  # set best host as second-best -- best is no host
-            if verbose > 0:
-                if np.nanmedian(post_outside_norm) > np.nanmedian(post_unobs_norm):
-                    logger.info("Association failed. Host is likely outside search cone.\n")
-                else:
-                    logger.info("Association failed. Host is likely missing from the catalog.\n")
+            if np.nanmedian(post_outside_norm) > np.nanmedian(post_unobs_norm):
+                self.logger.info("Association failed. Host is likely outside search cone.\n")
+            else:
+                self.logger.info("Association failed. Host is likely missing from the catalog.\n")
 
         # consolidate across samples
         galaxy_catalog.galaxies["total_posterior"] = np.nanmedian(post_gals_norm, axis=1)
@@ -740,7 +1228,7 @@ class Transient:
 
         return galaxy_catalog
 
-    def probability_of_unobserved_host(self, search_rad, cosmo, limiting_mag=30, verbose=False, n_samples=1000, calc_host_props=['offset']):
+    def probability_of_unobserved_host(self, search_rad, cosmo, limiting_mag=30, n_samples=1000, calc_host_props=['offset']):
         """Calculates the posterior probability of the host being either dimmer than the
            limiting magnitude of the catalog or not in the catalog at all.
 
@@ -750,16 +1238,14 @@ class Transient:
             Cone search radius, in arcsec.
         limiting_mag : float
             Limiting magnitude of the survey, in AB mag.
-        verbose : boolean
-            If true, prints stats about association.
         n_samples : int
-            Number of samples for monte-carlo association.
+            Number of samples for Monte Carlo association.
         cosmo : astropy cosmology
             Assumed cosmology for the run.
 
         Returns
         -------
-        post_unobserved : array-like
+        post_unobserved : np.ndarray
             n_samples of posterior probabilities of the host not being in the catalog.
 
         """
@@ -793,11 +1279,13 @@ class Transient:
 
             # Perform integration using simps or trapz
             post_z = np.trapz(sorted_integrand, sorted_redshift_samples, axis=1)
-            post_z = post_z[:, np.newaxis]  # Shape: (n_galaxies, 1)
+            # Shape: (n_galaxies, 1)
+            post_z = post_z[:, np.newaxis]
         else:
             # Use the known supernova redshift
             redshift_mean = np.maximum(REDSHIFT_FLOOR, norm.rvs(loc=z_sn, scale=z_sn_std, size=(n_gals)))
-            redshift_std = SIGMA_REDSHIFT_FLOOR * redshift_mean  # assume all well-constrained redshifts
+            # assume all well-constrained redshifts
+            redshift_std = SIGMA_REDSHIFT_FLOOR * redshift_mean
             redshift_samples = np.maximum(
                 REDSHIFT_FLOOR,
                 norm.rvs(
@@ -845,9 +1333,10 @@ class Transient:
                 physical_offset_mean[:, np.newaxis], physical_offset_std[:, np.newaxis], size=(n_gals, n_samples)
             )
 
+            # Shape: (n_samples, n_samples)
             fractional_offset_samples = (
                 physical_offset_samples / galaxy_physical_radius_prior_samples
-            )  # Shape: (n_samples, n_samples)
+            )
 
             prior_offset_unobs = self.calc_prior_offset(fractional_offset_samples, reduce=None)
             l_offset_unobs = self.calc_like_offset(fractional_offset_samples, reduce=None)
@@ -856,13 +1345,16 @@ class Transient:
             post_set.append(post_offset)
 
         # Compute the posterior probabilities for all galaxies
-        prob_unobs_stacked = np.stack(post_set, axis=0)       # shape -> (n_properties, n_gals, n_samples)
-        post_unobs = np.prod(prob_unobs_stacked, axis=0)          # shape -> (n_gals, n_samples)
-        post_unobs = np.nanmean(post_unobs, axis=0)  # average over all galaxies -- keep n_samples
+        # shape -> (n_properties, n_gals, n_samples)
+        prob_unobs_stacked = np.stack(post_set, axis=0)
+        # shape -> (n_gals, n_samples)
+        post_unobs = np.prod(prob_unobs_stacked, axis=0)
+        # average over all galaxies -- keep n_samples
+        post_unobs = np.nanmean(post_unobs, axis=0)
 
         return post_unobs
 
-    def probability_host_outside_cone(self, cosmo, search_rad=60, verbose=False, n_samples=1000, calc_host_props=['offset']):
+    def probability_host_outside_cone(self, cosmo, search_rad=60, n_samples=1000, calc_host_props=['offset']):
         """Calculates the posterior probability of the host being outside the cone search chosen
            for the catalog query. Primarily set by the fractional offset and redshift prior.
 
@@ -870,16 +1362,14 @@ class Transient:
         ----------
         search_rad : float
             Cone search radius, in arcsec.
-        verbose : boolean
-            If True, prints stats about the probability calculation.
         n_samples : int
-            Number of samples to draw for monte-carlo association.
+            Number of samples to draw for Monte Carlo association.
         cosmo : astropy cosmology
             Assumed cosmology.
 
         Returns
         -------
-        post_outside : array-like
+        post_outside : np.ndarray
             An array of n_samples posterior probabilities of the host being outside the search cone.
 
         """
@@ -976,15 +1466,17 @@ class Transient:
             post_set.append(post_absmag)
 
         # Compute the posterior probabilities for all galaxies
-        prob_outside_stacked = np.stack(post_set, axis=0)       # shape -> (n_properties, n_gals, n_samples)
-        post_outside = np.prod(prob_outside_stacked, axis=0)          # shape -> (n_gals, n_samples)
+         # shape -> (n_properties, n_gals, n_samples)
+        prob_outside_stacked = np.stack(post_set, axis=0)
+        # shape -> (n_gals, n_samples)
+        post_outside = np.prod(prob_outside_stacked, axis=0)
 
         # average over all simulated galaxies -- keep the samples
         post_outside = np.nanmean(post_outside, axis=0)
 
         return post_outside
 
-class PriorzObservedTransients(st.rv_continuous):
+class PriorzObservedTransients(rv_continuous):
     """A continuous probability distribution for a redshift prior defined by
        an observed sample of transients with a given limiting magnitude, volumetric rate,
        and brightness distribution.
@@ -1063,23 +1555,35 @@ class PriorzObservedTransients(st.rv_continuous):
         self._generate_distribution()
 
     def _generate_distribution(self):
-        """Short summary.
+        """Generate and store the empirical redshift distribution for the prior.
+
+        This method:
+          - Creates redshift bins between self.z_min and self.z_max.
+          - Computes the comoving volume element (dV/dz) for each bin using self.cosmo.
+          - Estimates the number of supernovae per bin based on the transient rate (self.r_transient) and survey solid angle.
+          - Samples redshifts uniformly within each bin according to the estimated counts.
+          - Calculates luminosity distances for the sampled redshifts.
+          - Samples and clips absolute magnitudes, then computes apparent magnitudes.
+          - Filters the sample to include only supernovae with apparent magnitudes ≤ self.mag_cutoff.
+          - Fits a Gaussian KDE to the resulting observed redshifts, storing the KDE in self.bestFit and the observed redshifts in self.observed_redshifts.
 
         Returns
         -------
-        type
-            Description of returned object.
-
+        None
+            The distribution is stored internally.
         """
         # Create redshift bins
         z_bins = np.linspace(self.z_min, self.z_max, self.n_bins + 1)
-        z_centers = (z_bins[:-1] + z_bins[1:])/2  # Centers of redshift bins
+        # Centers of redshift bins
+        z_centers = (z_bins[:-1] + z_bins[1:])/2
 
         # Calculate the comoving volume element dV/dz for each redshift bin
-        dv_dz = self.cosmo.differential_comoving_volume(z_centers).value  # in Mpc^3 per steradian per dz
+        # in Mpc^3 per steradian per dz
+        dv_dz = self.cosmo.differential_comoving_volume(z_centers).value
 
         # Full sky solid angle (4 pi steradians)
-        solid_angle = 4 * np.pi  # full sky in steradians
+        # full sky in steradians
+        solid_angle = 4 * np.pi
 
         # Supernovae per redshift bin (for full sky)
         supernovae_per_bin = (self.r_transient * dv_dz * solid_angle * np.diff(z_bins)).astype(int)
@@ -1108,7 +1612,7 @@ class PriorzObservedTransients(st.rv_continuous):
         self.observed_redshifts = z_scattered[observed_indices]
 
         # Calculate the best fit KDE for observed redshifts
-        self.bestFit = st.gaussian_kde(self.observed_redshifts)
+        self.bestFit = gaussian_kde(self.observed_redshifts)
 
     def pdf(self, z):
         """
@@ -1117,7 +1621,7 @@ class PriorzObservedTransients(st.rv_continuous):
 
         Parameters
         ----------
-        z : array-like
+        z : np.ndarray
             List of input redshifts.
 
         Returns
@@ -1142,7 +1646,7 @@ class PriorzObservedTransients(st.rv_continuous):
 
         Returns
         -------
-        samples : array-like
+        samples : np.ndarray
             The redshift samples from the distribution.
 
         """
@@ -1175,7 +1679,7 @@ class PriorzObservedTransients(st.rv_continuous):
         plt.show()
 
 
-class SnRateAbsmag(st.rv_continuous):
+class SnRateAbsmag(rv_continuous):
     """A host-galaxy absolute magnitude likelihood distribution,
        where supernova rate scales as ~0.1*L_host in units of 10^10 Lsol.
        Based on Li, Chornock et al. 2011.
@@ -1224,12 +1728,12 @@ class SnRateAbsmag(st.rv_continuous):
 
         Parameters
         ----------
-        abs_mag_samples : array-like
+        abs_mag_samples : np.ndarray
             Array of galaxy absolute magnitudes.
 
         Returns
         -------
-        snrate : array-like
+        snrate : np.ndarray
             Supernovae rate for corresponding galaxies.
 
         """
@@ -1244,12 +1748,12 @@ class SnRateAbsmag(st.rv_continuous):
 
         Parameters
         ----------
-        m_abs_samples : array-like
+        m_abs_samples : np.ndarray
             Absolute magnitudes of galaxies.
 
         Returns
         -------
-        normalized_pdf : array-like
+        normalized_pdf : np.ndarray
             Normalized PDF values for m_abs_samples.
 
         """
@@ -1287,7 +1791,7 @@ def panstarrs_cone(
         The pan-starrs data release. Can be "dr1" or "dr2".
     format : str
         The format for the retrieved data.
-    columns : array-like
+    columns : np.ndarray
         A list of columns to retrieve from 'table'.
     baseurl : str
         The api endpoint to query.
@@ -1323,7 +1827,7 @@ def panstarrs_search(
     verbose=False,
     **kw,
 ):
-    """Short summary.
+    """Queries the Pan-STARRS catalog API.
 
     Parameters
     ----------
@@ -1335,7 +1839,7 @@ def panstarrs_search(
         The pan-starrs data release. Can be "dr1" or "dr2".
     format : str
         The format for the retrieved data.
-    columns : array-like
+    columns : np.ndarray
         A list of columns to retrieve from 'table'.
     baseurl : str
         The api endpoint to query.
@@ -1368,9 +1872,6 @@ def panstarrs_search(
 
     r = requests.get(url, params=data)
 
-    if verbose > 2:
-        logger.info(r.url)
-
     r.raise_for_status()
 
     if format == "json":
@@ -1387,7 +1888,6 @@ def build_glade_candidates(
     logger,
     search_rad=None,
     n_samples=1000,
-    verbose=False,
     cat_cols=False,
     calc_host_props=['redshift', 'absmag', 'offset'],
     shred_cut=False,
@@ -1404,29 +1904,27 @@ def build_glade_candidates(
         Name of transient to associate.
     transient_pos : astropy.coord SkyCoord
         Position of transient to associate.
-    glade_catalog : Pandas DataFrame
+    glade_catalog : pandas.DataFrame
         The locally-packaged GLADE catalog (to avoid querying).
-    search_rad : astropy Angle
+    search_rad : astropy.units.Angle
         Radius for cone search.
-    cosmo : astropy cosmology
+    cosmo : astropy.cosmology
         Assumed cosmology for conversions.
     n_samples : int
-        Number of samples for monte-carlo association.
-    verbose : int
-        Level of logging verbosity; can be 0, 1, or 2.
+        Number of samples for Monte Carlo association.
     cat_cols : boolean
         If True, concatenates catalog fields for best host to final catalog.
     shred_cut : boolean
         If True, removes likely source shreds associated with the same candidate galaxy.
     calc_host_props : list
-        List of host properties to calculate (whether used for association or not)
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
     Returns
     -------
     galaxies : structured numpy array
         Array of properties for candidate sources needed
         for host association.
 
-    cat_col_fields : str
+    cat_col_fields : list
         List of columns retrieved from the galaxy catalog
         (rather than calculated internally).
 
@@ -1461,57 +1959,29 @@ def build_glade_candidates(
 
     # define plceholder IDs for GLADE
     candidate_hosts = candidate_hosts.assign(objID=candidate_hosts.index)
+
     if len(candidate_hosts) < 1:
         return None, []
 
-    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "GLADE+", release, logger, verbose)
+    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "GLADE+", release, logger)
+
     if galaxies is None:
         return None, []
-    n_galaxies = len(galaxies)
 
+    n_galaxies = len(galaxies)
 
     galaxies['objID_info'] = ['tbl index']*n_galaxies
 
     if 'offset' in calc_host_props:
-        temp_pa = candidate_hosts["PAHyp"].values
-        temp_pa[temp_pa != temp_pa] = 0  # assume no position angle for unmeasured gals
-
-        # (n) HyperLEDA decimal logarithm of the length of the projected major axis
-        # of a galaxy at the isophotal level 25mag/arcsec2 in the B-band,
-        # to semi-major half-axis (half-light radius) in arcsec
-        temp_sizes = 0.5 * 3 * 10 ** (candidate_hosts["logd25Hyp"].values)
-
-        temp_sizes = np.maximum(SIZE_FLOOR, temp_sizes)
-
-        temp_sizes_std = np.minimum(
-            temp_sizes, np.abs(temp_sizes) * np.log(10) * candidate_hosts["e_logd25Hyp"].values
-        )
-
-        temp_sizes_std[temp_sizes_std != temp_sizes_std] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std != temp_sizes_std]
-        temp_sizes_std[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std < SIGMA_SIZE_FLOOR * temp_sizes]
-
-        galaxy_a_over_b = 10 ** (candidate_hosts["logr25Hyp"].values)
-        galaxy_a_over_b_std = galaxy_a_over_b * np.log(10) * candidate_hosts["e_logr25Hyp"].values
-
-        # set uncertainty floor
-        nanbool = galaxy_a_over_b_std != galaxy_a_over_b_std
-        galaxy_a_over_b_std[nanbool] = SIGMA_SIZE_FLOOR * galaxy_a_over_b[nanbool]
-
-        temp_pa = candidate_hosts["PAHyp"].values
-
-        # assume no position angle for unmeasured gals (round is a decent assumption for the most distant ones)
-        temp_pa[temp_pa != temp_pa] = SHAPE_FLOOR
-
-        phi = np.radians(temp_pa)
-        phi_std = SIGMA_SIZE_FLOOR * phi  # uncertainty floor
+        temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_glade(candidate_hosts)
 
         dlr_samples = calc_dlr(
             transient_pos,
             galaxies_pos,
             temp_sizes,
             temp_sizes_std,
-            galaxy_a_over_b,
-            galaxy_a_over_b_std,
+            a_over_b,
+            a_over_b_std,
             phi,
             phi_std,
             n_samples=n_samples,
@@ -1541,12 +2011,12 @@ def build_glade_candidates(
         galaxies["redshift_std"] = candidate_hosts["redshift_std"].values
         galaxies['redshift_info'] = ['photo-z']
 
-        # TODO find spec-z info for GLADE
+        # TODO find spec-z info for GLADE -- for now, just assume all with <10% error are spec-zs.
         good_specz = galaxies["redshift_std"]/(1+galaxies["redshift_mean"]) < 0.1
         galaxies['redshift_info'][good_specz] = ['spec-z']*len(good_specz)
 
-        redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set redshift floor
-        #redshift_samples[redshift_samples != redshift_samples] = REDSHIFT_FLOOR # set redshift floor
+        # set redshift floor
+        redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR
 
         for i in range(n_galaxies):
             galaxies["redshift_samples"][i] = redshift_samples[i, :]
@@ -1574,7 +2044,6 @@ def build_glade_candidates(
         for i in range(n_galaxies):
             galaxies["absmag_samples"][i] = absmag_samples[i, :]
 
-
     return galaxies, cat_col_fields
 
 
@@ -1584,7 +2053,6 @@ def build_decals_candidates(transient_name,
                             logger,
                             search_rad=None,
                             n_samples=1000,
-                            verbose=False,
                             calc_host_props=['redshift', 'absmag', 'offset'],
                             cat_cols=False,
                             shred_cut=False,
@@ -1598,18 +2066,16 @@ def build_decals_candidates(transient_name,
         Name of transient to associate.
     transient_pos : astropy.coord SkyCoord
         Position of transient to associate.
-    glade_catalog : Pandas DataFrame
+    glade_catalog : pandas.DataFrame
         The locally-packaged GLADE catalog (to avoid querying).
     search_rad : astropy Angle
         Radius for cone search.
     cosmo : astropy cosmology
         Assumed cosmology for conversions.
     n_samples : int
-        Number of samples for monte-carlo association.
-    verbose : int
-        Level of logging verbosity; can be 0, 1, or 2.
+        Number of samples for Monte Carlo association.
     calc_host_props : list
-        TODO fill in here!
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
     cat_cols : boolean
         If True, concatenates catalog fields for best host to final catalog.
     shred_cut : boolean
@@ -1623,135 +2089,32 @@ def build_decals_candidates(transient_name,
         Array of properties for candidate sources needed
         for host association.
 
-    cat_col_fields : str
+    cat_col_fields : list
         List of columns retrieved from the galaxy catalog
         (rather than calculated internally).
 
     """
-    if release not in ["dr9", "dr10"]:
-        raise ValueError(f"Invalid DECaLS version '{release}'. Please choose 'dr9' or 'dr10'.")
-    elif shred_cut:
+    if shred_cut:
         logger.warning("shred_cut is not implemented for decals galaxies at this time. Running with shred_cut = False.")
 
-    if search_rad is None:
-        search_rad = Angle(60 * u.arcsec)
+    candidate_hosts = fetch_decals_sources(transient_pos, search_rad, cat_cols, calc_host_props, release)
 
-    rad_deg = search_rad.deg
-
-    result = qC.query(
-        sql=f"""SELECT
-        t.ls_id,
-        t.shape_r,
-        t.shape_r_ivar,
-        t.shape_e1,
-        t.shape_e1_ivar,
-        t.shape_e2,
-        t.shape_e2_ivar,
-        t.ra,
-        t.type,
-        t.dec,
-        t.dered_mag_r,
-        t.mag_r,
-        t.flux_r,
-        t.flux_ivar_r,
-        t.nobs_g,
-        t.nobs_r,
-        t.nobs_z,
-        t.fitbits,
-        t.ra_ivar,
-        t.dec_ivar,
-        t.dered_flux_r,
-        pz.z_phot_mean,
-        pz.z_phot_median,
-        pz.z_phot_std,
-        pz.z_spec
-    FROM
-        ls_{release}.tractor t
-    INNER JOIN
-        ls_{release}.photo_z pz
-    ON
-        t.ls_id= pz.ls_id
-    WHERE
-        q3c_radial_query(t.ra, t.dec, {transient_pos.ra.deg:.5f}, {transient_pos.dec.deg:.5f}, {rad_deg})
-    AND (t.nobs_r > 0) AND (t.dered_flux_r > 0) AND (t.snr_r > 0)
-    AND nullif(t.dered_mag_r, 'NaN') is not null AND (t.fitbits != 8192)
-    AND ((pz.z_spec > 0) OR (pz.z_phot_mean > 0))"""
-    )
-
-    candidate_hosts = pd.read_csv(StringIO(result))
-    candidate_hosts.rename(columns={'ls_id':'objID'}, inplace=True)
-    if len(candidate_hosts) < 1:
+    if candidate_hosts is None:
         return None, []
 
     galaxies_pos = SkyCoord(candidate_hosts["ra"].values * u.deg, candidate_hosts["dec"].values * u.deg)
 
-    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "decals", release, logger, verbose)
+    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "decals", release, logger)
+
     if galaxies is None:
         return None, []
+
     n_galaxies = len(galaxies)
 
     galaxies["objID_info"] = [f'decals {release}']*n_galaxies
 
     if 'offset' in calc_host_props:
-        temp_sizes = candidate_hosts["shape_r"].values
-        temp_sizes[temp_sizes < SIZE_FLOOR] = SIZE_FLOOR
-        temp_sizes_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_sizes)**2, candidate_hosts["shape_r_ivar"].values)
-        temp_sizes_std = np.sqrt(1 / temp_sizes_ivar)
-
-        temp_e1 = candidate_hosts["shape_e1"].astype(float).values
-        temp_e1_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_e1)**2, candidate_hosts["shape_e1_ivar"].astype(float).values)
-
-        temp_e2 = candidate_hosts["shape_e2"].astype(float).values
-        temp_e2_ivar = np.maximum(1/(SIGMA_SIZE_FLOOR*temp_e2)**2, candidate_hosts["shape_e2_ivar"].astype(float).values)
-
-        temp_e1_std = np.sqrt(1.0 / temp_e1_ivar)
-        temp_e2_std = np.sqrt(1.0 / temp_e2_ivar)
-
-        mask_e1_floor = (temp_e1_std < SIGMA_SIZE_FLOOR * np.abs(temp_e1))
-        temp_e1_std[mask_e1_floor] = SIGMA_SIZE_FLOOR * np.abs(temp_e1[mask_e1_floor])
-
-        mask_e2_floor = (temp_e2_std < SIGMA_SIZE_FLOOR * np.abs(temp_e2))
-        temp_e2_std[mask_e2_floor] = SIGMA_SIZE_FLOOR * np.abs(temp_e2[mask_e2_floor])
-
-        # 3) Also clamp to a hard floor so that no std is < SHAPE_FLOOR
-        temp_e1_std = np.maximum(temp_e1_std, SHAPE_FLOOR)
-        temp_e2_std = np.maximum(temp_e2_std, SHAPE_FLOOR)
-
-        # Calculate ellipticity and axis ratio for all samples
-        e = np.sqrt(temp_e1**2 + temp_e2**2)
-        e = np.maximum(e, SHAPE_FLOOR)
-
-        a_over_b = (1 + e) / (1 - e)
-
-        # Compute uncertainty in e (sigma_e)
-        e_std = (1 / e) * np.sqrt(temp_e1**2 * temp_e1_std**2 + temp_e2**2 * temp_e2_std**2)
-
-        # Compute uncertainty in a_over_b (sigma_a_over_b)
-        a_over_b_std = (2 / (1 - e) ** 2) * e_std
-
-        # Position angle and angle calculations for all samples
-        phi = -np.arctan2(temp_e2, temp_e1) / 2
-
-        # now propagate uncertainty from the shape params -- this is a bit messy because
-        # it requires partial derivatives d/de1 and d/de2 of arctan2, but let's try:
-        # d/de2(arctan2) = e1/(e1^2 + e2^2)
-        # d/de1(arctan2) = -e2/(e1^2 + e2^2)
-
-        # so d/de2(-arctan2/2)= -e1/2*(e1^2 + e2^2)
-        # so d/de1(-arctan2/2)= e2/2*(e1^2 + e2^2)
-
-        denom = temp_e1**2 + temp_e2**2
-        denom = np.maximum(denom, SHAPE_FLOOR)
-
-        partial_phi_e2 = -temp_e1 / (2.0 * denom)   # d(phi)/d(e2)
-        partial_phi_e1 =  temp_e2 / (2.0 * denom)   # d(phi)/d(e1)
-
-        # Now propagate uncertainties from e1 and e2
-        phi_std = np.sqrt((partial_phi_e1**2) * (temp_e1_std**2) + (partial_phi_e2**2) * (temp_e2_std**2))
-
-        # First clamp phi_std to be at least SIGMA_SIZE_FLOOR * |phi|
-        phi_std = np.maximum(phi_std, SIGMA_SIZE_FLOOR * np.abs(phi))
-        phi_std = np.maximum(phi_std, SHAPE_FLOOR)
+        temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_decals(candidate_hosts)
 
         dlr_samples = calc_dlr(
             transient_pos, galaxies_pos, temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
@@ -1761,11 +2124,11 @@ def build_decals_candidates(transient_name,
         galaxies["offset_mean"] = (
             SkyCoord(galaxies["ra"] * u.deg, galaxies["dec"] * u.deg).separation(transient_pos).arcsec
         )
-        galaxies['offset_std'] = PROB_FLOOR # TODO
+        galaxies['offset_std'] = OFFSET_FLOOR # TODO
 
         for i in range(n_galaxies):
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
-            #galaxies["offset_samples"][i] = offset_samples[i, :] #TODO
+            #galaxies["offset_samples"][i] = offset_samples[i, :] #TODO -- incorporate positional uncertainty
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         galaxy_photoz_mean = candidate_hosts["z_phot_mean"].values
@@ -1786,12 +2149,13 @@ def build_decals_candidates(transient_name,
         )  # ceiling of 50%
 
         redshift_samples = norm.rvs(
-            galaxies["redshift_mean"][:, np.newaxis],  # Shape (N, 1) to allow broadcasting
-            galaxies["redshift_std"][:, np.newaxis],  # Shape (N, 1)
-            size=(n_galaxies, n_samples),  # Shape (N, M)
+            galaxies["redshift_mean"][:, np.newaxis],
+            galaxies["redshift_std"][:, np.newaxis],
+            size=(n_galaxies, n_samples),
         )
-        redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
-        #redshift_samples[redshift_samples != redshift_samples] = REDSHIFT_FLOOR  # set photometric redshift floor
+
+        # set photometric redshift floor
+        redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR
 
         for i in range(n_galaxies):
             galaxies["redshift_samples"][i] = redshift_samples[i, :]
@@ -1802,12 +2166,13 @@ def build_decals_candidates(transient_name,
         temp_mag_r_std = np.abs(
             2.5
             / np.log(10)
-            * np.sqrt(1 / np.maximum(0, candidate_hosts["flux_ivar_r"].values))
+            * np.sqrt(1 / np.maximum(PROB_FLOOR, candidate_hosts["flux_ivar_r"].values))
             / candidate_hosts["flux_r"].values
         )
 
         # cap at 50% the mag
         temp_mag_r_std[temp_mag_r_std > (SIGMA_ABSMAG_CEIL * temp_mag_r)] = SIGMA_ABSMAG_CEIL * temp_mag_r[temp_mag_r_std > (SIGMA_ABSMAG_CEIL * temp_mag_r)]
+
         # set a floor of 5%
         temp_mag_r_std[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)] = SIGMA_ABSMAG_FLOOR * temp_mag_r[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)]
 
@@ -1838,7 +2203,6 @@ def build_panstarrs_candidates(
     glade_catalog=None,
     search_rad=None,
     n_samples=1000,
-    verbose=False,
     calc_host_props=['redshift', 'absmag', 'offset'],
     cat_cols=False,
     release='dr2',
@@ -1853,16 +2217,18 @@ def build_panstarrs_candidates(
         Name of transient to associate.
     transient_pos : astropy.coord SkyCoord
         Position of transient to associate.
-    search_rad : astropy Angle
-        Radius for cone search.
     cosmo : astropy cosmology
         Assumed cosmology for conversions.
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
+    search_rad : astropy Angle
+        Radius for cone search.
     n_samples : int
-        Number of samples for monte-carlo association.
-    glade_catalog : Pandas DataFrame
+        Number of samples for Monte Carlo association.
+    glade_catalog : pandas.DataFrame
         The locally-packaged GLADE catalog (to avoid querying).
-    verbose : int
-        Level of logging verbosity; can be 0, 1, or 2.
+    calc_host_props : list
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
     cat_cols : boolean
         If True, concatenates catalog fields for best host to final catalog.
     shred_cut : boolean
@@ -1874,196 +2240,26 @@ def build_panstarrs_candidates(
         Array of properties for candidate sources needed
         for host association.
 
-    cat_col_fields : str
+    cat_col_fields : list
         List of columns retrieved from the galaxy catalog
         (rather than calculated internally).
 
     """
 
-    if release not in ["dr1", "dr2"]:
-        raise ValueError(f"Invalid Pan-STARRS version '{release}'. Please choose 'dr1' or 'dr2'.")
-    elif (release == 'dr1') and (('redshift' in calc_host_props) or ('absmag' in calc_host_props)):
-        raise ValueError("Redshift estimation with Pan-STARRS data can only be done with release 'dr2'.")
-    elif shred_cut:
+    if shred_cut:
         logger.info("Running with shred_cut = True...")
 
-    # load table metadata to avoid a query
-    pkg_data_file = pkg_resources.files('astro_prost') / 'data' / 'panstarrs_metadata.pkl'
+    candidate_hosts = fetch_panstarrs_sources(transient_pos, search_rad, cat_cols, calc_host_props, release)
 
-    with pkg_resources.as_file(pkg_data_file) as metadata_path:
-        with open(metadata_path, 'rb') as f:
-            metadata = pickle.load(f)
-
-    if search_rad is None:
-        search_rad = Angle(60 * u.arcsec)
-
-    rad_deg = search_rad.deg
-
-    if not cat_cols:
-        source_cols = [
-            "objID",
-            "raMean",
-            "decMean",
-            "gmomentXX",
-            "rmomentXX",
-            "imomentXX",
-            "zmomentXX",
-            "ymomentXX",
-            "gmomentYY",
-            "rmomentYY",
-            "imomentYY",
-            "zmomentYY",
-            "ymomentYY",
-            "gmomentXY",
-            "rmomentXY",
-            "imomentXY",
-            "zmomentXY",
-            "ymomentXY",
-            "nDetections",
-            "primaryDetection",
-            "gKronRad",
-            "rKronRad",
-            "iKronRad",
-            "zKronRad",
-            "yKronRad",
-            "gKronMag",
-            "rKronMag",
-            "iKronMag",
-            "zKronMag",
-            "yKronMag",
-            "gKronMagErr",
-            "rKronMagErr",
-            "iKronMagErr",
-            "zKronMagErr",
-            "yKronMagErr",
-        ]
-
-        result = panstarrs_cone(metadata, transient_pos.ra.deg, transient_pos.dec.deg, rad_deg, columns=source_cols,
-        release=release)
-    else:
-        result = panstarrs_cone(metadata, transient_pos.ra.deg, transient_pos.dec.deg, rad_deg, release=release)
-
-    if (not result) and (verbose > 1):
-        logging.warning(f"Found no pan-starrs {release} sources near {transient_name}.")
+    if candidate_hosts is None:
         return None, []
 
-    candidate_hosts = pd.read_csv(StringIO(result))
-    if len(candidate_hosts) < 1:
-        return None, []
-
-    if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
-        candidate_hosts = candidate_hosts.set_index("objID")
-        #columns needed for photometric redshift inference
-        photoz_cols = [
-            "objID",
-            "raMean",
-            "decMean",
-            "gFKronFlux",
-            "rFKronFlux",
-            "iFKronFlux",
-            "zFKronFlux",
-            "yFKronFlux",
-            "gFPSFFlux",
-            "rFPSFFlux",
-            "iFPSFFlux",
-            "zFPSFFlux",
-            "yFPSFFlux",
-            "gFApFlux",
-            "rFApFlux",
-            "iFApFlux",
-            "zFApFlux",
-            "yFApFlux",
-            "gFmeanflxR5",
-            "rFmeanflxR5",
-            "iFmeanflxR5",
-            "zFmeanflxR5",
-            "yFmeanflxR5",
-            "gFmeanflxR6",
-            "rFmeanflxR6",
-            "iFmeanflxR6",
-            "zFmeanflxR6",
-            "yFmeanflxR6",
-            "gFmeanflxR7",
-            "rFmeanflxR7",
-            "iFmeanflxR7",
-            "zFmeanflxR7",
-            "yFmeanflxR7",
-        ]
-
-        result_photoz = panstarrs_cone(
-            metadata,
-            transient_pos.ra.deg,
-            transient_pos.dec.deg,
-            rad_deg,
-            columns=photoz_cols,
-            table="forced_mean",
-            release=release,
-        )
-
-        candidate_hosts_pzcols = pd.read_csv(StringIO(result_photoz))
-
-        candidate_hosts_pzcols = candidate_hosts_pzcols.set_index("objID")
-        candidate_hosts = (
-            candidate_hosts.join(candidate_hosts_pzcols, lsuffix="_DROP")
-            .filter(regex="^(?!.*DROP)")
-            .reset_index()
-        )
-
-    candidate_hosts.replace(DUMMY_FILL_VAL, np.nan, inplace=True)
-    #candidate_hosts.sort_values(by=["distance"], inplace=True)
-    candidate_hosts.reset_index(inplace=True, drop=True)
-
-    for prop in ['momentXX', 'momentYY', 'momentXY', 'KronRad', 'KronMag', 'KronMagErr']:
-        prop_list = [f"{flt}{prop}" for flt in 'grizy']
-        candidate_hosts[prop] = candidate_hosts[prop_list].median(axis=1)
-
-    # some VERY basic filtering to say that it's confidently detected
-    candidate_hosts = candidate_hosts[candidate_hosts["nDetections"] > 2]
-    candidate_hosts = candidate_hosts[candidate_hosts["primaryDetection"] == 1]
-
-    drop_cols = ['raMean', 'decMean']
-    if 'absmag' in calc_host_props:
-        drop_cols.append('KronMag')
     if 'offset' in calc_host_props:
-        drop_cols.append('KronRad')
-
-    candidate_hosts.dropna(subset=drop_cols, inplace=True)
-    candidate_hosts.rename(columns={'raMean':'ra', 'decMean':'dec'}, inplace=True)
-    candidate_hosts.reset_index(drop=True, inplace=True)
-
-    if 'offset' in calc_host_props:
-        temp_sizes = candidate_hosts["KronRad"].values
-
-        # assume some fiducial shape floor
-        temp_sizes_std = SIGMA_SIZE_FLOOR * candidate_hosts["KronRad"].values
-        temp_sizes_std = np.maximum(temp_sizes_std, SHAPE_FLOOR)  # Prevent division by zero
-
-        # temp_sizes_std[temp_sizes_std != temp_sizes_std] = 0.05*temp_sizes[temp_sizes_std != temp_sizes_std]
-        temp_sizes_std[temp_sizes_std < (SIGMA_SIZE_FLOOR * temp_sizes)] = SIGMA_SIZE_FLOOR* temp_sizes[temp_sizes_std <  (SIGMA_SIZE_FLOOR * temp_sizes)]
-
-        gal_u = candidate_hosts["momentXY"].values
-        gal_q = candidate_hosts["momentXX"].values - candidate_hosts["momentYY"].values
-
-        phi = 0.5 * np.arctan2(gal_u, gal_q)
-        phi_std = 0.05 * np.abs(phi)
-        phi_std = np.maximum(SHAPE_FLOOR, phi_std)
-        kappa = gal_q**2 + gal_u**2
-        kappa = np.minimum(kappa, 0.99)
-        a_over_b = (1 + kappa + 2 * np.sqrt(kappa)) / (1 - kappa)
-        a_over_b = np.clip(a_over_b, 0.1, 10)
-        a_over_b_std = SIGMA_SIZE_FLOOR * np.abs(a_over_b)  # uncertainty floor
+        temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_panstarrs(candidate_hosts)
 
         galaxies_pos = SkyCoord(
             candidate_hosts["ra"].values * u.deg, candidate_hosts["dec"].values * u.deg
         )
-
-        temp_mag_r = candidate_hosts["KronMag"].values
-        temp_mag_r_std = candidate_hosts["KronMagErr"].values
-
-        # cap at 50% the mag
-        # set a floor of 5%
-        temp_mag_r_std[temp_mag_r_std > (SIGMA_ABSMAG_CEIL*temp_mag_r)] = SIGMA_ABSMAG_CEIL * temp_mag_r[temp_mag_r_std > (SIGMA_ABSMAG_CEIL*temp_mag_r)]
-        temp_mag_r_std[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)] = SIGMA_ABSMAG_FLOOR * temp_mag_r[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)]
 
         dlr_samples = calc_dlr(
             transient_pos,
@@ -2077,10 +2273,17 @@ def build_panstarrs_candidates(
             n_samples=n_samples,
         )
 
+    temp_mag_r = candidate_hosts["KronMag"].values
+    temp_mag_r_std = candidate_hosts["KronMagErr"].values
+
+    # cap at 50% the mag
+    # set a floor of 5%
+    temp_mag_r_std[temp_mag_r_std > (SIGMA_ABSMAG_CEIL*temp_mag_r)] = SIGMA_ABSMAG_CEIL * temp_mag_r[temp_mag_r_std > (SIGMA_ABSMAG_CEIL*temp_mag_r)]
+    temp_mag_r_std[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)] = SIGMA_ABSMAG_FLOOR * temp_mag_r[temp_mag_r_std < (SIGMA_ABSMAG_FLOOR * temp_mag_r)]
+
     # shred logic
     if (shred_cut) and (len(candidate_hosts) > 1):
-        if verbose > 0:
-            logger.info(f"Removing panstarrs {release} shreds.")
+        logger.info(f"Removing panstarrs {release} shreds.")
         shred_idxs = find_panstarrs_shreds(
             candidate_hosts["objID"].values,
             galaxies_pos,
@@ -2092,7 +2295,6 @@ def build_panstarrs_candidates(
             phi_std,
             temp_mag_r,
             logger,
-            verbose=verbose,
         )
 
         if len(shred_idxs) > 0:
@@ -2103,13 +2305,11 @@ def build_panstarrs_candidates(
             galaxies_pos = galaxies_pos[left_idxs]
             dlr_samples = dlr_samples[left_idxs]
 
-            if verbose > 0:
-                logger.info(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
+            logger.info(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
         else:
-            if verbose > 0:
-                logger.info("No panstarrs shreds found.")
+            logger.info("No panstarrs shreds found.")
 
-    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "panstarrs", release, logger, verbose)
+    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "panstarrs", release, logger)
     if galaxies is None:
         return None, []
     n_galaxies = len(galaxies)
@@ -2124,12 +2324,12 @@ def build_panstarrs_candidates(
         pkg_data_file = pkg / "data" / "MLP_lupton.hdf5"
 
         with pkg_resources.as_file(pkg_data_file) as model_path:
-            model, range_z = load_lupton_model(model_path=model_path, dust_path=default_dust_path)
+            model, range_z = load_lupton_model(logger=logger, model_path=model_path, dust_path=default_dust_path)
 
         x = preprocess(candidate_hosts, path=os.path.join(default_dust_path, "sfddata-master"))
         posteriors, point_estimates, errors = evaluate(x, model, range_z)
         point_estimates[point_estimates < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
-        #point_estimates[point_estimates != point_estimates] = 0.001  # set photometric redshift floor
+        #point_estimates[point_estimates != point_estimates] = REDSHIFT_FLOOR  # set photometric redshift floor
 
         # inflated sigma floor for this particular photoz model
         err_bool = errors < (5*SIGMA_REDSHIFT_FLOOR * point_estimates)
@@ -2142,8 +2342,7 @@ def build_panstarrs_candidates(
 
         # if the source is within 1arcsec of a GLADE host, take that spec-z.
         if glade_catalog is not None:
-            if verbose > 1:
-                logger.info("Cross-matching with GLADE for redshifts...")
+            logger.debug("Cross-matching with GLADE for redshifts...")
 
             ra_min = transient_pos.ra.deg - 1
             ra_max = transient_pos.ra.deg + 1
@@ -2168,12 +2367,13 @@ def build_panstarrs_candidates(
                 ]
 
         redshift_samples = norm.rvs(
-            galaxies["redshift_mean"][:, np.newaxis],  # Shape (N, 1) to allow broadcasting
-            galaxies["redshift_std"][:, np.newaxis],  # Shape (N, 1)
-            size=(n_galaxies, n_samples),  # Shape (N, M)
+            galaxies["redshift_mean"][:, np.newaxis],
+            galaxies["redshift_std"][:, np.newaxis],
+            size=(n_galaxies, n_samples),
         )
 
-        redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
+        # set photometric redshift floor
+        redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR
 
         for i in range(n_galaxies):
             galaxies["redshift_samples"][i] = redshift_samples[i, :]
@@ -2198,6 +2398,7 @@ def build_panstarrs_candidates(
     if 'offset' in calc_host_props:
         # Calculate angular separation between SN and all galaxies (in arcseconds)
         galaxies["offset_mean"] = galaxies_pos.separation(transient_pos).arcsec
+        galaxies["offset_std"] = [OFFSET_FLOOR]*n_galaxies # TODO
 
         for i in np.arange(n_galaxies):
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
@@ -2215,24 +2416,24 @@ def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi,
         Position of the transient.
     galaxies_pos : array of astropy.coord SkyCoord objects
         Positions of candidate host galaxies.
-    a : array-like
+    a : np.ndarray
         Semi-major axes of candidates, in arcsec.
-    a_std : array-like
+    a_std : np.ndarray
         Error in semi-major axes of candidates, in arcsec.
-    a_over_b : array-like
+    a_over_b : np.ndarray
         Axis ratio (major/minor) of candidates.
-    a_over_b_std : array-like
+    a_over_b_std : np.ndarray
         Error in axis ratio.
-    phi : array-like
+    phi : np.ndarray
         Position angles of sources, in radians.
-    phi_std : array-like
+    phi_std : np.ndarray
         Error in position angle.
     n_samples : type
-        Number of DLR samples to draw for monte-carlo association.
+        Number of DLR samples to draw for Monte Carlo association.
 
     Returns
     -------
-    dlr : array-like
+    dlr : np.ndarray
         2D array of DLR samples of dimensionality (n_galaxies, n_samples).
 
     """
@@ -2242,7 +2443,7 @@ def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi,
     transient_dec = transient_pos.dec.deg
 
     if n_samples > 1:
-        # TODO -- incorporate uncertainty in galaxy and transient position
+        # TODO -- incorporate uncertainty in transient position
         hosts_ra = galaxies_pos.ra.deg[:, np.newaxis]
         hosts_dec = galaxies_pos.dec.deg[:, np.newaxis]
 
@@ -2266,111 +2467,71 @@ def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi,
     return dlr
 
 
-def find_panstarrs_shreds(
-    objids,
-    coords,
-    a,
-    a_std,
-    a_over_b,
-    a_over_b_std,
-    phi,
-    phi_std,
-    appmag,
-    logger,
-    verbose=False
-):
+def find_panstarrs_shreds(objids, coords, a, a_std, a_over_b, a_over_b_std, phi, phi_std, appmag, logger):
     """
-    Finds potentially shredded sources in panstarrs and removes the shreds.
-    If any source is in another sources light radius, the dimmer source is dropped.
+    Finds and removes potentially shredded sources in Pan-STARRS.
+    Drops the dimmer source in any pair where the separation is less than
+    either galaxy's DLR (sep/DLR < 1). Now vectorized!
 
     Parameters
     ----------
-    objids : array-like
-        catalog IDs in panstarrs of all sources.
-    coord_allgals : array-like
-        Astropy coords of catalog sources.
-    a : array-like
-        Semi-major axes of candidates, in arcsec.
-    a_std : array-like
-        Error in semi-major axes of candidates, in arcsec.
-    a_over_b : array-like
-        Axis ratio (major/minor) of candidates.
-    a_over_b_std : array-like
-        Error in axis ratio.
-    phi : array-like
-        Position angles of sources, in radians.
-    phi_std : array-like
-        Error in position angle.
-    appmag : array-like
-        Apparent magnitudes of candidate sources.
-    verbose : int
-        Level of logging; can be 0, 1, or 2.
+    objids : np.ndarray
+        Catalog IDs of sources.
+    coords : np.ndarray
+        Astropy SkyCoord objects.
+    a : np.ndarray
+        Semi-major axes (arcsec).
+    a_std : np.ndarray
+        Errors in semi-major axes (arcsec).
+    a_over_b : np.ndarray
+        Axis ratios (major/minor).
+    a_over_b_std : np.ndarray
+        Errors in axis ratio.
+    phi : np.ndarray
+        Position angles (radians).
+    phi_std : np.ndarray
+        Errors in position angle.
+    appmag : np.ndarray
+        Apparent magnitude, in r.
 
     Returns
     -------
-    dropidxs: array
-        The indices of the candidates flagged as shreds.
+    dropidxs : np.ndarray
+        Indices of sources flagged as shreds.
     """
 
-    dropidxs = []
+    n = len(coords)
+    if n < 2:
+        return np.array([])
 
-    for i in np.arange(len(coords)):
-        onegal_objid = objids[i]
-        onegal_coord = coords[i]
+    # Compute pairwise separations (n x n)
+    seps = coords[:, None].separation(coords[None, :]).arcsec
+    np.fill_diagonal(seps, np.inf)  # Ignore self-comparisons
 
-        restgal_coord = np.delete(coords, i)
-        restgal_ab = np.delete(a_over_b, i)
-        restgal_ab_std = np.delete(a_over_b_std, i)
-        restgal_phi = np.delete(phi, i)
-        restgal_phi_std = np.delete(phi_std, i)
-        restgal_a = np.delete(a, i)
-        restgal_a_std = np.delete(a_std, i)
-        restgal_appmag = np.delete(appmag, i)
+    # Compute DLR for each source; assume calc_dlr returns a 1D array of length n
+    dlr = calc_dlr(coords, coords, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1)
 
-        dlr = calc_dlr(
-            onegal_coord,
-            restgal_coord,
-            restgal_a,
-            restgal_a_std,
-            restgal_ab,
-            restgal_ab_std,
-            restgal_phi,
-            restgal_phi_std,
-            n_samples=1,
+    # Create the shred condition: compare each pair’s separation to both sources’ DLRs.
+    # Broadcasting: for each (i,j), compare seps[i,j] < dlr[i] or seps[i,j] < dlr[j]
+    shred_mask = (seps < dlr[:, None]) | (seps < dlr[None, :])
+
+    # Use upper-triangle indices to avoid duplicate comparisons.
+    upper_i, upper_j = np.triu_indices(n, k=1)
+    valid = shred_mask[upper_i, upper_j]
+    pairs = np.column_stack((upper_i[valid], upper_j[valid]))
+
+    # For each pair, choose the index of the dimmer source.
+    i_vals, j_vals = pairs[:, 0], pairs[:, 1]
+    dropidxs = np.where(appmag[i_vals] > appmag[j_vals], i_vals, j_vals)
+    dropidxs = np.unique(dropidxs)
+
+    # (Optional) Log remaining sources
+    keepidxs = np.setdiff1d(np.arange(n), dropidxs)
+    logger.debug(f"{len(keepidxs)} sources remaining after shredding:")
+    for idx in keepidxs:
+        logger.debug(
+            f"  objID {objids[idx]} | ra, dec: {coords[idx].ra.deg:.6f}, {coords[idx].dec.deg:.6f} | "
+            f"App. Mag (r): {appmag[idx]:.2f} | DLR: {dlr[idx]:.2f}"
         )
-        seps = onegal_coord.separation(restgal_coord).arcsec
-        min_idx = np.nanargmin(seps / dlr)
 
-        # if within the dlr of another galaxy, remove dimmer galaxy
-        original_min_idx = min_idx if min_idx < i else min_idx + 1
-
-        if verbose == 3:
-            logger.info(f"\n\nConsidering source at: {onegal_coord.ra.deg:.6f}, {onegal_coord.dec.deg:.6f}:")
-            logger.info("Next-closest galaxy (by fractional offset): {restgal_coord[min_idx].ra.deg:.6f}, {restgal_coord[min_idx].dec.deg:.6f}")
-            logger.info(f"Size of this nearby galaxy: {restgal_a[min_idx]:.4f}")
-            logger.info(f"Size uncertainty of this nearby galaxy: {restgal_a_std[min_idx]:.4f}")
-            logger.info(f"Axis ratio: {restgal_ab[min_idx]:.4f}")
-            logger.info(f"Axis ratio uncertainty: {restgal_ab_std[min_idx]:.4f}")
-            logger.info(f"Phi: {restgal_phi[min_idx]:.4f}")
-            logger.info(f"Phi uncertainty: {restgal_phi_std[min_idx]:.4f}")
-            logger.info(f"Angular offset (arcsec): {seps[min_idx]:.2f}")
-            logger.info(f"Fractional separation: {np.nanmin(seps / dlr):.4f}")
-
-        # If within the dlr of another galaxy, remove the dimmer galaxy
-        if (seps / dlr)[min_idx] < 1:
-            if restgal_appmag[min_idx] < appmag[i]:
-                # The current galaxy is dimmer
-                # (meaning the other galaxy is brighter AND
-                # has a dlr that contains this galaxy), drop it
-                dropidxs.append(i)
-                if verbose == 3:
-                    logger.info(f"Dropping objID {onegal_objid} with ra, dec= {onegal_coord.ra.deg:.6f},{onegal_coord.dec.deg:.6f}")
-            else:
-                dropidxs.append(original_min_idx)
-                # The other galaxy is dimmer, drop it
-                if verbose == 3:
-                    logger.info(
-                        f"Dropping objID {objids[original_min_idx]} with"
-                        f"ra, dec = {restgal_coord[original_min_idx].ra.deg:.6f}, {restgal_coord[original_min_idx].dec.deg:.6f}"
-                    )
-    return np.array(dropidxs)
+    return dropidxs

@@ -27,7 +27,7 @@ def get_images(ra, dec, size=240, filters="grizy", type="stack"):
 
     Returns
     -------
-    astropy table
+    astropy.Table
         The results of the search for relevant images.
     """
 
@@ -200,8 +200,8 @@ def plot_match(
         If 1, bayes factor is weak. If 2, bayes factor is strong.
     fn : str
         Name of saved image.
-    logger : logger
-        Logger object for storing results of the run.
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
     true_host_ra : float
         Right ascension of the true galaxy in decimal degrees.
     true_host_dec : float
@@ -347,10 +347,10 @@ def diagnose_ranking(
     galaxy_ids,
     z_sn,
     transient_position,
+    logger,
     post_offset_true=None,
     post_z_true=None,
     post_absmag_true=None,
-    verbose=False,
 ):
     """Prints summary statistics from association run.
 
@@ -363,25 +363,25 @@ def diagnose_ranking(
     galaxy_catalog : str
         Galaxy catalog used for association.
     post_offset : list
-        List of posterior probabilities for fractional offset.
+        Posterior probabilities for fractional offset.
     post_z : list
-        List of posterior probabilities for redshift.
+        Posterior probabilities for redshift.
     post_absmag : list
-        List of posterior probabilities for absolute magnitude.
+        Posterior probabilities for absolute magnitude.
     galaxy_ids : list
         List of catalog ids for candidate hosts.
     z_sn : float
         Redshift of the transient.
     transient_position : astropy.coordinates SkyCoord
         Position of the associated transient.
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
     post_offset_true : float
         Posterior probability for true host's fractional offset.
     post_z_true : float
         Posterior probability for true host's redshift.
     post_absmag_true : float
         Posterior probability for true host's absolute magnitude.
-    verbose : boolean
-        If true, enables detailed logging of summary statistics.
 
     Returns
     -------
@@ -392,58 +392,55 @@ def diagnose_ranking(
     """
     top_indices = np.argsort(post_probs)[-3:][::-1]  # Top 3 ranked galaxies
 
-    if verbose:
-        if true_index > 0:
-            print(f"True Galaxy: {true_index + 1}")
+    if true_index > 0:
+        logger.debug(f"True Galaxy: {true_index + 1}")
 
-            # Check if the true galaxy is in the top 5
-            if true_index not in top_indices:
-                print(f"Warning: True Galaxy {true_index + 1} is not in the top 5!")
+        # Check if the true galaxy is in the top 5
+        if true_index not in top_indices:
+            logger.warning(f"True Galaxy {true_index + 1} is not in the top 5!")
 
-        # Print top 5 and compare with the true galaxy
-        for rank, i in enumerate(top_indices, start=1):
-            is_true = "(True Galaxy)" if i == true_index and true_index > 0 else ""
-            print(
-                f"Rank {rank}: ID {galaxy_ids[top_indices[rank-1]]}"
-                f"has a Posterior probability of being the host: {post_probs[i]:.4f} {is_true}"
-            )
+    # Print top 5 and compare with the true galaxy
+    for rank, i in enumerate(top_indices, start=1):
+        is_true = "(True Galaxy)" if i == true_index and true_index > 0 else ""
+        logger.debug(
+            f"Rank {rank}: ID {galaxy_ids[top_indices[rank-1]]}"
+            f"has a Posterior probability of being the host: {post_probs[i]:.4f} {is_true}"
+        )
 
     # Detailed comparison of the top-ranked and true galaxy
-    print(f"Coords (SN): {transient_position.ra.deg:.4f}, {transient_position.dec.deg:.4f}")
+    logger.debug(f"Coords (SN): {transient_position.ra.deg:.4f}, {transient_position.dec.deg:.4f}")
     for _, i in enumerate(top_indices, start=1):
         top_gal = galaxy_catalog[i]
         top_theta = transient_position.separation(
             SkyCoord(ra=top_gal["ra"] * u.degree, dec=top_gal["dec"] * u.degree)
         ).arcsec
 
-        if verbose:
-            print(f"Redshift (SN): {z_sn:.4f}")
-            print(f"Top Galaxy (Rank {i}): Coords: {top_gal['ra']:.4f}, {top_gal['dec']:.4f}")
-            print(
-                f"\t\t\tRedshift = {top_gal['z_best_mean']:.4f}+/-{top_gal['z_best_std']:.4f},"
-                " Angular Size = {top_gal['angular_size_arcsec']:.4f} arcsec"
-            )
-            print(f"\t\t\tFractional Sep. = {top_theta/top_gal['angular_size_arcsec']:.4f} host radii")
-            print(f'\t\t\tAngular Sep. ("): {top_theta:.2f}')
-            print(f"\t\t\tRedshift Posterior = {post_z[i]:.4e}," " Offset Posterior = {post_offset[i]:.4e}")
-            print(f"\t\t\tAbsolute mag Posterior = {post_absmag[i]:.4e}")
+        logger.debug(f"Redshift (SN): {z_sn:.4f}")
+        logger.debug(f"Top Galaxy (Rank {i}): Coords: {top_gal['ra']:.4f}, {top_gal['dec']:.4f}")
+        logger.debug(
+            f"\t\t\tRedshift = {top_gal['z_best_mean']:.4f}+/-{top_gal['z_best_std']:.4f},"
+            " Angular Size = {top_gal['angular_size_arcsec']:.4f} arcsec"
+        )
+        logger.debug(f"\t\t\tFractional Sep. = {top_theta/top_gal['angular_size_arcsec']:.4f} host radii")
+        logger.debug(f'\t\t\tAngular Sep. ("): {top_theta:.2f}')
+        logger.debug(f"\t\t\tRedshift Posterior = {post_z[i]:.4e}," " Offset Posterior = {post_offset[i]:.4e}")
+        logger.debug(f"\t\t\tAbsolute mag Posterior = {post_absmag[i]:.4e}")
 
-    if verbose and true_index > 0:
+    if true_index > 0:
         true_gal = galaxy_catalog[true_index]
         true_theta = transient_position.separation(
             SkyCoord(ra=true_gal["ra"] * u.degree, dec=true_gal["dec"] * u.degree)
         ).arcsec
-        print(f"True Galaxy: Fractional Sep. = {true_theta/true_gal['angular_size_arcsec']:.4f} host radii")
-        print(
+
+        logger.debug(f"True Galaxy: Fractional Sep. = {true_theta/true_gal['angular_size_arcsec']:.4f} host radii")
+        logger.debug(
             f"\t\t\tRedshift = {true_gal['redshift']:.4f}, "
             f"Angular Size = {true_gal['angular_size_arcsec']:.4f}\""
         )
-        print(f"\t\t\tRedshift Posterior = {post_z_true:.4e}, Offset Posterior = {post_offset_true:.4e}")
+        logger.debug(f"\t\t\tRedshift Posterior = {post_z_true:.4e}, Offset Posterior = {post_offset_true:.4e}")
 
     if true_index > 0:
         post_offset_true = post_offset[true_index]
-
-    if true_index > 0:
         post_z_true = post_z[true_index]
 
     ranked_indices = np.argsort(post_probs)[::-1]

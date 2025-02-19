@@ -2135,7 +2135,7 @@ def build_glade_candidates(
 
         # TODO find spec-z info for GLADE -- for now, just assume all with <10% error are spec-zs.
         good_specz = galaxies["redshift_std"]/(1+galaxies["redshift_mean"]) < 0.1
-        galaxies['redshift_info'][good_specz] = ['spec-z']*len(good_specz)
+        galaxies['redshift_info'][good_specz] = ['spec-z']*np.nansum(good_specz)
 
         # set redshift floor
         redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR

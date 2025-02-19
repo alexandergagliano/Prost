@@ -656,6 +656,7 @@ def build_galaxy_array(candidate_hosts, cat_cols, transient_name, catalog, relea
     n_galaxies = len(candidate_hosts)
     base_fields = ['objID', 'ra','dec']
     calc_fields = [x[0] for x in PROP_DTYPES]
+    dtype = list(PROP_DTYPES) #local copy of global var
 
     if n_galaxies < 1:
         logger.info(f"No sources found around {transient_name} in {catalog} {release}! "
@@ -671,13 +672,13 @@ def build_galaxy_array(candidate_hosts, cat_cols, transient_name, catalog, relea
             dtype.append((col, candidate_hosts[col].dtype))  # Append (column name, column dtype)
 
         # Create galaxies array with updated dtype
-        galaxies = np.zeros(n_galaxies, dtype=PROP_DTYPES)
+        galaxies = np.zeros(n_galaxies, dtype=dtype)
 
         # Populate galaxies array with data from candidate_hosts
         for col in candidate_hosts.columns:
             galaxies[col] = candidate_hosts[col].values
     else:
-        galaxies = np.zeros(n_galaxies, dtype=PROP_DTYPES)
+        galaxies = np.zeros(n_galaxies, dtype=dtype)
         cat_col_fields = []
 
     # Populate galaxies array with data from candidate_hosts

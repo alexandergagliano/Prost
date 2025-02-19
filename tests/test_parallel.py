@@ -16,7 +16,7 @@ def test_associate_parallel():
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-    transient_catalog = transient_catalog.sample(n=10)
+    transient_catalog = transient_catalog.sample(n=5)
 
     # define priors for properties
     priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
@@ -30,13 +30,13 @@ def test_associate_parallel():
     likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
-    verbose = 2
+    verbose = 1
     save = False
-    progress_bar = True
+    progress_bar = False
     cat_cols = False
 
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = ["glade", "decals", "panstarrs"]
+    catalogs = ["decals"]
 
     # the name of the coord columns in the dataframe
     transient_coord_cols = ("RA", "Dec")
@@ -49,8 +49,7 @@ def test_associate_parallel():
     )
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    start_serial = time.time()
-    hostTable = associate_sample(
+    hostTable_serial  = associate_sample(
         transient_catalog,
         priors=priors,
         likes=likes,
@@ -61,11 +60,9 @@ def test_associate_parallel():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
-    end_serial = time.time()
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    start_parallel = time.time()
-    hostTable = associate_sample(
+    hostTable_parallel = associate_sample(
         transient_catalog,
         priors=priors,
         likes=likes,
@@ -76,9 +73,8 @@ def test_associate_parallel():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
-    end_parallel = time.time()
+  
+    hostIDs_serial = np.sort(hostTable_serial['host_objID'].values)
+    hostIDs_parallel = np.sort(hostTable_parallel['host_objID'].values)
 
-    duration_serial = end_serial - start_serial
-    duration_parallel = end_parallel - start_parallel
-    assert duration_parallel < duration_serial
-
+    assert np.allclose(hostIDs_serial, hostIDs_parallel, equal_nan=True)

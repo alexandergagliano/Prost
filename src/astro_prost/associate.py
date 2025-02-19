@@ -528,24 +528,18 @@ def associate_sample(
         # Convert results to a DataFrame
         results_df = pd.DataFrame.from_records(results)
 
+        extra_cat_cols_list = [res["extra_cat_cols"] for res in results if "extra_cat_cols" in res]
+
+        if extra_cat_cols_list:
+            extra_cat_cols_DF = pd.DataFrame.from_records(extra_cat_cols_list)
+            results_df = results_df.join(extra_cat_cols_DF)
+
         if "idx" not in results_df.columns:
             raise ValueError("No 'idx' column found in results, cannot update transient_catalog!")
 
         transient_catalog = transient_catalog.merge(
             results_df, left_index=True, right_on="idx", how="left"
         )
-
-        # Collect extra catalog columns dynamically
-        extra_cat_cols_list = [res["extra_cat_cols"] for res in results if "extra_cat_cols" in res]
-
-        if extra_cat_cols_list:  # Ensure there's extra data before proceeding
-            extra_cat_cols_df = pd.DataFrame.from_records(extra_cat_cols_list)
-
-            if not extra_cat_cols_df.empty:
-                # Merge extra catalog columns using transient_catalog's index
-                transient_catalog = transient_catalog.merge(
-                    extra_cat_cols_df, left_index=True, right_on="idx", how="left"
-                )
 
         # Convert all ID columns to integers
         id_cols = [col for col in transient_catalog.columns if col.endswith("id")]

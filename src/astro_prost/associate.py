@@ -253,8 +253,7 @@ def associate_transient(
     cat_priority,
     cat_cols,
     log_fn,
-    calc_host_props=True,
-    ned_search=False
+    calc_host_props=True
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -285,8 +284,6 @@ def associate_transient(
         The fn associated with the logger.Logger object.
     calc_host_props : boolean
         If true, calculates host galaxy properties even if not needed for association
-    ned_search : boolean
-        If true, concatenates information about the host from NED (not needed for association).
     Returns
     -------
     tuple
@@ -507,8 +504,7 @@ def associate_sample(
     progress_bar=False,
     cosmology=None,
     n_processes=None,
-    calc_host_props=True,
-    ned_search=False,
+    calc_host_props=True
 ):
     """Wrapper function for associating sample of transients.
 
@@ -544,8 +540,6 @@ def associate_sample(
         Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
     n_processes : int
         Number of parallel processes to run when parallel=True (defaults to n_cores-4 if unspecified).
-    ned_search : boolean
-        If True, completes a search in NED for retrieved host and concatenates relevant information
     calc_host_props : boolean
         If True, calculates all host properties (redshift, absmag, and fractional offset) regardless of whether or not
         they're needed for association.
@@ -619,8 +613,7 @@ def associate_sample(
             catalogs,
             cat_priority,
             cat_cols,
-            log_fn,
-            ned_search
+            log_fn
         )
         for idx, row in transient_catalog.iterrows()
     ]

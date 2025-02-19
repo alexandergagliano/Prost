@@ -405,6 +405,8 @@ def associate_sample(
         List of catalogs to query (can include 'glade', 'decals', 'panstarrs')
     cat_priority : dict
         Dict of catalog priority (determines what gets run first)
+    run_name : str or None
+        Optional name for the run -- used to name logfiles
     n_samples : int
         List of samples to draw for monte-carlo association.
     verbose : int

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.coordinates import SkyCoord
 import os
+import re
 
 from astropy.io import fits
 from astropy.table import Table
@@ -161,12 +162,12 @@ def find_all(name, path):
 def plot_match(
     host_ra,
     host_dec,
-    host_z_mean,
-    host_z_std,
+    host_redshift_mean,
+    host_redshift_std,
     transient_ra,
     transient_dec,
     transient_name,
-    transient_z,
+    transient_redshift,
     bayesflag,
     fn,
     logger,
@@ -182,17 +183,17 @@ def plot_match(
         (Can provide up to 10 hosts)
     host_dec : list
         List of declination coordinates for associated hosts, in decimal degrees.
-    host_z_mean : float
+    host_redshift_mean : float
         Point estimate of host-galaxy redshift.
-    host_z_std : float
-        Error on host_z_mean.
+    host_redshift_std : float
+        Error on host_redshift_mean.
     transient_ra : float
         Right ascension of transient, in decimal degrees.
     transient_dec : float
         Declination of transient, in decimal degrees.
     transient_name : str
         Name of transient for plot.
-    transient_z : float
+    transient_redshift : float
         Redshift of transient, if available.
     bayesflag : int
         Flag from association run. If 0, bayes factor is sufficient for confident association.
@@ -206,6 +207,10 @@ def plot_match(
     true_host_dec : float
         Declination of the true galaxy in decimal degrees.
     """
+
+    #sanitize transient name for fn
+    fn = re.sub(r"[\s]", "", fn)
+
     cols = np.array(
         [
             "#ff9f1c",
@@ -237,8 +242,8 @@ def plot_match(
         )
         if (true_host_ra) and (true_host_dec) and (sep_true > sep):
             sep = sep_true
-    rad = np.nanmax([30.0, 2 * sep])  # arcsec to pixels, scaled by 1.5x host-SN separation
-    logger.info(f"Getting img with size len {rad:.2f}...")
+    rad = np.nanmax([30.0, 2 * sep])
+    logger.info(f"Getting {rad*4}'' x {rad*4}'' Pan-STARRS image of the field...")
     pic_data = []
     for band in bands:
         get_ps1_pic("./", None, transient_ra, transient_dec, int(rad * 4), band, save=True)
@@ -310,19 +315,19 @@ def plot_match(
                 facecolor=cols[i],
                 zorder=100,
             )
-        if transient_z == transient_z:
+        if transient_redshift == transient_redshift:
             plt.title(
-                f"{transient_name}, z={transient_z:.4f}; Host Match,"
-                f"z={host_z_mean:.4f}+/-{host_z_std:.4f} {true_str}{bayesstr}"
+                f"{transient_name}, z={transient_redshift:.4f}; Host Match,"
+                f"z={host_redshift_mean:.4f}+/-{host_redshift_std:.4f} {true_str}{bayesstr}"
             )
         else:
             plt.title(
                 f"{transient_name}, no z; Host Match, "
-                f"z={host_z_mean:.4f}+/-{host_z_std:.4f} {true_str}{bayesstr}"
+                f"z={host_redshift_mean:.4f}+/-{host_redshift_std:.4f} {true_str}{bayesstr}"
             )
     else:
-        if transient_z == transient_z:
-            plt.title(f"{transient_name}, z={transient_z:.4f}; No host found {true_str}")
+        if transient_redshift == transient_redshift:
+            plt.title(f"{transient_name}, z={transient_redshift:.4f}; No host found {true_str}")
         else:
             plt.title(f"{transient_name}, no z; No host found {true_str}")
     ax.imshow(rgb_default, origin="lower")

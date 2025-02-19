@@ -14,10 +14,107 @@ import importlib
 import logging
 from .diagnose import plot_match
 from .helpers import GalaxyCatalog, Transient
+from collections import OrderedDict
+import warnings
+import re
 
 NPROCESS_MAX = os.cpu_count() - 4
+DEFAULT_RELEASES = {
+    "glade": "latest",
+    "decals": "dr9",
+    "panstarrs": "dr2"
+}
 
-def setup_logger(log_file=None, verbose=2):
+#divide by zero, filter by default
+warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
+
+def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props):
+    """Dynamically logs host properties based on available fields."""
+
+    prop_lines = [f"\n    {title} for {transient_name}:"]
+
+    # Define all possible properties with labels and formats
+    prop_format = {
+        "objID": ("objID", "{:d}"),
+        "ra": ("R.A. (deg)", "{:.6f}"),
+        "dec": ("Dec. (deg)", "{:.6f}"),
+        "redshift": ("Redshift", "{:.4f}"),
+        "absmag": ("Absolute Magnitude", "{:.1f}"),
+        "offset": (r"Transient Offset", "{:.1f}"),
+        "posterior": ("Posterior", "{:.4e}"),
+    }
+
+    # Iterate through selected properties
+    for prop in print_props:
+        if prop in cat.galaxies.dtype.names:  # Only include if property exists
+            label, fmt = prop_format.get(prop.split("_")[-1], (prop, "{:.4f}"))  # Default fmt if missing
+            value = fmt.format(cat.galaxies[prop][host_idx])
+            print_str = f"    {label}: {value}"
+            prop_lines.append(print_str)
+
+    # get mean, std, and posterior for specific properties
+    for prop in calc_host_props:
+        if f"{prop}_mean" in cat.galaxies.dtype.names:
+            label, fmt = prop_format.get(prop, (prop, "{:.4f}"))  # Get format or default
+
+            mean_value = fmt.format(cat.galaxies[f"{prop}_mean"][host_idx])
+            std_value = fmt.format(cat.galaxies[f"{prop}_std"][host_idx])
+            _, fmt = prop_format.get("posterior")
+            posterior = fmt.format(cat.galaxies[f"{prop}_posterior"][host_idx])
+
+            info = cat.galaxies[f"{prop}_info"][host_idx]
+
+            print_str = f"    {label}: {mean_value} ± {std_value}"
+            if prop == 'offset':
+                print_str += " arcsec"
+            if len(info) > 0:
+                print_str += f" ({info})"
+            prop_lines.append(print_str)
+
+            prop_lines.append(f"    {label} Posterior: {posterior}")
+
+    logger.info("\n".join(prop_lines))
+
+def get_catalogs(user_input):
+    """Parses input tuples, sanitizes catalog names, and applies default releases if missing."""
+    return {
+        sanitize_input(cat) if isinstance(cat, str) else sanitize_input(cat[0]):
+        cat[1] if isinstance(cat, tuple) else DEFAULT_RELEASES[sanitize_input(cat)]
+        for cat in user_input
+    }
+
+def sanitize_input(cat_name):
+    """Cleans up catalog names for use by prost (removes spaces, makes lowercase)
+
+    Parameters
+    ----------
+    cat_name : type
+        Name of the catalog to query (right now only decals, glade, and panstarrs are supported!)
+
+    Returns
+    -------
+    float
+        The sanitized catalog name
+    """
+    cat_name_clean = re.sub(r"[_\-\s]", "", cat_name)
+    return cat_name_clean.lower()
+
+
+def add_console_handler(logger, formatter):
+    """Attach a console handler to the logger."""
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+def add_file_handler(logger, log_file, formatter):
+    """Attach a file handler to the logger."""
+    log_path = os.path.dirname(log_file)
+    os.makedirs(log_path, exist_ok=True)
+    file_handler = logging.FileHandler(log_file, mode="a")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+def setup_logger(log_file=None, verbose=2, is_main=False):
     """
     Sets up a logger that logs messages to both the console and a file (if specified).
 
@@ -33,29 +130,30 @@ def setup_logger(log_file=None, verbose=2):
     """
     logger = logging.getLogger("Prost_logger")
 
-    if logger.hasHandlers():  
-        logger.handlers.clear()  # Remove existing handlers before adding new ones
+    # If logger already exists and has handlers, return it (prevents duplicates)
+    if logger.hasHandlers():
+        return logger
 
-    log_levels = {0:logging.WARNING, 1:logging.INFO, 2:logging.DEBUG}
-    logger.setLevel(log_levels[verbose])  # Set the logging level
+    log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG, 3: logging.DEBUG}
+    logger.setLevel(log_levels.get(verbose, logging.DEBUG))
 
-    # Define log format (adds timestamps, log level, and message)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-    # Console handler (prints to stdout)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    # Main process: Set up log file and store its path
+    if is_main:
+        if log_file:
+            add_file_handler(logger, log_file, formatter)
+            os.environ['LOG_PATH_ENV'] = log_file  # Store log path for worker processes
+        else:
+            add_console_handler(logger, formatter)
 
-    # Optional file handler
-    if log_file:
-        log_path = os.path.dirname(log_file)
-        os.makedirs(log_path, exist_ok=True)
-
-        file_handler = logging.FileHandler(log_file, mode="a")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
+    # Worker processes: Inherit log file or default to console
+    else:
+        log_file = os.environ.get('LOG_PATH_ENV')
+        if log_file:
+            add_file_handler(logger, log_file, formatter)
+        else:
+            add_console_handler(logger, formatter)
     return logger
 
 def associate_transient(
@@ -68,8 +166,11 @@ def associate_transient(
     likes,
     cosmo,
     catalogs,
+    cat_priority,
     cat_cols,
-    logger
+    log_fn,
+    calc_host_props=True,
+    ned_search=False
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -91,10 +192,17 @@ def associate_transient(
         Dictionary of likelihoods for the run (at least one of offset, absolute magnitude).
     cosmo : astropy cosmology
         Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
-    catalogs : list
-        List of source catalogs to query (can include 'glade', 'decals', or 'panstarrs').
+    catalogs : dict
+        Dict of source catalogs to query, with required key "name" and optional key "release".
+    cat_priorities : dict
+        The priority order to run the associations (with value 1 will run first, 2nd will run 2nd, etc). If None, defaults to the order
+        the catalogs are provided in.
     cat_cols : boolean
         If true, concatenates the source catalog fields to the returned dataframe.
+    calc_host_props : boolean
+        If true, calculates host galaxy properties even if not needed for association
+    ned_search : boolean
+        If true, concatenates information about the host from NED (not needed for association).
     Returns
     -------
     tuple
@@ -102,6 +210,15 @@ def associate_transient(
         a dictionary of catalog columns (empty if cat_cols=False)
 
     """
+
+    logger = setup_logger(log_fn, is_main=False)
+
+    # TODO fix overloaded variable here
+    if calc_host_props:
+        calc_host_props = ['redshift', 'absmag', 'offset']
+    else:
+        calc_host_props = list(priors.keys())
+
     try:
         transient = Transient(
             name=row["name"],
@@ -117,170 +234,125 @@ def associate_transient(
 
     if verbose > 0:
         logger.info(
-            f"Associating {transient.name} at RA, DEC = "
+            f"\n\nAssociating {transient.name} at RA, DEC = "
             f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
         )
 
-    included_properties = list(set(priors.keys()).intersection(set(['redshift', 'absmag', 'offset'])))
-
     for key, val in priors.items():
-        if key in included_properties:
-            transient.set_prior(key, val)
-            logger.info(f"Setting prior for {key}.")
+        transient.set_prior(key, val)
 
     for key, val in likes.items():
-        if key in included_properties:
-            logger.info(f"Setting likelihood for {key}.")
-            transient.set_likelihood(key, val)
+        transient.set_likelihood(key, val)
 
     if 'redshift' in priors.keys():
         transient.gen_z_samples(n_samples=n_samples)
 
-    (
-        best_objid, best_prob, best_ra, best_dec, best_z_mean,
-        best_z_std, second_best_objid, second_best_prob, second_best_ra,
-        second_best_dec, second_best_z_mean, second_best_z_std, query_time, smallcone_prob, missedcat_prob
-    ) = (
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan
-    )
+    # Define result fields and initialize all values
+    result = {
+        "idx": idx,
+        "best_cat": None,
+        "best_cat_release": None,
+        "query_time": np.nan,
+        "smallcone_prob": np.nan,
+        "missedcat_prob": np.nan,
+        "extra_cat_cols": {}
+    }
 
-    extra_cat_cols = {}
-    best_cat = ""
+    # Define the fields that we extract for best and second-best hosts
+    fields = ["objID", "total_posterior", "ra", "dec", "redshift_mean", "redshift_std"]
 
-    for cat_name in catalogs:
-        cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog)
+    # Initialize best and second-best fields with NaNs
+    for key in ["best", "second_best"]:
+        for field in fields:
+            result[f"{key}_{field}"] = np.nan
+
+    if cat_priority is not None:
+        catalogs = sorted(
+            catalogs,
+            key=lambda cat: (cat_priority.get(cat[0], float("inf")), cat[1])  # Prioritize by catalog, then release
+        )
+        logger.info("Running association with the following catalog priorities:", catalogs)
+
+    catalog_dict = OrderedDict(get_catalogs(catalogs))
+
+    for cat_name, cat_release in catalog_dict.items():
+        cat_release = catalog_dict[cat_name]
+        cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog, release=cat_release)
 
         try:
-            cat.get_candidates(transient, time_query=True, logger=logger, verbose=verbose, cosmo=cosmo, cat_cols=cat_cols)
+            cat.get_candidates(transient, time_query=True, logger=logger, verbose=verbose, cosmo=cosmo, calc_host_props=calc_host_props, cat_cols=cat_cols)
         except requests.exceptions.HTTPError:
-            logger.info(f"Candidate retrieval failed for {transient.name} in catalog {cat_name}.")
+            logger.warning(f"Candidate retrieval failed for {transient.name} in catalog {cat_name} due to an HTTPError.")
             continue
 
         if cat.ngals > 0:
-            cat = transient.associate(cat, cosmo, logger, verbose=verbose)
+            cat = transient.associate(cat, cosmo, logger, verbose=verbose, calc_host_props=calc_host_props)
 
             if transient.best_host != -1:
                 best_idx = transient.best_host
                 second_best_idx = transient.second_best_host
 
-                if verbose >= 2:
-                    print_cols = [
-                        "objID",
-                        "z_prob",
-                        "offset_prob",
-                        "absmag_prob",
-                        "total_prob",
-                        "ra",
-                        "dec",
-                        "offset_arcsec",
-                        "z_best_mean",
-                        "z_best_std",
-                    ]
-                    logger.info("Properties of best host:")
-                    for key in print_cols:
-                        if "prob" in key:
-                            logger.info(f"\t{key}: {cat.galaxies[key][best_idx]:.4e}")
-                        else:
-                            logger.info(f"\t{key}: {cat.galaxies[key][best_idx]:.4f}")
-                    logger.info("")
-                    logger.info("Properties of second best host:")
-                    for key in print_cols:
-                        if "prob" in key:
-                            logger.info(f"\t{key}: {cat.galaxies[key][second_best_idx]:.4e}")
-                        else:
-                            logger.info(f"\t{key}: {cat.galaxies[key][second_best_idx]:.4f}")
-                logger.info("")
+                if verbose > 1:
+                    print_props = ['objID', 'ra', 'dec', 'total_posterior']
+                    log_host_properties(logger, transient.name, cat, best_idx, f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props)
+                    log_host_properties(logger, transient.name, cat, second_best_idx, f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props)
 
-                best_objid = np.int64(cat.galaxies["objID"][best_idx])
-                best_prob = cat.galaxies["total_prob"][best_idx]
-                best_ra = cat.galaxies["ra"][best_idx]
-                best_dec = cat.galaxies["dec"][best_idx]
-                best_z_mean = cat.galaxies['z_best_mean'][best_idx]
-                best_z_std = cat.galaxies['z_best_std'][best_idx]
+                # Populate results using a loop instead of manual assignments
+                for key, idx in {"host": best_idx, "host_2": second_best_idx}.items():
+                    for field in fields:
+                        result[f"{key}_{field}"] = np.int64(cat.galaxies[field][idx]) if field == "objID" else cat.galaxies[field][idx]
 
-                second_best_objid = np.int64(cat.galaxies["objID"][second_best_idx])
-                second_best_prob = cat.galaxies["total_prob"][second_best_idx]
-                second_best_ra = cat.galaxies["ra"][second_best_idx]
-                second_best_dec = cat.galaxies["dec"][second_best_idx]
-                second_best_z_mean = cat.galaxies['z_best_mean'][second_best_idx]
-                second_best_z_std = cat.galaxies['z_best_std'][second_best_idx]
+                # Set additional metadata
+                result.update({
+                    "best_cat": cat_name,
+                    "best_cat_release": cat_release,
+                    "query_time": cat.query_time,
+                    "smallcone_prob": transient.smallcone_prob,
+                    "missedcat_prob": transient.missedcat_prob
+                })
 
-                best_cat = cat_name
-                query_time = cat.query_time
-                smallcone_prob = transient.smallcone_prob
-                missedcat_prob = transient.missedcat_prob
-
+                # Collect extra catalog columns if needed
                 if cat_cols:
-                    for field in cat.cat_col_fields:
-                        extra_cat_cols[field] = cat.galaxies[field][best_idx]
+                    result["extra_cat_cols"] = {field: cat.galaxies[field][best_idx] for field in cat.cat_col_fields}
 
                 if verbose > 0:
                     logger.info(
-                        f"Chosen {cat_name} galaxy has catalog ID of {best_objid}"
-                        f" and RA, DEC = {best_ra:.6f}, {best_dec:.6f}"
+                        f"Chosen galaxy has catalog ID of {result['host_objID']} "
+                        f"and RA, DEC = {result['host_ra']:.6f}, {result['host_dec']:.6f}"
                     )
+
                 if verbose > 1:
                     try:
                         plot_match(
-                            [best_ra],
-                            [best_dec],
-                            best_z_mean,
-                            best_z_std,
+                            [result["host_ra"]],
+                            [result["host_dec"]],
+                            result["host_redshift_mean"],
+                            result["host_redshift_std"],
                             transient.position.ra.deg,
                             transient.position.dec.deg,
                             transient.name,
                             transient.redshift,
                             0,
-                            f"{transient.name}_{cat_name}",
+                            f"{transient.name}_{cat_name}_{cat_release}",
                             logger
                         )
                     except HTTPError:
-                        logger.info("Couldn't get an image. Waiting 60s before moving on.")
+                        logger.warning("Couldn't get an image. Waiting 60s before moving on.")
                         time.sleep(60)
                         continue
+                # Stop searching after first valid match
+                break
 
-    if (transient.best_host == -1) and (verbose > 0):
+    if transient.best_host == -1 and verbose > 0:
         logger.info("No good host found!")
-    return (
-        idx,
-        best_objid,
-        best_prob,
-        best_ra,
-        best_dec,
-        best_z_mean,
-        best_z_std,
-        second_best_objid,
-        second_best_prob,
-        second_best_ra,
-        second_best_dec,
-        second_best_z_mean,
-        second_best_z_std,
-        query_time,
-        best_cat,
-        smallcone_prob,
-        missedcat_prob,
-        extra_cat_cols
-    )
 
+    return result
 
 def prepare_catalog(
     transient_catalog,
     transient_name_col="name",
     transient_coord_cols=("ra", "dec"),
+    transient_redshift_col='redshift',
     debug=False,
     debug_names=None,
 ):
@@ -294,6 +366,8 @@ def prepare_catalog(
         Column corresponding to transient name.
     transient_coord_cols : tuple
         Columns corresponding to transient coordinates (converted to decimal degrees internally).
+    transient_redshift_col : string
+        Column corresponding to transient redshift.
     debug : boolean
         If true, associates only transients in debug_names.
     debug_names : list
@@ -305,28 +379,6 @@ def prepare_catalog(
         The transformed dataframe with standardized columns.
 
     """
-    association_fields = [
-        "host_id",
-        "host_ra",
-        "host_dec",
-        "host_prob",
-        "host_z_best",
-        "host_z_std",
-        "host_2_id",
-        "host_2_ra",
-        "host_2_dec",
-        "host_2_prob",
-        "host_2_z_best",
-        "host_2_z_std",
-        "smallcone_prob",
-        "missedcat_prob",
-        "association_time",
-    ]
-
-    for field in association_fields:
-        transient_catalog[field] = np.nan
-
-    transient_catalog["prob_host_flag"] = 0
 
     # debugging with just the ones we got wrong
     if debug and debug_names is not None:
@@ -349,7 +401,7 @@ def prepare_catalog(
     transient_catalog["transient_ra_deg"] = transient_coords.ra.deg
     transient_catalog["transient_dec_deg"] = transient_coords.dec.deg
 
-    transient_catalog.rename(columns={transient_name_col: "name"}, inplace=True)
+    transient_catalog.rename(columns={transient_name_col: "name", transient_redshift_col: "redshift"}, inplace=True)
 
     # randomly shuffle
     transient_catalog = transient_catalog.sample(frac=1).reset_index(drop=True)
@@ -360,6 +412,7 @@ def prepare_catalog(
 def associate_sample(
     transient_catalog,
     catalogs,
+    cat_priority=None,
     run_name=None,
     priors=None,
     likes=None,
@@ -373,6 +426,8 @@ def associate_sample(
     progress_bar=False,
     cosmology=None,
     n_processes=None,
+    calc_host_props=True,
+    ned_search=False,
 ):
     """Wrapper function for associating sample of transients.
 
@@ -386,10 +441,12 @@ def associate_sample(
         Dictionary of likelihood distributions on redshift, fractional offset, absolute magnitude
     catalogs : list
         List of catalogs to query (can include 'glade', 'decals', 'panstarrs')
+    cat_priority : dict
+        Dict of catalog priority (determines what gets run first)
     n_samples : int
         List of samples to draw for monte-carlo association.
     verbose : int
-        Verbosity level; can be 0, 1, or 2.
+        Verbosity level; can be 0 - 3.
     parallel : boolean
         If True, runs in parallel with multiprocessing via mpire. Cannot be set with ipython!
     save : boolean
@@ -406,6 +463,11 @@ def associate_sample(
         Assumed cosmology for the run (defaults to LambdaCDM if unspecified).
     n_processes : int
         Number of parallel processes to run when parallel=True (defaults to n_cores-4 if unspecified).
+    ned_search : boolean
+        If True, completes a search in NED for retrieved host and concatenates relevant information
+    calc_host_props : boolean
+        If True, calculates all host properties (redshift, absmag, and fractional offset) regardless of whether or not
+        they're needed for association.
 
     Returns
     -------
@@ -414,22 +476,40 @@ def associate_sample(
 
     """
     ts = int(time.time())
+
+    envkey = 'PYSPAWN_' + os.path.basename(__file__)
+    is_main = not os.environ.get(envkey, False)
+
     if log_path is not None:
         if run_name is not None:
             log_fn = f"{log_path}/Prost_log_{run_name}_{ts}.txt"
         else:
             log_fn = f"{log_path}/Prost_log_{ts}.txt"
-        logger = setup_logger(log_fn, verbose)
-        logger.info(f"Created log file at {log_fn}.")
+
+        if is_main:
+            logger = setup_logger(log_file=log_fn, verbose=verbose, is_main=is_main)
+            logger.info(f"Created log file at {log_fn}.")
+            os.environ['LOG_PATH_ENV'] = log_fn
+        else:
+            log_fn = os.environ.get("LOG_PATH_ENV", None)
+            logger = setup_logger(log_file=log_fn, verbose=verbose, is_main=False)
     else:
-        logger = setup_logger(verbose=verbose)
+        log_fn = None
+        logger = setup_logger(verbose=verbose, is_main=is_main)
+
     if not cosmology:
         cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
 
     possible_keys = ["offset", "absmag", "redshift"]
-    if not any(key in priors for key in possible_keys):
-        raise ValueError(f"ERROR: Please set a prior function for at least one of {possible_keys}.")
 
+    priors = {k: v for k, v in priors.items() if k in possible_keys}
+    likes = {k: v for k, v in likes.items() if k in possible_keys}
+
+    # Validate that at least one prior remains
+    if not priors:
+        raise ValueError(f"ERROR: Please set a prior function for at least one of {possible_keys}.")
+    if is_main:
+        logger.info(f"Conditioning association on the following properties: {list(priors.keys())}")
     for key in priors:
         if key != 'redshift' and key not in likes:
             raise ValueError(f"ERROR: Please set a likelihood function for {key}.")
@@ -457,17 +537,15 @@ def associate_sample(
             likes,
             cosmo,
             catalogs,
+            cat_priority,
             cat_cols,
-            logger
+            log_fn,
+            ned_search
         )
         for idx, row in transient_catalog.iterrows()
     ]
 
-
-    if parallel:
-        envkey = 'PYSPAWN_' + os.path.basename(__file__)
-
-        if not os.environ.get(envkey, False):
+    if (parallel) and (is_main):
             # Set the environment variable in the parent process only
             os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
 
@@ -487,36 +565,37 @@ def associate_sample(
         results = [associate_transient(*event) for event in events]
 
     if not parallel or os.environ.get(envkey) == str(os.getpid()):
-        # Update transient_catalog with results
 
-        main_results = [res[:-1] for res in results]
+        # Convert results to a DataFrame
+        results_df = pd.DataFrame.from_records(results)
 
-        results_df = pd.DataFrame.from_records(
-            main_results,
-            columns=[
-                "idx", "host_id", "host_prob", "host_ra", "host_dec",
-                "host_z_best", "host_z_std",
-                "host_2_objid", "host_2_prob", "host_2_ra", "host_2_dec",
-                "host_2_z_best", "host_2_z_std",
-                "query_time", "best_cat", "smallcone_prob", "missedcat_prob"
-            ]
+        if "idx" not in results_df.columns:
+            raise ValueError("No 'idx' column found in results, cannot update transient_catalog!")
+
+        transient_catalog = transient_catalog.merge(
+            results_df, left_index=True, right_on="idx", how="left"
         )
 
-        transient_catalog.update(results_df.set_index("idx"))
+        # Collect extra catalog columns dynamically
+        extra_cat_cols_list = [res["extra_cat_cols"] for res in results if "extra_cat_cols" in res]
 
-        if cat_cols:
-            extra_cat_cols_list = [res[-1] for res in results]
+        if extra_cat_cols_list:  # Ensure there's extra data before proceeding
             extra_cat_cols_df = pd.DataFrame.from_records(extra_cat_cols_list)
-            extra_cols = extra_cat_cols_df.columns
-            extra_cat_cols_df['idx'] = results_df['idx']
-            transient_catalog = pd.concat([transient_catalog, extra_cat_cols_df.set_index("idx")], axis=1)
 
-        id_cols = [col for col in transient_catalog.columns if col.endswith('id')]
+            if not extra_cat_cols_df.empty:
+                # Merge extra catalog columns using transient_catalog's index
+                transient_catalog = transient_catalog.merge(
+                    extra_cat_cols_df, left_index=True, right_on="idx", how="left"
+                )
+
+        # Convert all ID columns to integers
+        id_cols = [col for col in transient_catalog.columns if col.endswith("id")]
 
         for col in id_cols:
-            transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors='coerce').astype('Int64')
+            transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
 
-        logger.info("Association of all transients is complete.")
+        # final log message -- we're done!
+        logger.info("\n\nAssociation of all transients is complete.")
 
         # Save the updated catalog
         if save:

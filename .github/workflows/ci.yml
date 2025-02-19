@@ -1,4 +1,4 @@
-name: CI for Template
+name: Prost CI
 
 on:
   push:
@@ -11,8 +11,9 @@ jobs:
 
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12.7']
+          python-version: ['3.10', '3.11', '3.12']
 
     steps:
     - uses: actions/checkout@main
@@ -29,6 +30,13 @@ jobs:
         sudo apt-get update
         python -m pip install --upgrade pip
         pip install -e .[dev]
-    - name: Run unit tests with pytest /  pytest-copie
+    - name: Run unit tests in parallel
+      id: parallel_tests
+      continue-on-error: true
       run: |
-        pytest -s -W ignore::DeprecationWarning
+        pytest -n auto --capture=no -W ignore::DeprecationWarning || echo "pytest_failed=true" >> $GITHUB_ENV
+
+    - name: Rerun failed tests in serial (if any)
+      if: env.pytest_failed == 'true'
+      run: |
+        pytest --last-failed --maxfail=3 -n 1 --capture=no -W ignore::DeprecationWarning

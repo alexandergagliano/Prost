@@ -27,14 +27,13 @@ def test_associate_parallel():
     likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
-    verbose = 1
+    verbose = 2
     save = False
-    parallel = True
-    progress_bar = False
+    progress_bar = True
     cat_cols = False
 
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = ["panstarrs"]
+    catalogs = ["glade", "decals", "panstarrs"]
 
     # the name of the coord columns in the dataframe
     transient_coord_cols = ("RA", "Dec")
@@ -68,7 +67,7 @@ def test_associate_parallel():
         priors=priors,
         likes=likes,
         catalogs=catalogs,
-        parallel=parallel,
+        parallel=True,
         verbose=verbose,
         save=save,
         progress_bar=progress_bar,
@@ -79,3 +78,4 @@ def test_associate_parallel():
     duration_serial = end_serial - start_serial
     duration_parallel = end_parallel - start_parallel
     assert duration_parallel < duration_serial
+

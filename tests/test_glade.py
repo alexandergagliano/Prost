@@ -27,7 +27,7 @@ def test_associate_glade():
     likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
-    verbose = 1
+    verbose = 2
     parallel = False
     save = False
     progress_bar = False

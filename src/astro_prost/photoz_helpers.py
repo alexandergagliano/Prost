@@ -188,11 +188,11 @@ def preprocess(df, path="../data/sfddata-master/", ebv=True):
     """
     if ebv:
         m = sfdmap.SFDMap(path)
-        assert ("raMean" in df.columns.values) and ("decMean" in df.columns.values), (
+        assert ("ra" in df.columns.values) and ("dec" in df.columns.values), (
             "DustMap query failed because the expected coordinates didnt"
             "exist in df, likely the match of any Hosts into PanStarrs failed"
         )
-        ebv = m.ebv(df["raMean"].values.astype(np.float32), df["decMean"].values.astype(np.float32))
+        ebv = m.ebv(df["ra"].values.astype(np.float32), df["dec"].values.astype(np.float32))
 
         df["ebv"] = ebv
     else:

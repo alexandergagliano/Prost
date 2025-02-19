@@ -11,12 +11,11 @@ from astropy.coordinates import SkyCoord
 from astropy.cosmology import LambdaCDM
 import importlib.resources as pkg_resources
 import importlib
-import logging
 from .diagnose import plot_match
-from .helpers import GalaxyCatalog, Transient
+from .helpers import GalaxyCatalog, Transient, setup_logger, sanitize_input
+import logging
 from collections import OrderedDict
 import warnings
-import re
 
 # Parallel processing settings
 NPROCESS_MAX = os.cpu_count() - 4
@@ -27,31 +26,6 @@ DEFAULT_RELEASES = {
     "decals": "dr9",
     "panstarrs": "dr2"
 }
-
-# Boilerplate trace method for the logger class
-def trace(self, message, *args, **kws):
-    """Logs a message at the TRACE level, which is lower than DEBUG (verbose = 3).
-
-    Parameters
-    ----------
-    message : str
-        The message to be logged.
-    *args : tuple
-        Additional positional arguments to be passed to the logging call.
-    **kws : dict
-        Additional keyword arguments to be passed to the logging call.
-
-    Returns
-    -------
-    None
-    """
-    if self.isEnabledFor(TRACE_LEVEL):
-        self._log(TRACE_LEVEL, message, args, **kws)
-
-# Define a TRACE level below DEBUG -- for lengthy printouts
-TRACE_LEVEL = 5
-logging.addLevelName(TRACE_LEVEL, "TRACE")
-logging.Logger.trace = trace
 
 # Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
@@ -147,99 +121,6 @@ def get_catalogs(user_input):
         for cat in user_input
     }
 
-def sanitize_input(cat_name):
-    """Cleans up catalog names for use by Prost by removing spaces, underscores, and hyphens, and converting to lowercase.
-
-    Parameters
-    ----------
-    cat_name : str
-        The catalog name to be sanitized. Supported catalog names include 'decals', 'glade', and 'panstarrs'.
-
-    Returns
-    -------
-    str
-        The sanitized catalog name.
-    """
-    cat_name_clean = re.sub(r"[_\-\s]", "", cat_name)
-    return cat_name_clean.lower()
-
-
-def add_console_handler(logger, formatter):
-    """Attach a console (stream) handler to the logger.
-
-    Parameters
-    ----------
-    logger : logging.Logger
-        The logger to which the console handler will be added.
-    formatter : logging.Formatter
-        The formatter used to format log messages.
-
-    Returns
-    -------
-    None
-    """
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-def add_file_handler(logger, log_file, formatter):
-    """Attach a file handler to the logger.
-
-    Parameters
-    ----------
-    logger : logging.Logger
-        The logger to which the file handler will be added.
-    log_file : str
-        The file path where log messages will be written.
-    formatter : logging.Formatter
-        The formatter used to format log messages.
-
-    Returns
-    -------
-    None
-    """
-    log_path = os.path.dirname(log_file)
-    os.makedirs(log_path, exist_ok=True)
-    file_handler = logging.FileHandler(log_file, mode="a")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-
-def setup_logger(log_file=None, verbose=2, is_main=False):
-    """
-    Sets up a logger that logs messages to both the console and a file (if specified).
-
-    Parameters
-    ----------
-    log_file : str, optional
-        Path to the log file.
-
-    Returns
-    -------
-    logging.Logger
-        Configured logger instance.
-    """
-    logger = logging.getLogger("Prost_logger")
-
-    # If logger already exists and has handlers, return it (prevents duplicates)
-    if logger.hasHandlers():
-        return logger
-
-    log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG, 3: TRACE_LEVEL}
-    logger.setLevel(log_levels.get(verbose, logging.INFO)) #default to info (debug = 1)
-
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-    # Main process: Set up log file and store its path
-    log_file = log_file if is_main else os.environ.get('LOG_PATH_ENV')
-
-    if log_file:
-        add_file_handler(logger, log_file, formatter)
-        if is_main:
-            # Store log path for workers
-            os.environ['LOG_PATH_ENV'] = log_file
-    else:
-        add_console_handler(logger, formatter)
-    return logger
 
 def associate_transient(
     idx,

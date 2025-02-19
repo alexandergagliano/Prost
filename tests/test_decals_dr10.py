@@ -7,8 +7,10 @@ from astropy.coordinates import SkyCoord
 import importlib.resources as pkg_resources
 import astropy.units as u
 import time
+import numpy as np
 
 def test_associate_decals_dr10():
+    np.random.seed(42)
     
     # associate one known to fail in dr9 but succeed in dr10
     transient_catalog = pd.DataFrame({'IAUID':['AT 2024abyq'], 'RA':[184.912263333], 'Dec':[-29.0635322222]}, index=[0])

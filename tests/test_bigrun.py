@@ -6,9 +6,12 @@ from astro_prost.helpers import SnRateAbsmag
 from astropy.coordinates import SkyCoord
 import importlib.resources as pkg_resources
 import astropy.units as u
+import numpy as np
 import time
 
 def test_bigrun():
+    np.random.seed(18)
+
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:

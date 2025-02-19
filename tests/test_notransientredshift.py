@@ -8,8 +8,11 @@ import importlib.resources as pkg_resources
 import numpy as np
 import astropy.units as u
 import time
+import numpy as np
 
 def test_notransientredshift():
+    np.random.seed(42)
+
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:

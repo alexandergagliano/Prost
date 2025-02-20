@@ -353,7 +353,7 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, r
         result = panstarrs_cone(metadata, search_pos.ra.deg, search_pos.dec.deg, rad_deg, release=release)
 
     if not result:
-        logging.debug(f"Found no pan-starrs {release} sources near {transient_name}.")
+        logging.debug(f"Found no pan-starrs {release} sources.")
         return None
 
     candidate_hosts = pd.read_csv(StringIO(result))

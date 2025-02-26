@@ -300,7 +300,7 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, r
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
-    
+
     rad_dec = np.minimum(500/3600, rad_deg)
 
     # load table metadata to avoid a query
@@ -2004,6 +2004,7 @@ def panstarrs_search(
         return r.text
 
 
+
 def build_glade_candidates(
     transient_name,
     transient_pos,
@@ -2066,7 +2067,7 @@ def build_glade_candidates(
     dec_min = transient_pos.dec.deg - 1
     dec_max = transient_pos.dec.deg + 1
 
-    glade_catalog.rename(columns={'RAJ2000':'ra', 'DEJ2000':'dec', 'z_best':'redshift', 'z_best_std':'redshift_std'}, inplace=True)
+    glade_catalog.rename(columns={'GLADE+':'objID','RAJ2000':'ra', 'DEJ2000':'dec', 'z_best':'redshift', 'z_best_std':'redshift_std'}, inplace=True)
 
     filtered_glade = glade_catalog[(glade_catalog["ra"] > ra_min) & (glade_catalog["ra"] < ra_max) &
                     (glade_catalog["dec"] > dec_min) & (glade_catalog["dec"] < dec_max)]
@@ -2082,7 +2083,6 @@ def build_glade_candidates(
     galaxies_pos = SkyCoord(candidate_hosts["ra"].values * u.deg, candidate_hosts["dec"].values * u.deg)
 
     # define plceholder IDs for GLADE
-    candidate_hosts = candidate_hosts.assign(objID=candidate_hosts.index)
 
     if len(candidate_hosts) < 1:
         return None, []
@@ -2094,7 +2094,10 @@ def build_glade_candidates(
 
     n_galaxies = len(galaxies)
 
-    galaxies['objID_info'] = ['tbl index']*n_galaxies
+    galaxies['objID_info'] = ['GLADE+']*n_galaxies
+
+    # get alternate name for candidate
+    galaxies['name'] = candidate_hosts[['HyperLEDA', 'GWGC', '2MASS', 'WISExSCOS']].bfill(axis=1).iloc[:, 0]
 
     if 'offset' in calc_host_props:
         temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_glade(candidate_hosts)
@@ -2169,7 +2172,6 @@ def build_glade_candidates(
             galaxies["absmag_samples"][i] = absmag_samples[i, :]
 
     return galaxies, cat_col_fields
-
 
 def build_decals_candidates(transient_name,
                             transient_pos,

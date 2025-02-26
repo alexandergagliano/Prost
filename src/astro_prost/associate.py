@@ -37,7 +37,7 @@ DEFAULT_RELEASES = {
 # Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
 
-def save_results(results, transient_catalog, save_path):
+def save_results(results, transient_catalog, run_name=None, save_path='./'):
     ts = int(time.time())
     valid_results = [r for r in results if r is not None]
 
@@ -63,7 +63,7 @@ def save_results(results, transient_catalog, save_path):
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
 
     # Save the updated catalog
-    save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
+    save_name = pathlib.Path(save_path, f"associated_transient_catalog_{run_name or ''}_{ts}.csv")
     transient_catalog.to_csv(save_name, index=False)
 
 def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props):
@@ -515,12 +515,14 @@ def associate_sample(
 
     # always load GLADE -- we now use it for spec-zs.
     pkg = pkg_resources.files("astro_prost")
-    pkg_data_file = pkg / "data" / "GLADE+_HyperLedaSizes_mod_withz.csv"
-
+    pkg_data_file = pkg / "data" / "GLADE+_HyperLedaSizes_mod_withz.csv.gz"
     try:
         with pkg_resources.as_file(pkg_data_file) as csvfile:
-            glade_catalog = pd.read_csv(csvfile)
+            glade_catalog = pd.read_csv(csvfile, compression="gzip", low_memory=False)
+        if glade_catalog is not None:
+            logger.info("Loaded GLADE+ catalog.")
     except FileNotFoundError:
+        logger.warning("Could not find GLADE+ catalog.")
         glade_catalog = None
 
     results = []
@@ -574,7 +576,7 @@ def associate_sample(
 
             # Save intermediate results and clear any large temporary data if needed
             print("Saving intermediate batch results...")
-            save_results(results, transient_catalog, save_path)
+            save_results(results, transient_catalog, run_name, save_path)
 
             # Optionally, force garbage collection
             gc.collect()
@@ -612,7 +614,7 @@ def associate_sample(
 
     if not parallel or os.environ.get(envkey) == str(os.getpid()):
         # Convert results to a DataFrame
-        save_results(results, transient_catalog, save_path)
+        save_results(results, transient_catalog, run_name, save_path)
     else:
         return transient_catalog
 

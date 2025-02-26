@@ -62,7 +62,8 @@ def save_results(results, transient_catalog, run_name=None, save_path='./'):
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
 
     # Save the updated catalog
-    run_name += "_"
+    if run_name:
+        run_name += "_"
     save_name = pathlib.Path(save_path, f"associated_transient_catalog_{run_name or ''}{ts}.csv")
     transient_catalog.to_csv(save_name, index=False)
     return transient_catalog

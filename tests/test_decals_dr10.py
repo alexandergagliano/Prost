@@ -59,6 +59,7 @@ def test_associate_decals_dr10():
         log_path='./',
         progress_bar=progress_bar,
         cat_cols=cat_cols,
+        calc_host_props=False,
     )
 
     host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))

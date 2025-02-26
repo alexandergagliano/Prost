@@ -47,6 +47,9 @@ CATALOG_SHRED_SETTINGS = {
     "glade": False,
 }
 
+# Default paths
+DEFAULT_DUST_PATH = "."
+
 # Data Structure Definitions
 PROP_DTYPES = [
         ("objID", np.int64),
@@ -2364,6 +2367,7 @@ def build_panstarrs_candidates(
     cat_cols=False,
     release='dr2',
     shred_cut=True,
+    dust_path=DEFAULT_DUST_PATH,
 ):
     """Populates a GalaxyCatalog object with candidates from a cone search of the
        panstarrs catalog (See https://outerspace.stsci.edu/display/PANSTARRS/ for details).
@@ -2390,6 +2394,8 @@ def build_panstarrs_candidates(
         If True, concatenates catalog fields for best host to final catalog.
     shred_cut : boolean
         If True, removes likely source shreds associated with the same candidate galaxy.
+    dust_path : str
+        Path to the dust map data files.
 
     Returns
     -------
@@ -2475,15 +2481,13 @@ def build_panstarrs_candidates(
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         # get photozs from Andrew Engel's code!
-        default_dust_path = "."
-
         pkg = pkg_resources.files("astro_prost")
         pkg_data_file = pkg / "data" / "MLP_lupton.hdf5"
 
         with pkg_resources.as_file(pkg_data_file) as model_path:
-            model, range_z = load_lupton_model(logger=logger, model_path=model_path, dust_path=default_dust_path)
+            model, range_z = load_lupton_model(logger=logger, model_path=model_path, dust_path=dust_path)
 
-        x = preprocess(candidate_hosts, path=os.path.join(default_dust_path, "sfddata-master"))
+        x = preprocess(candidate_hosts, path=os.path.join(dust_path, "sfddata-master"))
         posteriors, point_estimates, errors = evaluate(x, model, range_z)
         point_estimates[point_estimates < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
         #point_estimates[point_estimates != point_estimates] = REDSHIFT_FLOOR  # set photometric redshift floor

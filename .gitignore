@@ -38,3 +38,4 @@ docs/notebooks/.ipynb_checkpoints/
 
 # Doctree files
 *.doctree
+.DS_Store

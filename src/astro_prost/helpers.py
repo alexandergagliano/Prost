@@ -27,6 +27,7 @@ DUMMY_FILL_VAL = -999
 
 # Conversion constants
 RAD_TO_ARCSEC = 206265
+MAX_RAD_DEG = 0.14 # 500'' search radius max
 
 # Redshift & galaxy properties
 REDSHIFT_FLOOR = 0.001  # minimum redshift of z=0.001
@@ -301,8 +302,9 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, r
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
-
-    rad_dec = np.minimum(500/3600, rad_deg)
+    if rad_deg > MAX_RAD_DEG:
+        logger.warning("Search radius at this distance >500''! Reducing to ensure a fast pan-starrs query.")
+        rad_dec = MAX_RAD_DEG
 
     # load table metadata to avoid a query
     pkg_data_file = pkg_resources.files('astro_prost') / 'data' / 'panstarrs_metadata.pkl'

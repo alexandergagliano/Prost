@@ -62,9 +62,11 @@ def save_results(results, transient_catalog, run_name=None, save_path='./'):
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
 
     # Save the updated catalog
-    if run_name:
-        run_name += "_"
-    save_name = pathlib.Path(save_path, f"associated_transient_catalog_{run_name or ''}{ts}.csv")
+    save_suffix = f"{ts}"
+    if run_name is not None:
+        save_suffix = f"{run_name}_{save_suffix}"
+
+    save_name = pathlib.Path(save_path, f"associated_transient_catalog_{save_suffix}.csv")
     transient_catalog.to_csv(save_name, index=False)
     return transient_catalog
 
@@ -560,7 +562,8 @@ def associate_sample(
 
         logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
 
-        batch_size = max(min(int(len(transient_catalog) / n_processes), 1000), 10)  # Limit batch size
+        # Limit batch size when parallelizing
+        batch_size = max(min(int(len(transient_catalog) / max(n_processes, 1)), 1000), 10)
 
         total_batches = int(np.ceil(len(events) / batch_size))
         for batch_num, batch in enumerate(chunks(events, batch_size), start=1):

@@ -1,6 +1,5 @@
 import os
 import pathlib
-from mpire import WorkerPool
 import time
 from urllib.error import HTTPError
 import astropy.units as u
@@ -450,7 +449,7 @@ def associate_sample(
     verbose : int
         Verbosity level for logging; can be 0 - 3.
     parallel : boolean
-        If True, runs in parallel with multiprocessing via mpire. Cannot be set with ipython!
+        If True, runs in parallel with multiprocessing. Cannot be used with ipython!
     save : boolean
         If True, saves resulting association table to save_path.
     save_path : str

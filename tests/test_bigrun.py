@@ -58,7 +58,6 @@ def test_bigrun():
         save=save,
         log_path='./',
         progress_bar=progress_bar,
-        calc_host_props=False,
         cat_cols=cat_cols,
     )
 

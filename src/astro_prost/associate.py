@@ -39,8 +39,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by ze
 
 def save_results(results, transient_catalog, run_name=None, save_path='./'):
     ts = int(time.time())
-    valid_results = [r for r in results if r is not None]
-
+    valid_results = [r for r in results.values() if r is not None]
     results_df = pd.DataFrame.from_records(valid_results)
 
     extra_cat_cols_list = [res["extra_cat_cols"] for res in valid_results if isinstance(res, dict) and "extra_cat_cols" in res]
@@ -63,8 +62,10 @@ def save_results(results, transient_catalog, run_name=None, save_path='./'):
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
 
     # Save the updated catalog
-    save_name = pathlib.Path(save_path, f"associated_transient_catalog_{run_name or ''}_{ts}.csv")
+    run_name += "_"
+    save_name = pathlib.Path(save_path, f"associated_transient_catalog_{run_name or ''}{ts}.csv")
     transient_catalog.to_csv(save_name, index=False)
+    return transient_catalog
 
 def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props):
     """Log selected host galaxy properties for a transient.
@@ -97,6 +98,7 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
     # Define all possible properties with labels and formats
     prop_format = {
         "objID": ("objID", "{:d}"),
+        'name': ("Name", "{:s}"),
         "ra": ("R.A. (deg)", "{:.6f}"),
         "dec": ("Dec. (deg)", "{:.6f}"),
         "redshift": ("Redshift", "{:.4f}"),
@@ -212,13 +214,10 @@ def associate_transient(
 
     logger = setup_logger(log_fn, verbose=verbose, is_main=False)
 
+    condition_host_props = list(priors.keys())
     # TODO change overloaded variable here
     if calc_host_props:
-        required = {'redshift', 'absmag', 'offset'}
-        calc_host_props = list(required)
-        missing = required - set(priors.keys())
-        if missing:
-            raise ValueError(f"To calculate all properties, priors must be defined for: {', '.join(missing)}.")
+        calc_host_props = list({'redshift', 'absmag', 'offset'})
     else:
         calc_host_props = list(priors.keys())
 
@@ -261,19 +260,20 @@ def associate_transient(
     }
 
     # Define the fields that we extract for best and second-best hosts
-    fields = ["objID", "total_posterior", "ra", "dec", "redshift_mean", "redshift_std"]
+    fields = ["objID", 'name', "total_posterior", "ra", "dec", "redshift_mean", "redshift_std"]
 
     for prop in calc_host_props:
         fields.append(f"{prop}_mean")
         fields.append(f"{prop}_std")
-        fields.append(f"{prop}_posterior")
+        if prop in condition_host_props:
+            fields.append(f"{prop}_posterior")
 
     if cat_priority is not None:
         catalogs = sorted(
             catalogs,
             key=lambda cat: (cat_priority.get(cat[0], float("inf")), cat[1])  # Prioritize by catalog, then release
         )
-        logger.info("Running association with the following catalog priorities:", catalogs)
+        logger.info(f"Running association with the following catalog priorities: {catalogs}")
 
     catalog_dict = OrderedDict(get_catalogs(catalogs))
 
@@ -288,13 +288,14 @@ def associate_transient(
             continue
 
         if cat.ngals > 0:
-            cat = transient.associate(cat, cosmo, calc_host_props=calc_host_props)
+            cat = transient.associate(cat, cosmo, condition_host_props=condition_host_props)
 
             if transient.best_host != -1:
                 best_idx = transient.best_host
                 second_best_idx = transient.second_best_host
 
-                print_props = ['objID', 'ra', 'dec', 'total_posterior']
+                print_props = ['objID', 'name', 'ra', 'dec', 'total_posterior']
+
                 log_host_properties(logger, transient.name, cat, best_idx, f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props)
                 log_host_properties(logger, transient.name, cat, second_best_idx, f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props)
 
@@ -315,6 +316,9 @@ def associate_transient(
                 # Collect extra catalog columns if needed
                 if cat_cols:
                     result["extra_cat_cols"] = {field: cat.galaxies[field][best_idx] for field in cat.cat_col_fields}
+
+                if (result['host_name'].startswith("NGC")) or (result['host_name'].startswith("M")):
+                    logger.info(f"Matched host is {result['host_name']}!")
 
                 logger.info(
                     f"Chosen galaxy has catalog ID of {result['host_objID']} "
@@ -525,7 +529,7 @@ def associate_sample(
         logger.warning("Could not find GLADE+ catalog.")
         glade_catalog = None
 
-    results = []
+    results = {}
 
     events = [
         (
@@ -540,109 +544,96 @@ def associate_sample(
             cat_priority,
             cat_cols,
             log_fn,
+            calc_host_props,
             verbose
         )
         for idx, row in transient_catalog.iterrows()
     ]
 
-    if (parallel) and (is_main):
-        # Set the environment variable in the parent process only
-        os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
+    if parallel and is_main:
+        os.environ[envkey] = str(os.getpid())
 
-        if (n_processes is None) or (n_processes > NPROCESS_MAX):
-            logger.info("WARNING! Set n_processes to greater than the number of cpu cores on this machine." +
-                        f" Falling back to n_processes = {NPROCESS_MAX}.")
+        if n_processes is None or n_processes > NPROCESS_MAX:
+            logger.info(f"WARNING! n_processes > {NPROCESS_MAX}. Dropping down.")
             n_processes = NPROCESS_MAX
 
-        logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes in batches.")
+        logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
 
-        # Define your batch size, e.g., 250 events per batch
-        batch_size = 250
+        batch_size = max(min(int(len(transient_catalog) / n_processes), 1000), 10)  # Limit batch size
 
-        results = {}  # accumulate results here
         total_batches = int(np.ceil(len(events) / batch_size))
         for batch_num, batch in enumerate(chunks(events, batch_size), start=1):
             logger.info(f"Processing batch {batch_num}/{total_batches} with {len(batch)} events.")
+
+            results_per_batch = {}
+
             with ProcessPoolExecutor(max_workers=n_processes) as executor:
                 futures = {executor.submit(safe_associate_transient, *event): event[0] for event in batch}
-                for future in tqdm(as_completed(futures),
-                                   total=len(futures),
-                                   desc=f"Batch {batch_num}"):
+                for future in tqdm(as_completed(futures), total=len(futures), desc=f"Batch {batch_num}"):
                     try:
-                        results[futures[future]] = future.result()
+                        results_per_batch[futures[future]] = future.result()
                     except Exception as e:
                         logger.error(f"Unhandled error for event {futures[future]}: {e}", exc_info=True)
-                        results[futures[future]] = None
+                        results_per_batch[futures[future]] = None
 
-            # Save intermediate results and clear any large temporary data if needed
+            results.update(results_per_batch)  # Merge into main results
+
             print("Saving intermediate batch results...")
-            save_results(results, transient_catalog, run_name, save_path)
+            _ = save_results(results_per_batch, transient_catalog, run_name, save_path)
 
-            # Optionally, force garbage collection
-            gc.collect()
+            gc.collect()  # Free memory
+
+            # Retry logic for failed associations
             max_retries = 3
-            retry = 0
-            while retry < max_retries:
-                failed_ids = [event_id for event_id, res in results.items() if res is None]
+            for retry in range(max_retries):
+                failed_ids = [event_id for event_id, res in results_per_batch.items() if res is None]
                 if not failed_ids:
                     logger.info("All associations succeeded; no more retries needed.")
                     break
 
                 logger.info(f"Retry attempt {retry+1}: Rerunning {len(failed_ids)} failed associations.")
-
-                # Select events corresponding to failed_ids. (Recall: event[0] is the transient index.)
                 failed_events = [event for event in events if event[0] in failed_ids]
 
                 with ProcessPoolExecutor(max_workers=n_processes) as executor:
                     new_futures = {executor.submit(safe_associate_transient, *event): event[0] for event in failed_events}
-                    for future in tqdm(as_completed(new_futures),
-                                       total=len(new_futures),
-                                       desc="Retrying events"):
+                    for future in tqdm(as_completed(new_futures), total=len(new_futures), desc="Retrying events"):
                         try:
-                            results[new_futures[future]] = future.result()
+                            results_per_batch[new_futures[future]] = future.result()
                         except Exception as e:
                             logger.error(f"Retry failed for event {new_futures[future]}: {e}", exc_info=True)
-                            results[new_futures[future]] = None
+                            results_per_batch[new_futures[future]] = None
 
-                retry += 1
+                results.update(results_per_batch)  # Merge new results into main results
 
-                if retry == max_retries:
+                if retry == max_retries - 1:
                     logger.warning("Some associations still failed after maximum retries.")
 
-    else:
-        results = [associate_transient(*event) for event in events]
+    else:  # Serial execution mode
+        results = {i: associate_transient(*event) for i, event in enumerate(events)}
 
     if not parallel or os.environ.get(envkey) == str(os.getpid()):
-        # Convert results to a DataFrame
-        save_results(results, transient_catalog, run_name, save_path)
-    else:
-        return transient_catalog
+        transient_catalog = save_results(results, transient_catalog, run_name, save_path)
 
-def safe_associate_transient(idx,
-row,
-glade_catalog,
-n_samples,
-priors,
-likes,
-cosmo,
-catalogs,
-cat_priority,
-cat_cols,
-log_fn,
-verbose):
+    return transient_catalog
+
+def safe_associate_transient(*args, **kwargs):
+    """Safely executes `associate_transient` while handling errors.
+
+    Parameters
+    ----------
+    *args : tuple
+        Positional arguments to be passed directly to `associate_transient`.
+        The first argument (`args[0]`) is expected to be the transient's catalog index.
+    **kwargs : dict
+        Keyword arguments passed to `associate_transient`.
+
+    Returns
+    -------
+    dict or None
+        The output of `associate_transient` if successful, otherwise `None`.
+    """
     try:
-        return associate_transient(idx,
-        row,
-        glade_catalog,
-        n_samples,
-        priors,
-        likes,
-        cosmo,
-        catalogs,
-        cat_priority,
-        cat_cols,
-        log_fn,
-        verbose)
+        return associate_transient(*args, **kwargs)
     except Exception as e:
-        logger.exception(f"Error processing event {idx}: {e}")
+        logger.exception(f"Error processing event {args[0]}: {e}")
         return None

@@ -9,22 +9,25 @@ import astropy.units as u
 import time
 import numpy as np
 
-def test_panstarrs_dr1():
-    np.random.seed(3)
+def test_associate_glade():
+    np.random.seed(42)
 
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
+    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2021qqn']
 
     # define priors for properties
+    priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
     priorfunc_offset = uniform(loc=0, scale=10)
+    priorfunc_absmag = uniform(loc=-30, scale=20)
 
     likefunc_offset = gamma(a=0.75)
+    likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
 
-    priors = {"offset": priorfunc_offset}
-    likes = {"offset": likefunc_offset}
+    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "redshift": priorfunc_z}
+    likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
     verbose = 2
@@ -34,7 +37,7 @@ def test_panstarrs_dr1():
     cat_cols = False
 
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = [("panstarrs", "dr1")]
+    catalogs = ["glade"]
 
     # the name of the coord columns in the dataframe
     transient_coord_cols = ("RA", "Dec")
@@ -57,10 +60,6 @@ def test_panstarrs_dr1():
         save=save,
         progress_bar=progress_bar,
         cat_cols=cat_cols,
-        calc_host_props=False,
     )
 
-    host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))
-    true_coord = SkyCoord(328.3729167, 32.8013889, unit=(u.deg, u.deg))
-    assert (host_coord.separation(true_coord).arcsec <= 1) and (hostTable['best_cat_release'].values[0] == 'dr1')
-
+    assert hostTable['host_name'].values[0]  == 'NGC6560'

@@ -4,7 +4,11 @@ import requests
 import numpy as np
 import pandas as pd
 import requests
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except ImportError:
+    tf = None
+    print("Warning: Issue importing tensorflow. Please try reinstalling or associate panstarrs sources without conditioning on redshift.")
 from astropy.table import Table
 from sfdmap2 import sfdmap
 from filelock import FileLock
@@ -341,6 +345,11 @@ def load_lupton_model(logger, model_path=default_model_path, dust_path=default_d
         Array of binned redshift space corresponding to the output space of the NN
     """
 
+    if tf is None:
+        raise RuntimeError(
+        "TensorFlow is required for photo-z estimation but is corrupted or not installed. "
+        "Please reinstall using `pip install tensorflow` or associate again without redshift."
+    )
     build_sfd_dir(logger, data_dir=dust_path)
     get_photoz_weights(logger, file_path=model_path)
 

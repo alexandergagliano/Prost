@@ -16,9 +16,17 @@ from .helpers import GalaxyCatalog, Transient, setup_logger, sanitize_input
 import logging
 from collections import OrderedDict
 import warnings
+from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import gc
 
 # Parallel processing settings
 NPROCESS_MAX = os.cpu_count() - 4
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i+n]
 
 # Default survey releases
 DEFAULT_RELEASES = {
@@ -29,6 +37,35 @@ DEFAULT_RELEASES = {
 
 # Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
+
+def save_results(results, transient_catalog, save_path):
+    ts = int(time.time())
+    valid_results = [r for r in results if r is not None]
+
+    results_df = pd.DataFrame.from_records(valid_results)
+
+    extra_cat_cols_list = [res["extra_cat_cols"] for res in valid_results if isinstance(res, dict) and "extra_cat_cols" in res]
+
+    if extra_cat_cols_list:
+        extra_cat_cols_DF = pd.DataFrame.from_records(extra_cat_cols_list)
+        results_df = results_df.join(extra_cat_cols_DF)
+
+    if "idx" not in results_df.columns:
+        raise ValueError("No 'idx' column found in results, cannot update transient_catalog!")
+
+    transient_catalog = transient_catalog.merge(
+        results_df, left_index=True, right_on="idx", how="left"
+    )
+
+    # Convert all ID columns to integers
+    id_cols = [col for col in transient_catalog.columns if col.endswith("id")]
+
+    for col in id_cols:
+        transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
+
+    # Save the updated catalog
+    save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
+    transient_catalog.to_csv(save_name, index=False)
 
 def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props):
     """Log selected host galaxy properties for a transient.
@@ -134,7 +171,8 @@ def associate_transient(
     cat_priority,
     cat_cols,
     log_fn,
-    calc_host_props=False
+    calc_host_props=False,
+    verbose=0
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -173,7 +211,7 @@ def associate_transient(
 
     """
 
-    logger = setup_logger(log_fn, is_main=False)
+    logger = setup_logger(log_fn, verbose=verbose, is_main=False)
 
     # TODO change overloaded variable here
     if calc_host_props:
@@ -500,61 +538,110 @@ def associate_sample(
             catalogs,
             cat_priority,
             cat_cols,
-            log_fn
+            log_fn,
+            verbose
         )
         for idx, row in transient_catalog.iterrows()
     ]
 
     if (parallel) and (is_main):
-            # Set the environment variable in the parent process only
-            os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
+        # Set the environment variable in the parent process only
+        os.environ[envkey] = str(os.getpid())  # Store the PID in the env var
 
-            if (n_processes is None) or (n_processes > NPROCESS_MAX):
-                logger.info("WARNING! Set n_processes to greater than the number of cpu cores on this machine."+
-                       f" Falling back to n_processes = {NPROCESS_MAX}.")
-                n_processes = NPROCESS_MAX
+        if (n_processes is None) or (n_processes > NPROCESS_MAX):
+            logger.info("WARNING! Set n_processes to greater than the number of cpu cores on this machine." +
+                        f" Falling back to n_processes = {NPROCESS_MAX}.")
+            n_processes = NPROCESS_MAX
 
-            # Create a list of tasks
-            logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes.")
+        logger.info(f"Parallelizing {len(transient_catalog)} associations across {n_processes} processes in batches.")
 
-            with WorkerPool(n_jobs=n_processes, start_method='spawn') as pool:
-                results = pool.map(associate_transient, events, progress_bar=progress_bar)
-                pool.stop_and_join()
+        # Define your batch size, e.g., 250 events per batch
+        batch_size = 250
+
+        results = {}  # accumulate results here
+        total_batches = int(np.ceil(len(events) / batch_size))
+        for batch_num, batch in enumerate(chunks(events, batch_size), start=1):
+            logger.info(f"Processing batch {batch_num}/{total_batches} with {len(batch)} events.")
+            with ProcessPoolExecutor(max_workers=n_processes) as executor:
+                futures = {executor.submit(safe_associate_transient, *event): event[0] for event in batch}
+                for future in tqdm(as_completed(futures),
+                                   total=len(futures),
+                                   desc=f"Batch {batch_num}"):
+                    try:
+                        results[futures[future]] = future.result()
+                    except Exception as e:
+                        logger.error(f"Unhandled error for event {futures[future]}: {e}", exc_info=True)
+                        results[futures[future]] = None
+
+            # Save intermediate results and clear any large temporary data if needed
+            print("Saving intermediate batch results...")
+            save_results(results, transient_catalog, save_path)
+
+            # Optionally, force garbage collection
+            gc.collect()
+            max_retries = 3
+            retry = 0
+            while retry < max_retries:
+                failed_ids = [event_id for event_id, res in results.items() if res is None]
+                if not failed_ids:
+                    logger.info("All associations succeeded; no more retries needed.")
+                    break
+
+                logger.info(f"Retry attempt {retry+1}: Rerunning {len(failed_ids)} failed associations.")
+
+                # Select events corresponding to failed_ids. (Recall: event[0] is the transient index.)
+                failed_events = [event for event in events if event[0] in failed_ids]
+
+                with ProcessPoolExecutor(max_workers=n_processes) as executor:
+                    new_futures = {executor.submit(safe_associate_transient, *event): event[0] for event in failed_events}
+                    for future in tqdm(as_completed(new_futures),
+                                       total=len(new_futures),
+                                       desc="Retrying events"):
+                        try:
+                            results[new_futures[future]] = future.result()
+                        except Exception as e:
+                            logger.error(f"Retry failed for event {new_futures[future]}: {e}", exc_info=True)
+                            results[new_futures[future]] = None
+
+                retry += 1
+
+                if retry == max_retries:
+                    logger.warning("Some associations still failed after maximum retries.")
+
     else:
         results = [associate_transient(*event) for event in events]
 
     if not parallel or os.environ.get(envkey) == str(os.getpid()):
-
         # Convert results to a DataFrame
-        results_df = pd.DataFrame.from_records(results)
-
-        extra_cat_cols_list = [res["extra_cat_cols"] for res in results if "extra_cat_cols" in res]
-
-        if extra_cat_cols_list:
-            extra_cat_cols_DF = pd.DataFrame.from_records(extra_cat_cols_list)
-            results_df = results_df.join(extra_cat_cols_DF)
-
-        if "idx" not in results_df.columns:
-            raise ValueError("No 'idx' column found in results, cannot update transient_catalog!")
-
-        transient_catalog = transient_catalog.merge(
-            results_df, left_index=True, right_on="idx", how="left"
-        )
-
-        # Convert all ID columns to integers
-        id_cols = [col for col in transient_catalog.columns if col.endswith("id")]
-
-        for col in id_cols:
-            transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
-
-        # final log message -- we're done!
-        logger.info("\n\nAssociation of all transients is complete.")
-
-        # Save the updated catalog
-        if save:
-            save_name = pathlib.Path(save_path, f"associated_transient_catalog_{ts}.csv")
-            transient_catalog.to_csv(save_name, index=False)
-        else:
-            return transient_catalog
+        save_results(results, transient_catalog, save_path)
     else:
         return transient_catalog
+
+def safe_associate_transient(idx,
+row,
+glade_catalog,
+n_samples,
+priors,
+likes,
+cosmo,
+catalogs,
+cat_priority,
+cat_cols,
+log_fn,
+verbose):
+    try:
+        return associate_transient(idx,
+        row,
+        glade_catalog,
+        n_samples,
+        priors,
+        likes,
+        cosmo,
+        catalogs,
+        cat_priority,
+        cat_cols,
+        log_fn,
+        verbose)
+    except Exception as e:
+        logger.exception(f"Error processing event {idx}: {e}")
+        return None

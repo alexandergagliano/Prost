@@ -154,7 +154,7 @@ def add_file_handler(logger, log_file, formatter):
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-def setup_logger(log_file=None, verbose=2, is_main=False):
+def setup_logger(log_file=None, verbose=1, is_main=False):
     """
     Sets up a logger that logs messages to both the console and a file (if specified).
 
@@ -175,7 +175,7 @@ def setup_logger(log_file=None, verbose=2, is_main=False):
         return logger
 
     log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG, 3: TRACE_LEVEL}
-    logger.setLevel(log_levels.get(verbose, logging.INFO)) #default to info (debug = 1)
+    logger.setLevel(log_levels.get(verbose))
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
@@ -300,6 +300,8 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, r
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
+    
+    rad_dec = np.minimum(500/3600, rad_deg)
 
     # load table metadata to avoid a query
     pkg_data_file = pkg_resources.files('astro_prost') / 'data' / 'panstarrs_metadata.pkl'
@@ -554,7 +556,7 @@ def calc_shape_props_decals(candidate_hosts):
 
     # so d/de2(-arctan2/2)= -e1/2*(e1^2 + e2^2)
     # so d/de1(-arctan2/2)= e2/2*(e1^2 + e2^2)
-
+    59000+2400000.5
     denom = temp_e1**2 + temp_e2**2
     denom = np.maximum(denom, SHAPE_FLOOR)
 
@@ -1992,7 +1994,7 @@ def panstarrs_search(
 
         data["columns"] = f"[{','.join(columns)}]"
 
-    r = requests.get(url, params=data)
+    r = requests.get(url, params=data, timeout=10)
 
     r.raise_for_status()
 

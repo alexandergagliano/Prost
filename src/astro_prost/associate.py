@@ -20,7 +20,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import gc
 
 # Parallel processing settings
-NPROCESS_MAX = os.cpu_count() - 4
+NPROCESS_MAX = np.maximum(os.cpu_count() - 4, 1)
 
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""

@@ -27,7 +27,8 @@ dependencies = [
   "scipy", 
   "astro-datalab", 
   "requests",
-  "sfdmap2",
+  "sfdmap; python_version <= '3.9'",
+  "sfdmap2; python_version >= '3.9'"
   "filelock",
   "tensorflow==2.14.0; python_version < '3.10'",
   "tensorflow>2.16.0; python_version >= '3.10'"

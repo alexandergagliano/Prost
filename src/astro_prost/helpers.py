@@ -1,10 +1,12 @@
 import os
 import time
-import importlib
+import sys
+if sys.version_info >= (3, 9):
+    import importlib.resources as pkg_resources
+else:
+    import importlib_resources as pkg_resources
 import pickle
 import requests
-
-import importlib.resources as pkg_resources
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as u

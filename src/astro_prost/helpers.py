@@ -1366,7 +1366,7 @@ class Transient:
             else:
                 self.second_best_host = -1
         else:
-            # No second index at all
+            # No second candidate galaxy
             self.second_best_host = -1
 
         # consolidate across samples

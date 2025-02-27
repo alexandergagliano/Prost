@@ -4,6 +4,9 @@ import time
 from urllib.error import HTTPError
 import astropy.units as u
 import numpy as np
+#hacky monkey-patch for python 3.8
+if not hasattr(np, 'int'):
+    np.int = int
 import pandas as pd
 import requests
 from astropy.coordinates import SkyCoord

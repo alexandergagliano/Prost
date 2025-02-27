@@ -9,6 +9,9 @@ import pickle
 import requests
 import matplotlib.pyplot as plt
 import numpy as np
+#hacky monkey-patch for python 3.8
+if not hasattr(np, 'int'):
+    np.int = int
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, match_coordinates_sky
 from astropy.io import ascii

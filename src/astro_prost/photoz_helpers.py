@@ -2,6 +2,9 @@ import os
 import tarfile
 import requests
 import numpy as np
+#hacky monkey-patch for python 3.8
+if not hasattr(np, 'int'):
+    np.int = int
 import pandas as pd
 import requests
 import sys

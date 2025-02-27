@@ -4,7 +4,11 @@ from scipy.stats import gamma, halfnorm, uniform
 from astro_prost.associate import associate_sample, prepare_catalog
 from astro_prost.helpers import SnRateAbsmag
 from astropy.coordinates import SkyCoord
-import importlib.resources as pkg_resources
+import sys
+if sys.version_info >= (3, 9):
+    import importlib.resources as pkg_resources
+else:
+    import importlib_resources as pkg_resources
 import astropy.units as u
 import time
 import numpy as np

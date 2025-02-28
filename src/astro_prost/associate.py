@@ -589,8 +589,9 @@ def associate_sample(
 
             results.update(results_per_batch)  # Merge into main results
 
-            print("Saving intermediate batch results...")
-            _ = save_results(results_per_batch, transient_catalog, run_name, save_path)
+            if save:
+                print("Saving intermediate batch results...")
+                _ = save_results(results_per_batch, transient_catalog, run_name, save_path)
 
             gc.collect()  # Free memory
 
@@ -622,7 +623,7 @@ def associate_sample(
     else:  # Serial execution mode
         results = {i: associate_transient(*event) for i, event in enumerate(events)}
 
-    if not parallel or os.environ.get(envkey) == str(os.getpid()):
+    if save and (not parallel or os.environ.get(envkey) == str(os.getpid())):
         transient_catalog = save_results(results, transient_catalog, run_name, save_path)
 
     return transient_catalog

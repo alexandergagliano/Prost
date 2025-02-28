@@ -309,7 +309,9 @@ def associate_transient(
                     "best_cat_release": cat_release,
                     "query_time": cat.query_time,
                     "smallcone_posterior": transient.smallcone_posterior,
-                    "missedcat_posterior": transient.missedcat_posterior
+                    "missedcat_posterior": transient.missedcat_posterior,
+                    "any_posterior": transient.any_posterior,
+                    "none_posterior": transient.none_posterior,
                 })
 
                 # Collect extra catalog columns if needed

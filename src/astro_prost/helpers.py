@@ -1,12 +1,17 @@
 import os
 import time
-import importlib
+import sys
+if sys.version_info >= (3, 9):
+    import importlib.resources as pkg_resources
+else:
+    import importlib_resources as pkg_resources
 import pickle
 import requests
-
-import importlib.resources as pkg_resources
 import matplotlib.pyplot as plt
 import numpy as np
+#hacky monkey-patch for python 3.8
+if not hasattr(np, 'int'):
+    np.int = int
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, match_coordinates_sky
 from astropy.io import ascii
@@ -27,6 +32,7 @@ DUMMY_FILL_VAL = -999
 
 # Conversion constants
 RAD_TO_ARCSEC = 206265
+MAX_RAD_DEG = 0.14 # 500'' search radius max
 
 # Redshift & galaxy properties
 REDSHIFT_FLOOR = 0.001  # minimum redshift of z=0.001
@@ -46,10 +52,14 @@ CATALOG_SHRED_SETTINGS = {
     "glade": False,
 }
 
+# Default paths
+DEFAULT_DUST_PATH = "."
+
 # Data Structure Definitions
 PROP_DTYPES = [
         ("objID", np.int64),
         ("objID_info", "U20"),
+        ("name", "U20"),
         ("ra", float),
         ("dec", float),
         ("redshift_samples", object),
@@ -300,8 +310,9 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, r
         search_rad = Angle(60 * u.arcsec)
 
     rad_deg = search_rad.deg
-
-    rad_dec = np.minimum(500/3600, rad_deg)
+    if rad_deg > MAX_RAD_DEG:
+        logger.warning("Search radius at this distance >500''! Reducing to ensure a fast pan-starrs query.")
+        rad_dec = MAX_RAD_DEG
 
     # load table metadata to avoid a query
     pkg_data_file = pkg_resources.files('astro_prost') / 'data' / 'panstarrs_metadata.pkl'
@@ -1205,7 +1216,7 @@ class Transient:
         else:
             return likelihoods
 
-    def associate(self, galaxy_catalog, cosmo, calc_host_props=['offset']):
+    def associate(self, galaxy_catalog, cosmo, condition_host_props=['offset']):
         """Runs the main transient association module.
 
         Parameters
@@ -1226,11 +1237,12 @@ class Transient:
         search_rad = galaxy_catalog.search_rad
         limiting_mag = galaxy_catalog.limiting_mag
         galaxies = galaxy_catalog.galaxies
+        n_gals = len(galaxies)
         n_samples = galaxy_catalog.n_samples
 
         post_set = []
 
-        if 'redshift' in calc_host_props:
+        if 'redshift' in condition_host_props:
             # Extract arrays for all galaxies from the catalog
             redshift_mean = np.array(galaxies["redshift_mean"])
             redshift_std = np.array(galaxies["redshift_std"])
@@ -1253,7 +1265,7 @@ class Transient:
                 post_redshift = prior_redshift * like_redshift
             post_set.append(post_redshift)
 
-        if 'absmag' in calc_host_props:
+        if 'absmag' in condition_host_props:
             absmag_mean = np.array(galaxies["absmag_mean"])
             absmag_std = np.array(galaxies["absmag_std"])
             absmag_samples = np.vstack(galaxies["absmag_samples"])
@@ -1263,7 +1275,7 @@ class Transient:
             post_absmag = prior_absmag * like_absmag
             post_set.append(post_absmag)
 
-        if 'offset' in calc_host_props:
+        if 'offset' in condition_host_props:
             offset_mean = np.array(galaxies["offset_mean"])
             offset_std = np.array(galaxies["offset_std"])
             # just copied now assuming 0 positional uncertainty -- this can be updated later (TODO!)
@@ -1290,11 +1302,11 @@ class Transient:
         post_hostless = np.ones(n_samples)*PROB_FLOOR
 
         if self.redshift == self.redshift:
-            post_outside = self.probability_host_outside_cone(search_rad=search_rad, n_samples=n_samples, cosmo=cosmo, calc_host_props=calc_host_props)
+            post_outside = self.probability_host_outside_cone(search_rad=search_rad, n_samples=n_samples, cosmo=cosmo, condition_host_props=condition_host_props)
         else:
             post_outside = PROB_FLOOR
 
-        post_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, n_samples=n_samples, cosmo=cosmo, calc_host_props=calc_host_props)
+        post_unobs = self.probability_of_unobserved_host(search_rad=search_rad, limiting_mag=limiting_mag, n_samples=n_samples, cosmo=cosmo, condition_host_props=condition_host_props)
 
         # sum across all galaxies
         post_tot = np.nansum(post_gals, axis=0) + post_hostless + post_outside + post_unobs
@@ -1307,16 +1319,27 @@ class Transient:
         post_gals_norm = post_gals / post_tot
         post_outside_norm = post_outside / post_tot
         post_unobs_norm = post_unobs / post_tot
+        post_hostless_norm = post_hostless / post_tot
 
-        if 'offset' in calc_host_props:
+        if 'offset' in condition_host_props:
             post_offset_norm = post_offset / post_tot
-        if 'redshift' in calc_host_props:
+        if 'redshift' in condition_host_props:
             post_redshift_norm = post_redshift / post_tot
-        if 'absmag' in calc_host_props:
+        if 'absmag' in condition_host_props:
             post_absmag_norm = post_absmag / post_tot
 
-        # Sort and get last 2 indices in descending order
-        top_idxs = np.argsort(np.nanmedian(post_gals_norm, axis=1))[::-1]
+        # calculate the galaxies with the most matches in the MCMC
+        all_posts = np.vstack([
+        post_gals_norm,
+        post_outside_norm,
+        post_unobs_norm,
+        post_hostless_norm
+        ])
+
+        winner_indices = np.argmax(all_posts, axis=0)
+        counts = np.bincount(winner_indices, minlength=n_gals+3)
+        win_fractions = counts / float(n_samples)
+        top_idxs = np.argsort(win_fractions)[::-1]
 
         self.associated_catalog = galaxy_catalog.name
         self.any_posterior = np.nanmedian(p_any_norm)
@@ -1324,35 +1347,47 @@ class Transient:
         self.smallcone_posterior = np.nanmedian(post_outside_norm)
         self.missedcat_posterior = np.nanmedian(post_unobs_norm)
 
-        if self.any_posterior > self.none_posterior:
+        best_idx = top_idxs[0]
+
+        if best_idx < n_gals:
+            # This is a real galaxy
             self.logger.info("Association successful!")
-            self.logger.info("")
-            # get best and second-best matches
-            self.best_host = top_idxs[0]
-            if ngals > 1:
-                self.second_best_host = top_idxs[1]
+            self.best_host = best_idx
         else:
+            # no galaxy found
             self.best_host = -1
-            self.second_best_host = top_idxs[0]  # set best host as second-best -- best is no host
-            if np.nanmedian(post_outside_norm) > np.nanmedian(post_unobs_norm):
-                self.logger.info("Association failed. Host is likely outside search cone.\n")
+            if best_idx == n_gals:
+                self.logger.info("Association failed. Host is likely outside the search cone.")
+            elif best_idx == (n_gals + 1):
+                self.logger.info("Association failed. Host is likely missing from the catalog.")
+            elif best_idx == (n_gals + 2):
+                self.logger.info("Association failed. Host is likely hostless.")
+
+        # Now figure out second best index
+        if len(top_idxs) > 1:
+            second_idx = top_idxs[1]
+            if second_idx < n_gals:
+                self.second_best_host = second_idx
             else:
-                self.logger.info("Association failed. Host is likely missing from the catalog.\n")
+                self.second_best_host = -1
+        else:
+            # No second candidate galaxy
+            self.second_best_host = -1
 
         # consolidate across samples
         galaxy_catalog.galaxies["total_posterior"] = np.nanmedian(post_gals_norm, axis=1)
 
-        if 'offset' in calc_host_props:
+        if 'offset' in condition_host_props:
             galaxy_catalog.galaxies["offset_posterior"] = np.nanmedian(post_offset_norm, axis=1)
-        if 'redshift' in calc_host_props:
+        if 'redshift' in condition_host_props:
             galaxy_catalog.galaxies["redshift_posterior"] = np.nanmedian(post_redshift_norm, axis=1)
-        if 'absmag' in calc_host_props:
+        if 'absmag' in condition_host_props:
             absmag_best_post = np.nanmedian(post_absmag_norm, axis=1)[self.best_host]
             galaxy_catalog.galaxies["absmag_posterior"] = np.nanmedian(post_absmag_norm, axis=1)
 
         return galaxy_catalog
 
-    def probability_of_unobserved_host(self, search_rad, cosmo, limiting_mag=30, n_samples=1000, calc_host_props=['offset']):
+    def probability_of_unobserved_host(self, search_rad, cosmo, limiting_mag=30, n_samples=1000, condition_host_props=['offset']):
         """Calculates the posterior probability of the host being either dimmer than the
            limiting magnitude of the catalog or not in the catalog at all.
 
@@ -1374,7 +1409,7 @@ class Transient:
 
         """
         # only set if we have absmag and redshift priors -- otherwise set to 0!
-        if ('absmag' not in calc_host_props) or ('redshift' not in calc_host_props):
+        if ('absmag' not in condition_host_props) or ('redshift' not in condition_host_props):
             return np.ones(n_samples)*PROB_FLOOR
 
         post_set = []
@@ -1438,7 +1473,7 @@ class Transient:
         post_absmag = prior_absmag*like_absmag
         post_set.append(post_absmag)
 
-        if 'offset' in calc_host_props:
+        if 'offset' in condition_host_props:
             galaxy_physical_radius_prior_means = halfnorm.rvs(size=n_gals, loc=1.0, scale=10)  # in kpc
             galaxy_physical_radius_prior_std = SIGMA_SIZE_FLOOR * galaxy_physical_radius_prior_means
             galaxy_physical_radius_prior_samples = norm.rvs(
@@ -1478,7 +1513,7 @@ class Transient:
 
         return post_unobs
 
-    def probability_host_outside_cone(self, cosmo, search_rad=60, n_samples=1000, calc_host_props=['offset']):
+    def probability_host_outside_cone(self, cosmo, search_rad=60, n_samples=1000, condition_host_props=['offset']):
         """Calculates the posterior probability of the host being outside the cone search chosen
            for the catalog query. Primarily set by the fractional offset and redshift prior.
 
@@ -1490,6 +1525,8 @@ class Transient:
             Number of samples to draw for Monte Carlo association.
         cosmo : astropy cosmology
             Assumed cosmology.
+        condition_host_props : list
+            List of galaxy properties to use for association.
 
         Returns
         -------
@@ -1499,7 +1536,7 @@ class Transient:
         """
 
         # only calculate if we have redshift and offset priors -- otherwise fix to PROB_FLOOR
-        if 'redshift' not in calc_host_props:
+        if 'redshift' not in condition_host_props:
             return np.ones(n_samples)*PROB_FLOOR
 
         n_gals = int(n_samples / 2)
@@ -1575,7 +1612,7 @@ class Transient:
         post_offset = prior_offset * l_offset
         post_set.append(post_offset)
 
-        if 'absmag' in calc_host_props:
+        if 'absmag' in condition_host_props:
             # sample brightnesses
             absmag_mean = self.get_prior("absmag").rvs(size=n_gals)
             absmag_std = 0.05 * np.abs(absmag_mean)
@@ -2096,8 +2133,10 @@ def build_glade_candidates(
 
     galaxies['objID_info'] = ['GLADE+']*n_galaxies
 
-    # get alternate name for candidate
-    galaxies['name'] = candidate_hosts[['HyperLEDA', 'GWGC', '2MASS', 'WISExSCOS']].bfill(axis=1).iloc[:, 0]
+    # get alternate name for candidate (e.g., NGC)
+    name_columns = ['HyperLEDA', 'GWGC', '2MASS', 'WISExSCOS']
+    galaxies['name'] = candidate_hosts[name_columns] \
+        .apply(lambda row: row.dropna().iloc[0].strip() if row.notna().any() else None, axis=1)
 
     if 'offset' in calc_host_props:
         temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_glade(candidate_hosts)
@@ -2333,6 +2372,7 @@ def build_panstarrs_candidates(
     cat_cols=False,
     release='dr2',
     shred_cut=True,
+    dust_path=DEFAULT_DUST_PATH,
 ):
     """Populates a GalaxyCatalog object with candidates from a cone search of the
        panstarrs catalog (See https://outerspace.stsci.edu/display/PANSTARRS/ for details).
@@ -2359,6 +2399,8 @@ def build_panstarrs_candidates(
         If True, concatenates catalog fields for best host to final catalog.
     shred_cut : boolean
         If True, removes likely source shreds associated with the same candidate galaxy.
+    dust_path : str
+        Path to the dust map data files.
 
     Returns
     -------
@@ -2444,15 +2486,13 @@ def build_panstarrs_candidates(
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         # get photozs from Andrew Engel's code!
-        default_dust_path = "."
-
         pkg = pkg_resources.files("astro_prost")
         pkg_data_file = pkg / "data" / "MLP_lupton.hdf5"
 
         with pkg_resources.as_file(pkg_data_file) as model_path:
-            model, range_z = load_lupton_model(logger=logger, model_path=model_path, dust_path=default_dust_path)
+            model, range_z = load_lupton_model(logger=logger, model_path=model_path, dust_path=dust_path)
 
-        x = preprocess(candidate_hosts, path=os.path.join(default_dust_path, "sfddata-master"))
+        x = preprocess(candidate_hosts, path=os.path.join(dust_path, "sfddata-master"))
         posteriors, point_estimates, errors = evaluate(x, model, range_z)
         point_estimates[point_estimates < REDSHIFT_FLOOR] = REDSHIFT_FLOOR  # set photometric redshift floor
         #point_estimates[point_estimates != point_estimates] = REDSHIFT_FLOOR  # set photometric redshift floor

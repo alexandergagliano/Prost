@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python",
 ]
 dynamic = ["version"]
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 dependencies = [
   "numpy", 
   "astropy", 
@@ -27,9 +27,11 @@ dependencies = [
   "scipy", 
   "astro-datalab", 
   "requests",
-  "sfdmap2",
+  "sfdmap; python_version <= '3.9'",
+  "sfdmap2; python_version >= '3.9'",
   "filelock",
-  "tensorflow==2.14.0; python_version < '3.10'",
+  "tensorflow==2.13.1; python_version < '3.10' and python_version != '3.8'",
+  "tensorflow==2.5.0; python_version == '3.8'",
   "tensorflow>2.16.0; python_version >= '3.10'"
 ]
 

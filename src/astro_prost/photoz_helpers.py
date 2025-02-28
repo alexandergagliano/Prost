@@ -2,15 +2,25 @@ import os
 import tarfile
 import requests
 import numpy as np
+#hacky monkey-patch for python 3.8
+if not hasattr(np, 'int'):
+    np.int = int
 import pandas as pd
 import requests
+import sys
+
+# compatability for python < 3.9
+if sys.version_info >= (3, 9):
+    from sfdmap2 import sfdmap
+else:
+    import sfdmap
+
 try:
     import tensorflow as tf
 except ImportError:
     tf = None
     print("Warning: Issue importing tensorflow. Please try reinstalling or associate panstarrs sources without conditioning on redshift.")
 from astropy.table import Table
-from sfdmap2 import sfdmap
 from filelock import FileLock
 from pathlib import Path
 import platform

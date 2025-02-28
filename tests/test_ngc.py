@@ -10,35 +10,38 @@ if sys.version_info >= (3, 9):
 else:
     import importlib_resources as pkg_resources
 import astropy.units as u
-import numpy as np
 import time
+import numpy as np
 
-def test_bigrun():
-    np.random.seed(18)
+def test_associate_glade():
+    np.random.seed(42)
 
     pkg = pkg_resources.files("astro_prost")
     pkg_data_file = pkg / "data" / "ZTFBTS_TransientTable.csv"
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
-
-    transient_catalog = transient_catalog.sample(n=10)
+    transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2021qqn']
 
     # define priors for properties
+    priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
     priorfunc_offset = uniform(loc=0, scale=10)
-    likefunc_offset = gamma(a=0.75)
+    priorfunc_absmag = uniform(loc=-30, scale=20)
 
-    priors = {"offset": priorfunc_offset}
-    likes = {"offset": likefunc_offset}
+    likefunc_offset = gamma(a=0.75)
+    likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
+
+    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "redshift": priorfunc_z}
+    likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
-    verbose = 0
-    parallel = True
+    verbose = 2
+    parallel = False
     save = False
     progress_bar = False
     cat_cols = False
 
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = ["glade", ("decals", "dr9"), "panstarrs"]
+    catalogs = ["glade"]
 
     # the name of the coord columns in the dataframe
     transient_coord_cols = ("RA", "Dec")
@@ -53,16 +56,14 @@ def test_bigrun():
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
     hostTable = associate_sample(
         transient_catalog,
-        run_name="bigrun_test",
         priors=priors,
         likes=likes,
         catalogs=catalogs,
         parallel=parallel,
         verbose=verbose,
         save=save,
-        log_path='./',
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
 
-    assert len(hostTable) > 8
+    assert hostTable['host_name'].values[0]  == 'NGC6560'

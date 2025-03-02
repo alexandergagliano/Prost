@@ -182,7 +182,10 @@ def setup_logger(log_file=None, verbose=1, is_main=False):
 
     # If logger already exists and has handlers, return it (prevents duplicates)
     if logger.hasHandlers():
-        return logger
+        if log_file is None:
+            return logger
+        elif any(isinstance(h, logging.FileHandler) and h.baseFilename == log_file for h in logger.handlers):
+            return logger
 
     log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG, 3: TRACE_LEVEL}
     logger.setLevel(log_levels.get(verbose))

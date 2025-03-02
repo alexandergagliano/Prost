@@ -1,7 +1,7 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 
-from astro_prost.associate import associate_sample, prepare_catalog
+from astro_prost.associate import associate_sample
 from astro_prost.helpers import SnRateAbsmag
 from astropy.coordinates import SkyCoord
 import sys
@@ -40,15 +40,9 @@ def test_bigrun():
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
     catalogs = ["glade", ("decals", "dr9"), "panstarrs"]
 
-    # the name of the coord columns in the dataframe
-    transient_coord_cols = ("RA", "Dec")
-
-    # the column containing the transient names
-    transient_name_col = "IAUID"
-
-    transient_catalog = prepare_catalog(
-        transient_catalog, transient_name_col=transient_name_col, transient_coord_cols=transient_coord_cols
-    )
+    # the columns containing the transient names, coordinates, and (optionally) redshift info
+    name_col = "IAUID"
+    coord_cols = ("RA", "Dec")
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
     hostTable = associate_sample(
@@ -60,6 +54,8 @@ def test_bigrun():
         parallel=parallel,
         verbose=verbose,
         save=save,
+        name_col=name_col,
+        coord_cols=coord_cols,
         log_path='./',
         progress_bar=progress_bar,
         cat_cols=cat_cols,

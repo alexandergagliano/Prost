@@ -17,6 +17,7 @@ if sys.version_info >= (3, 9):
 else:
     import importlib_resources as pkg_resources
 import importlib
+from astropy.table import Table
 from .diagnose import plot_match
 from .helpers import GalaxyCatalog, Transient, setup_logger, sanitize_input
 import logging
@@ -44,7 +45,52 @@ DEFAULT_RELEASES = {
 # Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
 
+def infer_skycoord(row, coord_cols):
+    """Infers a SkyCoord list from the rows of a pandas DF.
+
+    Parameters
+    ----------
+    row : pandas.DataFrame row.
+        Row of transient_catalog that will be associated (containing properties of 1 transient).
+    coord_cols : tuple of two strings
+        Name of the coordinate columns in the pandas.DataFrame.
+
+    Returns
+    -------
+    array of astropy.coordinates.SkyCoord objects
+        List of retrieved coordinates for transients to associate.
+
+    """
+    try:
+        # Convert to Astropy Table to use guess_from_table
+        table = Table(rows=[row[coord_cols]], names=coord_cols)
+        return SkyCoord.guess_from_table(table)
+    except Exception:
+        # Couldn't infer column properties
+        pass
+
+    # If guess_from_table() fails, try manual parsing
+    if isinstance(row[coord_cols[0]], str) and (":" in row[coord_cols[0]]):
+        return SkyCoord(row[coord_cols[0]], row[coord_cols[1]], unit=(u.hourangle, u.deg))
+    else:
+        return SkyCoord(float(row[coord_cols[0]]) * u.deg, float(row[coord_cols[1]]) * u.deg)
+
 def consolidate_results(results, transient_catalog):
+    """Updates the original transient catalog with the host properties retrieved during association.
+
+    Parameters
+    ----------
+    results : dictionary
+        Results from association; keys are row indices, and values are dictionaries of returned properties.
+    transient_catalog : pd.DataFrame
+        The dataset containing names, coordinates, and (optionally) redshift information for transients.
+
+    Returns
+    -------
+    pd.DataFrame
+        Original transient catalog, with host columns concatenated.
+
+    """
     valid_results = [r for r in results.values() if r is not None]
     results_df = pd.DataFrame.from_records(valid_results)
 
@@ -69,6 +115,23 @@ def consolidate_results(results, transient_catalog):
     return transient_catalog
 
 def save_results(transient_catalog, run_name=None, save_path='./'):
+    """Short summary.
+
+    Parameters
+    ----------
+    transient_catalog : type
+        Description of parameter `transient_catalog`.
+    run_name : type
+        Description of parameter `run_name`.
+    save_path : type
+        Description of parameter `save_path`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
     ts = int(time.time())
 
     # Save the updated catalog
@@ -171,7 +234,6 @@ def get_catalogs(user_input):
         for cat in user_input
     }
 
-
 def associate_transient(
     idx,
     row,
@@ -182,6 +244,9 @@ def associate_transient(
     cosmo,
     catalogs,
     cat_priority,
+    name_col,
+    coord_cols,
+    redshift_col,
     cat_cols,
     log_fn,
     calc_host_props=False,
@@ -227,6 +292,7 @@ def associate_transient(
     logger = setup_logger(log_fn, verbose=verbose, is_main=False)
 
     condition_host_props = list(priors.keys())
+
     # TODO change overloaded variable here
     if calc_host_props:
         calc_host_props = list({'redshift', 'absmag', 'offset'})
@@ -234,21 +300,22 @@ def associate_transient(
         calc_host_props = list(priors.keys())
 
     try:
-        transient = Transient(
-            name=row["name"],
-            position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg),
-            redshift=float(row.redshift),
-            n_samples=n_samples,
-            logger=logger,
-        )
-    except (KeyError, AttributeError):
-        transient = Transient(
-            name=row["name"], position=SkyCoord(row.transient_ra_deg * u.deg, row.transient_dec_deg * u.deg), n_samples=n_samples, logger=logger
-        )
+        redshift = float(row[redshift_col]) if redshift_col in row else np.nan
+    except:
+        redshift = np.nan
+        logger.warning("Could not parse provided redshift column as float")
+
+    transient = Transient(
+        name=row[name_col],
+        position=infer_skycoord(row, coord_cols),
+        redshift=redshift,
+        n_samples=n_samples,
+        logger=logger,
+    )
 
     logger.info(
         f"\n\nAssociating {transient.name} at RA, DEC = "
-        f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f}"
+        f"{transient.position.ra.deg:.6f}, {transient.position.dec.deg:.6f} (redshift {redshift:.3f})"
     )
 
     for key, val in priors.items():
@@ -366,70 +433,12 @@ def associate_transient(
 
     return result
 
-def prepare_catalog(
-    transient_catalog,
-    transient_name_col="name",
-    transient_coord_cols=("ra", "dec"),
-    transient_redshift_col='redshift',
-    debug=False,
-    debug_names=None,
-):
-    """Preprocesses the transient catalog for fields needed by association function.
-
-    Parameters
-    ----------
-    transient_catalog : pandas.DataFrame
-        Contains the details of the transients to be associated.
-    transient_name_col : str
-        Column corresponding to transient name.
-    transient_coord_cols : tuple
-        Columns corresponding to transient coordinates (converted to decimal degrees internally).
-    transient_redshift_col : string
-        Column corresponding to transient redshift.
-    debug : boolean
-        If true, associates only transients in debug_names.
-    debug_names : list
-        List of specific transients to associate when debug=True.
-
-    Returns
-    -------
-    pandas.DataFrame
-        The transformed dataframe with standardized columns.
-
-    """
-
-    # debugging with just the ones we got wrong
-    if debug and debug_names is not None:
-        transient_catalog = transient_catalog[transient_catalog[transient_name_col].isin(debug_names)]
-
-    # convert coords if needed
-    if ":" in str(transient_catalog[transient_coord_cols[0]].values[0]):
-        ra = transient_catalog[transient_coord_cols[0]].values
-        dec = transient_catalog[transient_coord_cols[1]].values
-        transient_coords = SkyCoord(ra, dec, unit=(u.hourangle, u.deg))
-    else:
-        # try parsing as a float
-        try:
-            ra = transient_catalog[transient_coord_cols[0]].astype("float").values
-            dec = transient_catalog[transient_coord_cols[1]].astype("float").values
-            transient_coords = SkyCoord(ra, dec, unit=(u.deg, u.deg))
-        except KeyError as err:
-            raise ValueError("ERROR: I could not understand your provided coordinates.") from err
-
-    transient_catalog["transient_ra_deg"] = transient_coords.ra.deg
-    transient_catalog["transient_dec_deg"] = transient_coords.dec.deg
-
-    transient_catalog.rename(columns={transient_name_col: "name", transient_redshift_col: "redshift"}, inplace=True)
-
-    # randomly shuffle
-    transient_catalog = transient_catalog.sample(frac=1).reset_index(drop=True)
-    transient_catalog.reset_index(inplace=True, drop=True)
-
-    return transient_catalog
-
 def associate_sample(
     transient_catalog,
     catalogs,
+    name_col = None,
+    coord_cols = None,
+    redshift_col = None,
     cat_priority=None,
     run_name=None,
     priors=None,
@@ -494,6 +503,13 @@ def associate_sample(
     """
     ts = int(time.time())
 
+    if isinstance(transient_catalog, pd.DataFrame):
+        # randomly shuffle
+        transient_catalog = transient_catalog.sample(frac=1)
+        transient_catalog.reset_index(drop=True, inplace=True)
+    else:
+        raise ValueError("transient_catalog parameter must be a pandas.DataFrame object.")
+
     envkey = 'PYSPAWN_' + os.path.basename(__file__)
     is_main = not os.environ.get(envkey, False)
 
@@ -522,13 +538,33 @@ def associate_sample(
     priors = {k: v for k, v in priors.items() if k in possible_keys}
     likes = {k: v for k, v in likes.items() if k in possible_keys}
 
+    # ensure coordinates are in df
+    if coord_cols is None:
+        coord_cols = ('ra','dec')
+    if (coord_cols[0] not in transient_catalog.columns.values) or (coord_cols[1] not in transient_catalog.columns.values):
+        return ValueError("Could not find coordinate data in table. Specify RA and Dec columns with the argument 'coord_cols'.")
+
+    # make sure name is in the DF -- if not, use index of df
+    if (name_col is None):
+        name_col = 'name'
+    if (name_col not in transient_catalog.columns.values):
+        logger.warning("Could not find column for transient names. Creating dummy names from dataframe index instead.")
+        transient_catalog['name'] = ['Transient_%i'%x for x in transient_catalog.index]
+
+
+    # ensure redshift is in df (if using redshift)
+    if redshift_col is None:
+        redshift_col = 'redshift'
+    if (redshift_col not in transient_catalog.columns.values) and (priors is not None) and ('redshift' in (priors.keys())):
+        logger.warning("Using redshift for association but no redshift column found for transient. Association may be prior dominated.")
+
     # Validate that at least one prior remains
     if not priors:
         raise ValueError(f"ERROR: Please set a prior function for at least one of {possible_keys}.")
     if is_main:
         logger.info(f"Conditioning association on the following properties: {list(priors.keys())}")
     for key in priors:
-        if key != 'redshift' and key not in likes:
+        if (key != 'redshift') and (key not in likes):
             raise ValueError(f"ERROR: Please set a likelihood function for {key}.")
 
     # always load GLADE -- we now use it for spec-zs.
@@ -556,6 +592,9 @@ def associate_sample(
             cosmo,
             catalogs,
             cat_priority,
+            name_col,
+            coord_cols,
+            redshift_col,
             cat_cols,
             log_fn,
             calc_host_props,

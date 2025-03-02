@@ -44,8 +44,7 @@ DEFAULT_RELEASES = {
 # Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
 
-def save_results(results, transient_catalog, run_name=None, save_path='./'):
-    ts = int(time.time())
+def consolidate_results(results, transient_catalog):
     valid_results = [r for r in results.values() if r is not None]
     results_df = pd.DataFrame.from_records(valid_results)
 
@@ -67,6 +66,10 @@ def save_results(results, transient_catalog, run_name=None, save_path='./'):
 
     for col in id_cols:
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
+    return transient_catalog
+
+def save_results(transient_catalog, run_name=None, save_path='./'):
+    ts = int(time.time())
 
     # Save the updated catalog
     save_suffix = f"{ts}"
@@ -75,7 +78,6 @@ def save_results(results, transient_catalog, run_name=None, save_path='./'):
 
     save_name = pathlib.Path(save_path, f"associated_transient_catalog_{save_suffix}.csv")
     transient_catalog.to_csv(save_name, index=False)
-    return transient_catalog
 
 def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props):
     """Log selected host galaxy properties for a transient.
@@ -591,10 +593,12 @@ def associate_sample(
 
             results.update(results_per_batch)  # Merge into main results
 
-            print("Saving intermediate batch results...")
-            _ = save_results(results_per_batch, transient_catalog, run_name, save_path)
+            if save:
+                logger.info("Saving intermediate batch results...")
+                transient_catalog_batch = consolidate_results(results_per_batch, transient_catalog)
+                save_results(transient_catalog_batch, run_name, save_path)
 
-            gc.collect()  # Free memory
+            gc.collect()
 
             # Retry logic for failed associations
             max_retries = 3
@@ -616,7 +620,8 @@ def associate_sample(
                             logger.error(f"Retry failed for event {new_futures[future]}: {e}", exc_info=True)
                             results_per_batch[new_futures[future]] = None
 
-                results.update(results_per_batch)  # Merge new results into main results
+                # Merge new results into main results
+                results.update(results_per_batch)
 
                 if retry == max_retries - 1:
                     logger.warning("Some associations still failed after maximum retries.")
@@ -624,8 +629,12 @@ def associate_sample(
     else:  # Serial execution mode
         results = {i: associate_transient(*event) for i, event in enumerate(events)}
 
-    if not parallel or os.environ.get(envkey) == str(os.getpid()):
-        transient_catalog = save_results(results, transient_catalog, run_name, save_path)
+    if (not parallel) or (os.environ.get(envkey) == str(os.getpid())):
+        transient_catalog = consolidate_results(results, transient_catalog)
+
+        # save final results
+        if save:
+            save_results(transient_catalog, run_name, save_path)
 
     return transient_catalog
 

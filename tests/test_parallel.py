@@ -1,8 +1,8 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
-
+import pytest
 from astro_prost.associate import associate_sample
-from astro_prost.helpers import SnRateAbsmag
+from astro_prost.helpers import SnRateAbsmag, is_service_available
 from astropy.coordinates import SkyCoord
 import sys
 if sys.version_info >= (3, 9):
@@ -13,6 +13,10 @@ import astropy.units as u
 import time
 import numpy as np
 
+@pytest.mark.skipif(
+    not is_service_available("https://catalogs.mast.stsci.edu"),
+    reason="Remote service is unavailable"
+)
 def test_associate_parallel():
     np.random.seed(6)
 
@@ -72,7 +76,7 @@ def test_associate_parallel():
         name_col=name_col,
         coord_cols=coord_cols,
         redshift_col=redshift_col,
-        parallel=True,
+        parallel = True,
         verbose=verbose,
         save=save,
         progress_bar=progress_bar,

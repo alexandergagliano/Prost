@@ -2,7 +2,7 @@ import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 
 from astro_prost.associate import associate_sample
-from astro_prost.helpers import SnRateAbsmag
+from astro_prost.helpers import SnRateAbsmag, is_service_available
 from astropy.coordinates import SkyCoord
 import sys
 if sys.version_info >= (3, 9):
@@ -12,7 +12,12 @@ else:
 import astropy.units as u
 import time
 import numpy as np
+import pytest
 
+@pytest.mark.skipif(
+    not is_service_available("https://catalogs.mast.stsci.edu"),
+    reason="Remote service is unavailable"
+)
 def test_associate_decals_dr10():
     np.random.seed(42)
     

@@ -48,5 +48,7 @@ hosts = \
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/alexandergagliano/prost/smoke-test.yml)](https://github.com/alexandergagliano/prost/actions/workflows/smoke-test.yml)
 [![Read The Docs](https://img.shields.io/readthedocs/astro_prost)](https://astro-prost.readthedocs.io/)
 
+Questions? Functionality you'd like to see? [Report an issue](https://github.com/alexandergagliano/Prost/issues/new?title=New%20Issue&body=Please%20describe%20the%20issue%20here) or reach out at gaglian2[at]mit.edu.
+
 This project was automatically generated using the LINCC-Frameworks 
 [python-project-template](https://github.com/lincc-frameworks/python-project-template).

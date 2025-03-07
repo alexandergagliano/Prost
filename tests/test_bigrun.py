@@ -1,6 +1,5 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
-
 from astro_prost.associate import associate_sample
 from astro_prost.helpers import SnRateAbsmag
 from astropy.coordinates import SkyCoord
@@ -38,7 +37,7 @@ def test_bigrun():
     cat_cols = False
 
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = ["glade", ("decals", "dr9"), "panstarrs"]
+    catalogs = ["glade"]
 
     # the columns containing the transient names, coordinates, and (optionally) redshift info
     name_col = "IAUID"

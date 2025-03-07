@@ -1,13 +1,18 @@
 import pandas as pd
 import numpy as np
 from astro_prost.associate import setup_logger
-from astro_prost.helpers import fetch_panstarrs_sources, find_panstarrs_shreds, calc_shape_props_panstarrs
+from astro_prost.helpers import fetch_panstarrs_sources, find_panstarrs_shreds, calc_shape_props_panstarrs, is_service_available
 # constants
 from astro_prost.helpers import SIGMA_ABSMAG_CEIL, SIGMA_ABSMAG_FLOOR
 from astropy.coordinates import SkyCoord, Angle
 import astropy.units as u
 import time
+import pytest
 
+@pytest.mark.skipif(
+    not is_service_available("https://catalogs.mast.stsci.edu"),
+    reason="Remote service is unavailable"
+)
 def test_panstarrs_shred():
     # set random seed to fix sampling in DLR
     np.random.seed(42)

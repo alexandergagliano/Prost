@@ -184,9 +184,10 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
 
     # Iterate through selected properties
     for prop in print_props:
-        if prop in cat.galaxies.dtype.names:  # Only include if property exists
+        values = cat.galaxies[prop]
+        if (prop in cat.galaxies.dtype.names) and (0 <= host_idx < len(values)):  # Only include if property exists
             label, fmt = prop_format.get(prop.split("_")[-1], (prop, "{:.4f}"))  # Default fmt if missing
-            value = fmt.format(cat.galaxies[prop][host_idx])
+            value = fmt.format(values[host_idx])
             print_str = f"    {label}: {value}"
             prop_lines.append(print_str)
 
@@ -402,9 +403,9 @@ def associate_transient(
                     logger.info(f"Matched host is {result['host_name']}!")
 
                 logger.info(
-                    f"Chosen galaxy has catalog ID of {result['host_objID']} "
-                    f"and RA, DEC = {result['host_ra']:.6f}, {result['host_dec']:.6f}"
-                )
+                        f"Chosen galaxy has catalog ID of {result['host_objID']} "
+                        f"and RA, DEC = {result['host_ra']:.6f}, {result['host_dec']:.6f}"
+                    )
 
                 if logger.getEffectiveLevel() == logging.DEBUG:
                     try:
@@ -648,7 +649,7 @@ def associate_sample(
                     break
 
                 logger.info(f"Retry attempt {retry+1}: Rerunning {len(failed_ids)} failed associations.")
-                failed_events = [event for event in events if event[0] in failed_ids]
+                failed_events = [event for event in batch if event[0] in failed_ids]
 
                 with ProcessPoolExecutor(max_workers=n_processes) as executor:
                     new_futures = {executor.submit(safe_associate_transient, *event): event[0] for event in failed_events}

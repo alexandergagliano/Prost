@@ -2704,3 +2704,12 @@ def find_panstarrs_shreds(objids, coords, a, a_std, a_over_b, a_over_b_std, phi,
         )
 
     return dropidxs
+
+
+def is_service_available(url, timeout=5):
+    try:
+        requests.head(url, timeout=timeout)
+        return True
+    except Exception:
+        return False
+

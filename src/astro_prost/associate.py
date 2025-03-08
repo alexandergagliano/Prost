@@ -251,7 +251,8 @@ def associate_transient(
     cat_cols,
     log_fn,
     calc_host_props=False,
-    verbose=0
+    verbose=0,
+    coord_err_cols=('ra_err', 'dec_err'),
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -282,6 +283,11 @@ def associate_transient(
         The fn associated with the logger.Logger object.
     calc_host_props : boolean
         If true, calculates host galaxy properties even if not needed for association
+    verbose : int
+        The verbosity level of the output.
+    coord_err_cols : tuple of strings
+        The column names associated with positional uncertainties on the transient positions.
+
     Returns
     -------
     tuple
@@ -304,11 +310,22 @@ def associate_transient(
         redshift = float(row[redshift_col]) if redshift_col in row else np.nan
     except:
         redshift = np.nan
-        logger.warning("Could not parse provided redshift column as float")
+        logger.warning("Could not parse provided redshift column as float.")
+
+    try:
+        ra_err = float(row[coord_err_cols[0]]) if coord_err_cols[0] in row else 0.1
+        dec_err = float(row[coord_err_cols[1]]) if coord_err_cols[1] in row else 0.1
+        position_err = (ra_err*u.arcsec, dec_err*u.arcsec)
+    except:
+        position_err = (0.1*u.arcsec, 0.1*u.arcsec)
+        #if user-provided custom error columns, warn them that they won't be used
+        if (coord_err_cols[0] != 'ra_err') or (coord_err_cols[0] != 'dec_err'):
+            logger.warning(f"Could not parse {coord_err_cols[0]} and {coord_err_cols[1]} as floats. Setting a nominal positional uncertainty of (0.1'', 0.1'').")
 
     transient = Transient(
         name=row[name_col],
         position=infer_skycoord(row, coord_cols),
+        position_err=position_err,
         redshift=redshift,
         n_samples=n_samples,
         logger=logger,

@@ -430,6 +430,7 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, r
         candidate_hosts_pzcols = pd.read_csv(StringIO(result_photoz))
 
         candidate_hosts_pzcols = candidate_hosts_pzcols.set_index("objID")
+
         candidate_hosts = (
             candidate_hosts.join(candidate_hosts_pzcols, lsuffix="_DROP")
             .filter(regex="^(?!.*DROP)")
@@ -746,8 +747,7 @@ def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, cal
 
     # Common parameters for all catalogs
     init_params = {
-        "transient_name": transient.name,
-        "transient_pos": transient.position,
+        "transient": transient,
         "search_rad": search_rad,
         "cosmo": cosmo,
         "logger": logger,
@@ -868,8 +868,10 @@ class Transient:
     ----------
     name : str
         Name of transient.
-    position : astropy.coord SkyCoord object
+    position : astropy.coord.SkyCoord object
         Position of transient.
+    position_err : tuple of quantity objects
+        Positional uncertainty of transient.
     logger : logging.Logger
         Logger instance for messages to console or output file.
     redshift : float
@@ -915,9 +917,10 @@ class Transient:
 
     """
 
-    def __init__(self, name, position,  logger, redshift=np.nan, redshift_std=np.nan, spec_class="", phot_class="", n_samples=1000):
+    def __init__(self, name, position,  logger, redshift=np.nan, redshift_std=np.nan, spec_class="", position_err=(0.1*u.arcsec, 0.1*u.arcsec), phot_class="", n_samples=1000):
         self.name = name
         self.position = position
+        self.position_err = position_err
         self.redshift = redshift
         self.redshift_std = redshift_std
         self.spec_class = spec_class
@@ -934,6 +937,15 @@ class Transient:
 
         self.priors = {}
         self.likes = {}
+
+        # draw n_samples positional samples
+        ra_samples = np.random.normal(self.position.ra.deg, self.position_err[0].to(u.deg).value, size=n_samples)
+        dec_samples = np.random.normal(self.position.dec.deg, self.position_err[1].to(u.deg).value, size=n_samples)
+
+        self.position_samples = SkyCoord(
+            ra=ra_samples*u.deg,
+            dec=dec_samples*u.deg,
+        )
 
     def __str__(self):
         # Define what should be shown when printing the Transient object
@@ -1098,7 +1110,9 @@ class Transient:
             Description of returned object.
 
         """
+
         pdf = self.get_prior("offset").pdf(fractional_offset_samples)
+
         if reduce == "mean":
             return np.nanmean(pdf, axis=1)  # Resulting shape: (n_galaxies,)
         elif reduce == "median":
@@ -1281,16 +1295,17 @@ class Transient:
         if 'offset' in condition_host_props:
             offset_mean = np.array(galaxies["offset_mean"])
             offset_std = np.array(galaxies["offset_std"])
-            # just copied now assuming 0 positional uncertainty -- this can be updated later (TODO!)
-            offset_samples = np.repeat(offset_mean[:, np.newaxis], n_samples, axis=1)
-
+            offset_samples = np.vstack(galaxies["offset_samples"])
             galaxy_dlr_samples = np.vstack(galaxies["dlr_samples"])
 
             # Calculate angular diameter distances for all samples
             fractional_offset_samples = offset_samples / galaxy_dlr_samples
 
-            prior_offset = self.calc_prior_offset(fractional_offset_samples, reduce=None)
+            prior_offset = self.calc_prior_offset(fractional_offset_samples, reduce=None) # Shape (N,)
             like_offset = self.calc_like_offset(fractional_offset_samples, reduce=None)  # Shape (N,)
+
+            logging.info("prior_offset:", prior_offset)
+            logging.info("like_offset", like_offset)
 
             post_offset = prior_offset * like_offset
             post_set.append(post_offset)
@@ -1495,7 +1510,7 @@ class Transient:
                 physical_offset_mean[:, np.newaxis], physical_offset_std[:, np.newaxis], size=(n_gals, n_samples)
             )
 
-            # Shape: (n_samples, n_samples)
+            # Shape: (n_gals, n_samples)
             fractional_offset_samples = (
                 physical_offset_samples / galaxy_physical_radius_prior_samples
             )
@@ -2046,8 +2061,7 @@ def panstarrs_search(
 
 
 def build_glade_candidates(
-    transient_name,
-    transient_pos,
+    transient,
     glade_catalog,
     cosmo,
     logger,
@@ -2065,10 +2079,9 @@ def build_glade_candidates(
 
     Parameters
     ----------
-    transient_name : str
-        Name of transient to associate.
-    transient_pos : astropy.coord SkyCoord
-        Position of transient to associate.
+    transient : Transient
+        Custom object for queried transient containing name,
+        position, and positional uncertainty.
     glade_catalog : pandas.DataFrame
         The locally-packaged GLADE catalog (to avoid querying).
     search_rad : astropy.units.Angle
@@ -2094,6 +2107,10 @@ def build_glade_candidates(
         (rather than calculated internally).
 
     """
+    transient_name = transient.name
+    transient_pos = transient.position
+    transient_pos_samples = transient.position_samples
+
     if release != "latest":
         logger.warning("Only GLADE+ is supported at this time. Please open a pull request to expand Prost to alternative versions or other catalogs!")
     elif shred_cut:
@@ -2102,6 +2119,7 @@ def build_glade_candidates(
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
+    # start with a 1 degree cut on GLADE around the transient position to speed up the cross-match
     ra_min = transient_pos.ra.deg - 1
     ra_max = transient_pos.ra.deg + 1
     dec_min = transient_pos.dec.deg - 1
@@ -2121,8 +2139,6 @@ def build_glade_candidates(
     ]
 
     galaxies_pos = SkyCoord(candidate_hosts["ra"].values * u.deg, candidate_hosts["dec"].values * u.deg)
-
-    # define plceholder IDs for GLADE
 
     if len(candidate_hosts) < 1:
         return None, []
@@ -2145,7 +2161,7 @@ def build_glade_candidates(
         temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_glade(candidate_hosts)
 
         dlr_samples = calc_dlr(
-            transient_pos,
+            transient_pos_samples,
             galaxies_pos,
             temp_sizes,
             temp_sizes_std,
@@ -2156,16 +2172,16 @@ def build_glade_candidates(
             n_samples=n_samples,
         )
 
-        # Calculate angular separation between SN and all galaxies (in arcseconds)
-        galaxies["offset_mean"] = (
-            SkyCoord(galaxies["ra"] * u.deg, galaxies["dec"] * u.deg).separation(transient_pos).arcsec
-        )
+        offset_samples = np.array([(SkyCoord(galaxies["ra"][i] * u.deg, galaxies["dec"][i] * u.deg).separation(transient_pos_samples).arcsec) for i in np.arange(n_galaxies)])
 
+        # Calculate angular separation between SN and all galaxies (in arcseconds)
         for i in range(n_galaxies):
+            galaxies["offset_samples"][i] = offset_samples[i, :]
+            galaxies['offset_mean'][i] = np.nanmean(offset_samples[i, :])
+            galaxies['offset_std'][i] = np.nanstd(offset_samples[i, :])
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
-
         redshift_mean = candidate_hosts["redshift"].values
         redshift_std = candidate_hosts["redshift_std"].values
 
@@ -2215,8 +2231,7 @@ def build_glade_candidates(
 
     return galaxies, cat_col_fields
 
-def build_decals_candidates(transient_name,
-                            transient_pos,
+def build_decals_candidates(transient,
                             cosmo,
                             logger,
                             search_rad=None,
@@ -2230,10 +2245,8 @@ def build_decals_candidates(transient_name,
 
     Parameters
     ----------
-    transient_name : str
-        Name of transient to associate.
-    transient_pos : astropy.coord SkyCoord
-        Position of transient to associate.
+    transient : str
+        Transient object with name, position, and positional uncertainties defined.
     glade_catalog : pandas.DataFrame
         The locally-packaged GLADE catalog (to avoid querying).
     search_rad : astropy Angle
@@ -2265,6 +2278,10 @@ def build_decals_candidates(transient_name,
     if shred_cut:
         logger.warning("shred_cut is not implemented for decals galaxies at this time. Running with shred_cut = False.")
 
+    transient_name = transient.name
+    transient_pos = transient.position
+    transient_pos_samples = transient.position_samples
+
     candidate_hosts = fetch_decals_sources(transient_pos, search_rad, cat_cols, calc_host_props, release)
 
     if candidate_hosts is None:
@@ -2285,18 +2302,18 @@ def build_decals_candidates(transient_name,
         temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_decals(candidate_hosts)
 
         dlr_samples = calc_dlr(
-            transient_pos, galaxies_pos, temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
+            transient_pos_samples, galaxies_pos, temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
         )
 
         # Calculate angular separation between SN and all galaxies (in arcseconds)
-        galaxies["offset_mean"] = (
-            SkyCoord(galaxies["ra"] * u.deg, galaxies["dec"] * u.deg).separation(transient_pos).arcsec
-        )
-        galaxies['offset_std'] = OFFSET_FLOOR # TODO
+        offset_samples = galaxies_pos[:, None].separation(transient_pos_samples).arcsec
 
         for i in range(n_galaxies):
+            galaxies['offset_samples'][i] = offset_samples[i, :]
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
-            #galaxies["offset_samples"][i] = offset_samples[i, :] #TODO -- incorporate positional uncertainty
+
+        galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
+        galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         galaxy_photoz_mean = candidate_hosts["z_phot_mean"].values
@@ -2364,8 +2381,7 @@ def build_decals_candidates(transient_name,
 
 
 def build_panstarrs_candidates(
-    transient_name,
-    transient_pos,
+    transient,
     cosmo,
     logger,
     glade_catalog=None,
@@ -2382,9 +2398,9 @@ def build_panstarrs_candidates(
 
     Parameters
     ----------
-    transient_name : str
-        Name of transient to associate.
-    transient_pos : astropy.coord SkyCoord
+    transient : Transient
+        Custom Transient object with name, position, and positional uncertainties defined.
+    transient_pos : astropy.coord.SkyCoord
         Position of transient to associate.
     cosmo : astropy cosmology
         Assumed cosmology for conversions.
@@ -2416,6 +2432,9 @@ def build_panstarrs_candidates(
         (rather than calculated internally).
 
     """
+    transient_name = transient.name
+    transient_pos = transient.position
+    transient_pos_samples = transient.position_samples
 
     if shred_cut:
         logger.info("Running with shred_cut = True...")
@@ -2433,7 +2452,7 @@ def build_panstarrs_candidates(
         )
 
         dlr_samples = calc_dlr(
-            transient_pos,
+            transient_pos_samples,
             galaxies_pos,
             temp_sizes,
             temp_sizes_std,
@@ -2566,24 +2585,27 @@ def build_panstarrs_candidates(
 
     if 'offset' in calc_host_props:
         # Calculate angular separation between SN and all galaxies (in arcseconds)
-        galaxies["offset_mean"] = galaxies_pos.separation(transient_pos).arcsec
-        galaxies["offset_std"] = [OFFSET_FLOOR]*n_galaxies # TODO
+        offset_samples = galaxies_pos[:, None].separation(transient_pos_samples).arcsec
 
-        for i in np.arange(n_galaxies):
+        for i in range(n_galaxies):
+            galaxies['offset_samples'][i] = offset_samples[i, :]
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
+
+        galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
+        galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
 
     return galaxies, cat_col_fields
 
 
-def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1000):
+def calc_dlr(transient_pos_samples, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1000):
     """Calculates the directional light radius (DLR) between candidate host and transient, following the
        general framework in Gupta et al. (2016).
 
     Parameters
     ----------
-    transient_pos : astropy.coord SkyCoord
-        Position of the transient.
-    galaxies_pos : array of astropy.coord SkyCoord objects
+    transient_pos_samples : array of astropy.coord.SkyCoord objects
+        Array of transient positions with positional uncertainties
+    galaxies_pos : array of astropy.coord.SkyCoord objects
         Positions of candidate host galaxies.
     a : np.ndarray
         Semi-major axes of candidates, in arcsec.
@@ -2608,11 +2630,10 @@ def calc_dlr(transient_pos, galaxies_pos, a, a_std, a_over_b, a_over_b_std, phi,
     """
     n_gals = len(galaxies_pos)
 
-    transient_ra = transient_pos.ra.deg
-    transient_dec = transient_pos.dec.deg
+    transient_ra = transient_pos_samples.ra.deg
+    transient_dec = transient_pos_samples.dec.deg
 
     if n_samples > 1:
-        # TODO -- incorporate uncertainty in transient position
         hosts_ra = galaxies_pos.ra.deg[:, np.newaxis]
         hosts_dec = galaxies_pos.dec.deg[:, np.newaxis]
 
@@ -2677,8 +2698,17 @@ def find_panstarrs_shreds(objids, coords, a, a_std, a_over_b, a_over_b_std, phi,
     seps = coords[:, None].separation(coords[None, :]).arcsec
     np.fill_diagonal(seps, np.inf)  # Ignore self-comparisons
 
+    #assume no positional uncertainty
+    ra_err = np.finfo(float).eps * u.arcsec
+    dec_err = np.finfo(float).eps * u.arcsec
+
+    coord_samples = SkyCoord(
+        ra=np.random.normal(coords.ra.deg, ra_err.to(u.deg).value, size=n)*u.deg,
+        dec=np.random.normal(coords.dec.deg, dec_err.to(u.deg).value, size=n)*u.deg
+    )
+
     # Compute DLR for each source; assume calc_dlr returns a 1D array of length n
-    dlr = calc_dlr(coords, coords, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1)
+    dlr = calc_dlr(coord_samples, coords, a, a_std, a_over_b, a_over_b_std, phi, phi_std, n_samples=1)
 
     # Create the shred condition: compare each pair’s separation to both sources’ DLRs.
     # Broadcasting: for each (i,j), compare seps[i,j] < dlr[i] or seps[i,j] < dlr[j]
@@ -2712,4 +2742,3 @@ def is_service_available(url, timeout=5):
         return True
     except Exception:
         return False
-

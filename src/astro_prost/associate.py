@@ -716,6 +716,8 @@ def safe_associate_transient(*args, **kwargs):
     dict or None
         The output of `associate_transient` if successful, otherwise `None`.
     """
+    logger = logging.getLogger("Prost_logger")
+
     try:
         return associate_transient(*args, **kwargs)
     except Exception as e:

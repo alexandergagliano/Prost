@@ -21,6 +21,9 @@ transient_catalog = pd.DataFrame({
     'dec': [9.2000414]
 })
 
+# define a catalog to search -- options are glade, decals, and panstarrs
+catalogs = ["decals"]
+
 # define priors and likelihoods
 priorfunc_offset = uniform(loc=0, scale=10)
 likefunc_offset = gamma(a=0.75)

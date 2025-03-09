@@ -471,7 +471,8 @@ def associate_sample(
     progress_bar=False,
     cosmology=None,
     n_processes=None,
-    calc_host_props=True
+    calc_host_props=True,
+    coord_err_cols=None
 ):
     """Wrapper function for associating sample of transients.
 
@@ -561,6 +562,9 @@ def associate_sample(
         coord_cols = ('ra','dec')
     if (coord_cols[0] not in transient_catalog.columns.values) or (coord_cols[1] not in transient_catalog.columns.values):
         return ValueError("Could not find coordinate data in table. Specify RA and Dec columns with the argument 'coord_cols'.")
+   
+    if coord_err_cols is None:
+        coord_err_cols = ("ra_err", "dec_err")
 
     # make sure name is in the DF -- if not, use index of df
     if (name_col is None):
@@ -616,7 +620,8 @@ def associate_sample(
             cat_cols,
             log_fn,
             calc_host_props,
-            verbose
+            verbose, 
+            coord_err_cols
         )
         for idx, row in transient_catalog.iterrows()
     ]

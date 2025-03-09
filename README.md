@@ -37,7 +37,7 @@ hosts = \
         catalogs=catalogs,
         name_col='name',
         coord_cols=('ra', 'dec'),
-        save=False,
+        save=False
 )
 
 ```

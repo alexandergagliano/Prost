@@ -1,6 +1,6 @@
 
 # Prost: Probabilistic Host Galaxy Association
-## Prost is a code for rapidly associating transients with their host galaxies. 
+## Prost is a library for rapidly associating transients with their host galaxies. 
 The code calculates the posterior probability that each galaxy in a search region is the true host galaxy, by considering
 the transient's fractional offset, redshift (or the prior for the survey), and brightness. The code can query from the following catalogs:
 * <a href="https://ui.adsabs.harvard.edu/abs/2022MNRAS.514.1403D">GLADE+</a>  

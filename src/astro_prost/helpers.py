@@ -282,7 +282,7 @@ def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, rele
     else:
         return candidate_hosts
 
-def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, release='dr2'):
+def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, logger=None, release='dr2'):
     """Queries the panstarrs catalogs (https://catalogs.mast.stsci.edu/panstarrs/).
 
     Parameters
@@ -308,6 +308,9 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, r
         raise ValueError(f"Invalid Pan-STARRS version '{release}'. Please choose 'dr1' or 'dr2'.")
     elif (release == 'dr1') and (('redshift' in calc_host_props) or ('absmag' in calc_host_props)):
         raise ValueError("Redshift estimation with Pan-STARRS data can only be done with release 'dr2'.")
+
+    if logger is None:
+        logger = setup_logger()
 
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
@@ -2439,7 +2442,7 @@ def build_panstarrs_candidates(
     if shred_cut:
         logger.info("Running with shred_cut = True...")
 
-    candidate_hosts = fetch_panstarrs_sources(transient_pos, search_rad, cat_cols, calc_host_props, release)
+    candidate_hosts = fetch_panstarrs_sources(transient_pos, search_rad, cat_cols, calc_host_props, logger, release)
 
     if candidate_hosts is None:
         return None, []

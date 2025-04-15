@@ -3,6 +3,7 @@
 <p align="center">
   <img src=https://github.com/alexandergagliano/Prost/blob/main/static/logo.png>
 </p>
+
 ## Prost is a library for rapidly associating transients with their host galaxies. 
 The code calculates the posterior probability that each galaxy in a search region is the true host galaxy, by considering
 the transient's fractional offset, redshift (or the prior for the survey), and brightness. The code can query from the following catalogs:

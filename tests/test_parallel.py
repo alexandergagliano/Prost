@@ -86,4 +86,4 @@ def test_associate_parallel():
     hostIDs_serial = np.sort(hostTable_serial['host_objID'].values)
     hostIDs_parallel = np.sort(hostTable_parallel['host_objID'].values)
 
-    assert np.allclose(hostIDs_serial, hostIDs_parallel, equal_nan=True)
+    assert hostIDs_serial == hostIDs_parallel 

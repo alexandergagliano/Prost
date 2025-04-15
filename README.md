@@ -1,6 +1,6 @@
 
 # Prost: Probabilistic Host Galaxy Association
-p align="center">
+<p align="center">
   <img src=https://github.com/alexandergagliano/Prost/blob/main/static/logo.png>
 </p>
 ## Prost is a library for rapidly associating transients with their host galaxies. 

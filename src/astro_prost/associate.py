@@ -108,11 +108,16 @@ def consolidate_results(results, transient_catalog):
         results_df, left_index=True, right_on="idx", how="left"
     )
 
-    # Convert all ID columns to integers
+    # Convert all ID columns to string to avoid saving errors
     id_cols = [col for col in transient_catalog.columns if col.endswith("id")]
 
     for col in id_cols:
-        transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
+        transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("str")
+
+    # drop unassociated events
+    transient_catalog.dropna(subset=['host_total_posterior', 'host_objID'], inplace=True)
+    transient_catalog.reset_index(drop=True, inplace=True)
+    
     return transient_catalog
 
 def save_results(transient_catalog, run_name=None, save_path='./', drop_unassociated=True):

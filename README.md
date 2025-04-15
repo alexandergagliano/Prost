@@ -1,5 +1,3 @@
-
-# Prost: Probabilistic Host Galaxy Association
 <p align="center">
   <img src=https://github.com/alexandergagliano/Prost/blob/main/static/logo.png>
 </p>

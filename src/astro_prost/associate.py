@@ -115,7 +115,7 @@ def consolidate_results(results, transient_catalog):
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
     return transient_catalog
 
-def save_results(transient_catalog, run_name=None, save_path='./', drop_unassociated=False):
+def save_results(transient_catalog, run_name=None, save_path='./', drop_unassociated=True):
     """Save the transient catalog results to a CSV file with a timestamp (and optional run name).
 
     Parameters
@@ -127,7 +127,7 @@ def save_results(transient_catalog, run_name=None, save_path='./', drop_unassoci
     save_path : str, optional
         The directory path where the CSV file will be saved. Defaults to the current directory ('./').
     drop_unassociated : bool, optional
-        If True, drops unassociated transients before saving. Defaults to False.
+        If True, drops unassociated transients before saving. Defaults to True.
 
     Returns
     -------
@@ -143,7 +143,7 @@ def save_results(transient_catalog, run_name=None, save_path='./', drop_unassoci
 
     save_name = pathlib.Path(save_path, f"associated_transient_catalog_{save_suffix}.csv")
     if drop_unassociated:
-        transient_catalog.dropna(subset=['host_total_posterior'], inplace=True)
+        transient_catalog.dropna(subset=['host_objID', 'host_total_posterior'], inplace=True)
     transient_catalog.to_csv(save_name, index=False)
 
 def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props, condition_props):

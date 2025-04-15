@@ -20,8 +20,6 @@ def test_bigrun():
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
 
-    transient_catalog = transient_catalog.sample(n=10)
-
     # define priors for properties
     priorfunc_offset = uniform(loc=0, scale=10)
     likefunc_offset = gamma(a=0.75)
@@ -36,8 +34,8 @@ def test_bigrun():
     progress_bar = False
     cat_cols = False
 
-    # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = ["glade"]
+    # list of catalogs to search -- options are glade, decals, panstarrs
+    catalogs = ["glade", "decals", "panstarrs"]
 
     # the columns containing the transient names, coordinates, and (optionally) redshift info
     name_col = "IAUID"
@@ -59,5 +57,6 @@ def test_bigrun():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
-
+ 
+   
     assert len(hostTable) > 8

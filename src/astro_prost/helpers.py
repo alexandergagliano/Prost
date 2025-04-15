@@ -57,7 +57,7 @@ DEFAULT_DUST_PATH = "."
 
 # Data Structure Definitions
 PROP_DTYPES = [
-        ("objID", np.int64),
+        ("objID", "U30"),
         ("objID_info", "U20"),
         ("name", "U20"),
         ("ra", float),
@@ -77,7 +77,11 @@ PROP_DTYPES = [
         ("absmag_std", float),
         ("absmag_posterior", float),
         ("absmag_info", "U10"),
+        ("dlr_mean", float),
+        ("dlr_std", float),
         ("dlr_samples", object),
+        ("size_mean", float),
+        ("size_std", float),
         ("total_posterior", float),
     ]
 
@@ -574,7 +578,7 @@ def calc_shape_props_decals(candidate_hosts):
 
     # so d/de2(-arctan2/2)= -e1/2*(e1^2 + e2^2)
     # so d/de1(-arctan2/2)= e2/2*(e1^2 + e2^2)
-    59000+2400000.5
+
     denom = temp_e1**2 + temp_e2**2
     denom = np.maximum(denom, SHAPE_FLOOR)
 
@@ -2180,9 +2184,15 @@ def build_glade_candidates(
         # Calculate angular separation between SN and all galaxies (in arcseconds)
         for i in range(n_galaxies):
             galaxies["offset_samples"][i] = offset_samples[i, :]
-            galaxies['offset_mean'][i] = np.nanmean(offset_samples[i, :])
-            galaxies['offset_std'][i] = np.nanstd(offset_samples[i, :])
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
+
+        galaxies['dlr_mean'] = np.nanmean(dlr_samples, axis=1)
+        galaxies['dlr_std'] = np.nanstd(dlr_samples, axis=1)
+        galaxies['size_mean'] = temp_sizes
+        galaxies['size_std'] = temp_sizes_std
+
+        galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
+        galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         redshift_mean = candidate_hosts["redshift"].values
@@ -2225,7 +2235,7 @@ def build_glade_candidates(
             - cosmo.distmod(redshift_samples).value
         )
 
-        galaxies["absmag_mean"] = temp_mag_r
+        galaxies["absmag_mean"] = temp_mag_r - cosmo.distmod(galaxies["redshift_mean"]).value
         galaxies["absmag_std"] = temp_mag_r_std
         galaxies["absmag_info"] = ["B"]*n_galaxies
 
@@ -2314,6 +2324,11 @@ def build_decals_candidates(transient,
         for i in range(n_galaxies):
             galaxies['offset_samples'][i] = offset_samples[i, :]
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
+
+        galaxies['dlr_mean'] = np.nanmean(dlr_samples, axis=1)
+        galaxies['dlr_std'] = np.nanstd(dlr_samples, axis=1)
+        galaxies['size_mean'] = temp_sizes
+        galaxies['size_std'] = temp_sizes_std
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
@@ -2444,6 +2459,9 @@ def build_panstarrs_candidates(
 
     candidate_hosts = fetch_panstarrs_sources(transient_pos, search_rad, cat_cols, calc_host_props, logger, release)
 
+    if glade_catalog is not None:
+        glade_catalog.rename(columns={'z_best':'redshift', 'z_best_std':'redshift_std'}, inplace=True)
+
     if candidate_hosts is None:
         return None, []
 
@@ -2497,6 +2515,8 @@ def build_panstarrs_candidates(
             temp_mag_r_std = temp_mag_r_std[left_idxs]
             galaxies_pos = galaxies_pos[left_idxs]
             dlr_samples = dlr_samples[left_idxs]
+            temp_sizes = temp_sizes[left_idxs]
+            temp_sizes_std = temp_sizes_std[left_idxs]
 
             logger.info(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
         else:
@@ -2593,6 +2613,11 @@ def build_panstarrs_candidates(
         for i in range(n_galaxies):
             galaxies['offset_samples'][i] = offset_samples[i, :]
             galaxies["dlr_samples"][i] = dlr_samples[i, :]
+
+        galaxies['dlr_mean'] = np.nanmean(dlr_samples, axis=1)
+        galaxies['dlr_std'] = np.nanstd(dlr_samples, axis=1)
+        galaxies['size_mean'] = temp_sizes
+        galaxies['size_std'] = temp_sizes_std
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)

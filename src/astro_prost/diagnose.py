@@ -12,7 +12,7 @@ from astropy.visualization import make_lupton_rgb
 from astropy.wcs import WCS
 
 def get_images(ra, dec, size=240, filters="grizy", type="stack"):
-    """Query ps1filenames.py service to get a list of images.
+    """Query Pan-STARRS PS1 to get a list of images.
 
     Parameters
     ----------
@@ -124,15 +124,19 @@ def get_ps1_pic(path, objid, ra, dec, size, band, safe=False, save=False):
         File retrieved from ps1
     """
 
-    fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")[0]
+    fitsurl = get_url(ra, dec, size=size, filters=f"{band}", format="fits")
+    if len(fitsurl) > 0:
+        fitsurl = fitsurl[0]
 
-    with fits.open(fitsurl) as fn:
-        if save:
-            filename = f"/PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits" if safe else \
-                       f"/PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits"
-            fn.writeto(path + filename, overwrite=True)
-        else:
-            return fn
+        with fits.open(fitsurl) as fn:
+            if save:
+                filename = f"/PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits" if safe else \
+                           f"/PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits"
+                fn.writeto(path + filename, overwrite=True)
+            else:
+                return fn
+    elif not save:
+        return None
 
 def find_all(name, path):
     """Crawls through a directory and all its sub-directories looking for a file matching
@@ -302,7 +306,6 @@ def plot_match(
         bayesstr += "Weak match."
     if host_ra and host_dec:
         for i in np.arange(len(host_ra)):
-            # print(f"Plotting host {i}")
             ax.scatter(
                 host_ra[i],
                 host_dec[i],

@@ -29,6 +29,7 @@ import gc
 
 # Parallel processing settings
 NPROCESS_MAX = np.maximum(os.cpu_count() - 4, 1)
+MAX_RETRIES = 3
 
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
@@ -114,22 +115,23 @@ def consolidate_results(results, transient_catalog):
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("Int64")
     return transient_catalog
 
-def save_results(transient_catalog, run_name=None, save_path='./'):
-    """Short summary.
+def save_results(transient_catalog, run_name=None, save_path='./', drop_unassociated=False):
+    """Save the transient catalog results to a CSV file with a timestamp (and optional run name).
 
     Parameters
     ----------
-    transient_catalog : type
-        Description of parameter `transient_catalog`.
-    run_name : type
-        Description of parameter `run_name`.
-    save_path : type
-        Description of parameter `save_path`.
+    transient_catalog : pandas.DataFrame
+        A DataFrame containing the transient catalog data.
+    run_name : str, optional
+        A string identifier for the current run.
+    save_path : str, optional
+        The directory path where the CSV file will be saved. Defaults to the current directory ('./').
+    drop_unassociated : bool, optional
+        If True, drops unassociated transients before saving. Defaults to False.
 
     Returns
     -------
-    type
-        Description of returned object.
+    None
 
     """
     ts = int(time.time())
@@ -140,9 +142,11 @@ def save_results(transient_catalog, run_name=None, save_path='./'):
         save_suffix = f"{run_name}_{save_suffix}"
 
     save_name = pathlib.Path(save_path, f"associated_transient_catalog_{save_suffix}.csv")
+    if drop_unassociated:
+        transient_catalog.dropna(subset=['host_total_posterior'], inplace=True)
     transient_catalog.to_csv(save_name, index=False)
 
-def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props):
+def log_host_properties(logger, transient_name, cat, host_idx, title, print_props, calc_host_props, condition_props):
     """Log selected host galaxy properties for a transient.
 
     Parameters
@@ -160,7 +164,9 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
     print_props : list of str
         List of property names to log directly (e.g., 'objID', 'ra', 'dec').
     calc_host_props : list of str
-        List of properties (e.g., 'redshift', 'absmag', 'offset') for which mean, std, and posterior values are logged.
+        List of properties (e.g., 'redshift', 'absmag', 'offset') for which mean and std are logged.
+    condition_props : list of str
+        List of properties (e.g., 'redshift', 'absmag', 'offset') for which posterior values are logged.
 
     Returns
     -------
@@ -172,7 +178,7 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
 
     # Define all possible properties with labels and formats
     prop_format = {
-        "objID": ("objID", "{:d}"),
+        "objID": ("objID", "{:s}"),
         'name': ("Name", "{:s}"),
         "ra": ("R.A. (deg)", "{:.6f}"),
         "dec": ("Dec. (deg)", "{:.6f}"),
@@ -210,7 +216,8 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
                 print_str += f" ({info})"
             prop_lines.append(print_str)
 
-            prop_lines.append(f"    {label} Posterior: {posterior}")
+            if prop in condition_props:
+                prop_lines.append(f"    {label} Posterior: {posterior}")
 
     logger.info("\n".join(prop_lines))
 
@@ -392,14 +399,15 @@ def associate_transient(
                 second_best_idx = transient.second_best_host
 
                 print_props = ['objID', 'name', 'ra', 'dec', 'total_posterior']
+                condition_props = list(priors.keys())
 
-                log_host_properties(logger, transient.name, cat, best_idx, f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props)
-                log_host_properties(logger, transient.name, cat, second_best_idx, f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props)
+                log_host_properties(logger, transient.name, cat, best_idx, f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
+                log_host_properties(logger, transient.name, cat, second_best_idx, f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
 
                 # Populate results using a loop instead of manual assignments
                 for key, idx in {"host": best_idx, "host_2": second_best_idx}.items():
                     for field in fields:
-                        result[f"{key}_{field}"] = np.int64(cat.galaxies[field][idx]) if field == "objID" else cat.galaxies[field][idx]
+                        result[f"{key}_{field}"] = cat.galaxies[field][idx]
 
                 # Set additional metadata
                 result.update({
@@ -562,7 +570,7 @@ def associate_sample(
         coord_cols = ('ra','dec')
     if (coord_cols[0] not in transient_catalog.columns.values) or (coord_cols[1] not in transient_catalog.columns.values):
         return ValueError("Could not find coordinate data in table. Specify RA and Dec columns with the argument 'coord_cols'.")
-   
+
     if coord_err_cols is None:
         coord_err_cols = ("ra_err", "dec_err")
 
@@ -620,7 +628,7 @@ def associate_sample(
             cat_cols,
             log_fn,
             calc_host_props,
-            verbose, 
+            verbose,
             coord_err_cols
         )
         for idx, row in transient_catalog.iterrows()
@@ -658,13 +666,12 @@ def associate_sample(
             if save:
                 logger.info("Saving intermediate batch results...")
                 transient_catalog_batch = consolidate_results(results_per_batch, transient_catalog)
-                save_results(transient_catalog_batch, run_name, save_path)
+                save_results(transient_catalog_batch, run_name, save_path, drop_unassociated=True)
 
             gc.collect()
 
             # Retry logic for failed associations
-            max_retries = 3
-            for retry in range(max_retries):
+            for retry in range(MAX_RETRIES):
                 failed_ids = [event_id for event_id, res in results_per_batch.items() if res is None]
                 if not failed_ids:
                     logger.info("All associations succeeded; no more retries needed.")
@@ -685,7 +692,7 @@ def associate_sample(
                 # Merge new results into main results
                 results.update(results_per_batch)
 
-                if retry == max_retries - 1:
+                if retry == MAX_RETRIES - 1:
                     logger.warning("Some associations still failed after maximum retries.")
 
     else:  # Serial execution mode

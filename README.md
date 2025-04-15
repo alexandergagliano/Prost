@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=https://github.com/alexandergagliano/Prost/blob/main/static/logo.png>
+  <img src="https://github.com/alexandergagliano/Prost/blob/main/static/logo.png" style="width: 50%;" alt="Logo">
 </p>
 
 ## Prost is a library for rapidly associating transients with their host galaxies. 

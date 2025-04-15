@@ -20,6 +20,9 @@ def test_bigrun():
     with pkg_resources.as_file(pkg_data_file) as csvfile:
         transient_catalog = pd.read_csv(csvfile)
 
+    # random sample 10 SNe for matching
+    transient_catalog = transient_catalog.sample(n=10)
+
     # define priors for properties
     priorfunc_offset = uniform(loc=0, scale=10)
     likefunc_offset = gamma(a=0.75)

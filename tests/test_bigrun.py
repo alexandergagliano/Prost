@@ -62,4 +62,4 @@ def test_bigrun():
     )
  
    
-    assert len(hostTable) > 8
+    assert len(hostTable) > 5

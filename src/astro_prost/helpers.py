@@ -2193,6 +2193,7 @@ def build_glade_candidates(
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
+        galaxies['offset_info'] = ['ARCSEC']*len(temp_sizes)
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         redshift_mean = candidate_hosts["redshift"].values
@@ -2207,11 +2208,11 @@ def build_glade_candidates(
 
         galaxies["redshift_mean"] = candidate_hosts["redshift"].values
         galaxies["redshift_std"] = candidate_hosts["redshift_std"].values
-        galaxies['redshift_info'] = ['photo-z']
+        galaxies['redshift_info'] = ['PHOT']
 
         # TODO find spec-z info for GLADE -- for now, just assume all with <10% error are spec-zs.
         good_specz = galaxies["redshift_std"]/(1+galaxies["redshift_mean"]) < 0.1
-        galaxies['redshift_info'][good_specz] = ['spec-z']*np.nansum(good_specz)
+        galaxies['redshift_info'][good_specz] = ['SPEC']*np.nansum(good_specz)
 
         # set redshift floor
         redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR
@@ -2332,6 +2333,7 @@ def build_decals_candidates(transient,
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
+        galaxies['offset_info'] = ['ARCSEC']*len(temp_sizes)
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         galaxy_photoz_mean = candidate_hosts["z_phot_mean"].values
@@ -2340,13 +2342,13 @@ def build_decals_candidates(transient,
 
         galaxies["redshift_mean"] = galaxy_photoz_mean
         galaxies["redshift_std"] = np.abs(galaxy_photoz_std)
-        galaxies["redshift_info"] = ['photo-z']*n_galaxies
+        galaxies["redshift_info"] = ['PHOT']*n_galaxies
 
         #if we have spec-zs, replace those as the best redshift
         good_specz = galaxy_specz > REDSHIFT_FLOOR
         galaxies["redshift_mean"][good_specz] = galaxy_specz[good_specz]
         galaxies["redshift_std"][good_specz] = SIGMA_REDSHIFT_FLOOR * galaxy_specz[good_specz]  # floor of 5% for spec-zs
-        galaxies["redshift_info"][good_specz] = 'spec-z'
+        galaxies["redshift_info"][good_specz] = 'SPEC'
         galaxies["redshift_std"][galaxy_photoz_std > (SIGMA_REDSHIFT_CEIL * galaxy_photoz_mean)] = (
             SIGMA_REDSHIFT_CEIL * galaxy_photoz_mean[galaxy_photoz_std > (SIGMA_REDSHIFT_CEIL * galaxy_photoz_mean)]
         )  # ceiling of 50%
@@ -2621,6 +2623,7 @@ def build_panstarrs_candidates(
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
+        galaxies['offset_info'] = ['ARCSEC']*len(temp_sizes)
 
     return galaxies, cat_col_fields
 

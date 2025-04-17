@@ -374,6 +374,7 @@ def associate_transient(
     for prop in calc_host_props:
         fields.append(f"{prop}_mean")
         fields.append(f"{prop}_std")
+        fields.append(f"{prop}_info")
         if prop in condition_host_props:
             fields.append(f"{prop}_posterior")
 

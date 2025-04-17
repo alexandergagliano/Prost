@@ -2212,7 +2212,7 @@ def build_glade_candidates(
         
         # if the galaxy has a measured luminosity distance or spec-z, add to info
         has_specz = candidate_hosts['f_dL'] > 1
-        galaxies['redshift_info'][has_specz] = ['SPEC']*n_galaxies
+        galaxies['redshift_info'][has_specz] = 'SPEC'
 
         # set redshift floor
         redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR

@@ -2193,7 +2193,7 @@ def build_glade_candidates(
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
-        galaxies['offset_info'] = ['ARCSEC']*len(temp_sizes)
+        galaxies['offset_info'] = 'ARCSEC'
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         redshift_mean = candidate_hosts["redshift"].values
@@ -2333,7 +2333,7 @@ def build_decals_candidates(transient,
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
-        galaxies['offset_info'] = ['ARCSEC']*len(temp_sizes)
+        galaxies['offset_info'] = 'ARCSEC'
 
     if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
         galaxy_photoz_mean = candidate_hosts["z_phot_mean"].values
@@ -2623,7 +2623,7 @@ def build_panstarrs_candidates(
 
         galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
         galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
-        galaxies['offset_info'] = ['ARCSEC']*len(temp_sizes)
+        galaxies['offset_info'] = 'ARCSEC'
 
     return galaxies, cat_col_fields
 

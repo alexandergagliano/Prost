@@ -2206,13 +2206,13 @@ def build_glade_candidates(
             ),
         )
 
-        galaxies["redshift_mean"] = candidate_hosts["redshift"].values
-        galaxies["redshift_std"] = candidate_hosts["redshift_std"].values
+        galaxies["redshift_mean"] = pd.to_numeric(candidate_hosts["redshift"].values, errors='coerce')
+        galaxies["redshift_std"] = pd.to_numeric(candidate_hosts["redshift_std"].values, errors='coerce')
         galaxies['redshift_info'] = ['PHOT']
         
         # if the galaxy has a measured luminosity distance or spec-z, add to info
-        has_specz = candidate_hosts[candidate_hosts['f_dL'] > 1]
-        galaxies['redshift_info'][good_specz] = ['SPEC']*np.nansum(has_specz)
+        has_specz = candidate_hosts['f_dL'] > 1
+        galaxies['redshift_info'][good_specz] = ['SPEC']*n_galaxies
 
         # set redshift floor
         redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR

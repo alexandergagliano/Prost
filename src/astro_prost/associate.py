@@ -114,8 +114,10 @@ def consolidate_results(results, transient_catalog):
     for col in id_cols:
         transient_catalog[col] = pd.to_numeric(transient_catalog[col], errors="coerce").astype("str")
 
-    # drop unassociated events
-    transient_catalog.dropna(subset=['host_total_posterior', 'host_objID'], inplace=True)
+    # drop unassociated events in batch mode -- return a DF without host info if failed with only 1 transient
+    if 'host_objID' in transient_catalog.columns.values:
+        transient_catalog.dropna(subset=['host_total_posterior', 'host_objID'], inplace=True)
+
     transient_catalog.reset_index(drop=True, inplace=True)
     
     return transient_catalog
@@ -147,7 +149,7 @@ def save_results(transient_catalog, run_name=None, save_path='./', drop_unassoci
         save_suffix = f"{run_name}_{save_suffix}"
 
     save_name = pathlib.Path(save_path, f"associated_transient_catalog_{save_suffix}.csv")
-    if drop_unassociated:
+    if drop_unassociated and ('host_objID' in transient_catalog.columns.values):
         transient_catalog.dropna(subset=['host_objID', 'host_total_posterior'], inplace=True)
     transient_catalog.to_csv(save_name, index=False)
 

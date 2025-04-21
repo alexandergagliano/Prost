@@ -130,9 +130,10 @@ def get_ps1_pic(path, objid, ra, dec, size, band, safe=False, save=False):
 
         with fits.open(fitsurl) as fn:
             if save:
-                filename = f"/PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits" if safe else \
-                           f"/PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits"
-                fn.writeto(path + filename, overwrite=True)
+                filename = f"PS1_{objid}_{int(size*0.25)}arcsec_{band}.fits" if safe else \
+                           f"PS1_ra={ra}_dec={dec}_{int(size*0.25)}arcsec_{band}.fits"
+                file_path = os.path.join(path, filename)
+                fn.writeto(file_path, overwrite=True)
             else:
                 return fn
     elif not save:

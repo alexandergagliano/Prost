@@ -265,6 +265,7 @@ def associate_transient(
     calc_host_props=False,
     verbose=0,
     coord_err_cols=('ra_err', 'dec_err'),
+    run_plot_match=False,
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -299,6 +300,8 @@ def associate_transient(
         The verbosity level of the output.
     coord_err_cols : tuple of strings
         The column names associated with positional uncertainties on the transient positions.
+    run_plot_match : boolean, optional
+        If true, attempts to generate a plot image.
 
     Returns
     -------
@@ -438,7 +441,10 @@ def associate_transient(
                         f"and RA, DEC = {result['host_ra']:.6f}, {result['host_dec']:.6f}"
                     )
 
-                if logger.getEffectiveLevel() == logging.DEBUG:
+                # For some reason the value of "verbose" is ignored here, and the effective
+                # level returned by logger.getEffectiveLevel() is 10 (DEBUG)
+                logger.info(f'''Effective logger level: {logger.getEffectiveLevel()}''')
+                if run_plot_match and logger.getEffectiveLevel() == logging.DEBUG:
                     try:
                         plot_match(
                             [result["host_ra"]],

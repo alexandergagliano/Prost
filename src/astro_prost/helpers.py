@@ -24,7 +24,7 @@ import pandas as pd
 import logging
 import re
 from io import BytesIO
-from colorama import Style
+from colorama import Fore, Style, init
 
 # Precision & default values
 PROB_FLOOR = np.finfo(float).eps

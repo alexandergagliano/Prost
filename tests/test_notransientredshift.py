@@ -49,7 +49,7 @@ def test_notransientredshift():
     cat_cols = False
 
     # list of catalogs to search -- options are (in order) glade, decals, panstarrs
-    catalogs = ["panstarrs"]
+    catalogs = ["decals"]
 
     # the columns containing the transient names, coordinates, and redshift info
     name_col = "IAUID"

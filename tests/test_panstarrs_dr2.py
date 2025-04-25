@@ -27,15 +27,12 @@ def test_panstarrs_dr2():
     transient_catalog = transient_catalog[transient_catalog['IAUID'] == 'SN2023wuq']
 
     # define priors for properties
-    priorfunc_z = halfnorm(loc=0.0001, scale=0.5)
     priorfunc_offset = uniform(loc=0, scale=10)
-    priorfunc_absmag = uniform(loc=-30, scale=20)
 
     likefunc_offset = gamma(a=0.75)
-    likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
 
-    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "redshift": priorfunc_z}
-    likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
+    priors = {"offset": priorfunc_offset}
+    likes = {"offset": likefunc_offset}
 
     # set up properties of the association run
     verbose = 2

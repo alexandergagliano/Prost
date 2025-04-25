@@ -27,6 +27,7 @@ dependencies = [
   "scipy", 
   "astro-datalab", 
   "requests",
+  "colorama",
   "sfdmap; python_version <= '3.9'",
   "sfdmap2; python_version >= '3.9'",
   "filelock",

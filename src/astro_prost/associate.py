@@ -26,6 +26,8 @@ import warnings
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import gc
+from colorama import init
+from colorama import Fore, Style, init
 
 # Parallel processing settings
 NPROCESS_MAX = np.maximum(os.cpu_count() - 4, 1)
@@ -40,7 +42,8 @@ def chunks(lst, n):
 DEFAULT_RELEASES = {
     "glade": "latest",
     "decals": "dr9",
-    "panstarrs": "dr2"
+    "panstarrs": "dr2",
+    "skymapper": "dr4"
 }
 
 # Filter unnecessary warnings
@@ -119,7 +122,7 @@ def consolidate_results(results, transient_catalog):
         transient_catalog.dropna(subset=['host_total_posterior', 'host_objID'], inplace=True)
 
     transient_catalog.reset_index(drop=True, inplace=True)
-    
+
     return transient_catalog
 
 def save_results(transient_catalog, run_name=None, save_path='./', drop_unassociated=True):
@@ -315,7 +318,12 @@ def associate_transient(
 
     logger = setup_logger(log_fn, verbose=verbose, is_main=False)
 
+    # set up color-coding
+    init(autoreset=True)
+
     condition_host_props = list(priors.keys())
+    if (('redshift' in condition_host_props) or ('absmag' in condition_host_props)) and ('panstarrs' in list(catalogs.keys()))
+        raise ValueError("Cannot condition on redshift or absmag with the panstarrs catalog! Condition on offset only or use another catalog.\n\n Interested in contributing a photo-z estimator for PS1? Open an issue at https://github.com/alexandergagliano/Prost/issues.")
 
     # TODO change overloaded variable here
     if calc_host_props:
@@ -412,8 +420,8 @@ def associate_transient(
                 print_props = ['objID', 'name', 'ra', 'dec', 'total_posterior']
                 condition_props = list(priors.keys())
 
-                log_host_properties(logger, transient.name, cat, best_idx, f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
-                log_host_properties(logger, transient.name, cat, second_best_idx, f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
+                log_host_properties(logger, transient.name, cat, best_idx, Fore.BLUE+f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
+                log_host_properties(logger, transient.name, cat, second_best_idx, Fore.BLUE+f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
 
                 # Populate results using a loop instead of manual assignments
                 for key, idx in {"host": best_idx, "host_2": second_best_idx}.items():

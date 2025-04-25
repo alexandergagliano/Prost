@@ -322,7 +322,7 @@ def associate_transient(
     init(autoreset=True)
 
     condition_host_props = list(priors.keys())
-    if (('redshift' in condition_host_props) or ('absmag' in condition_host_props)) and ('panstarrs' in list(catalogs.keys()))
+    if (('redshift' in condition_host_props) or ('absmag' in condition_host_props)) and ('panstarrs' in catalogs):
         raise ValueError("Cannot condition on redshift or absmag with the panstarrs catalog! Condition on offset only or use another catalog.\n\n Interested in contributing a photo-z estimator for PS1? Open an issue at https://github.com/alexandergagliano/Prost/issues.")
 
     # TODO change overloaded variable here

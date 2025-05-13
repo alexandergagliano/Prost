@@ -24,11 +24,15 @@ def test_bigrun():
     transient_catalog = transient_catalog.sample(n=10)
 
     # define priors for properties
+    priorfunc_redshift = halfnorm(loc=0.0001, scale=0.5)
     priorfunc_offset = uniform(loc=0, scale=10)
-    likefunc_offset = gamma(a=0.75)
+    priorfunc_absmag = uniform(loc=-30, scale=20)
 
-    priors = {"offset": priorfunc_offset}
-    likes = {"offset": likefunc_offset}
+    likefunc_offset = gamma(a=0.75)
+    likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
+
+    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag, "redshift": priorfunc_redshift}
+    likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
 
     # set up properties of the association run
     verbose = 0

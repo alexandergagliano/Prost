@@ -46,6 +46,8 @@ DEFAULT_RELEASES = {
     "skymapper": "dr4"
 }
 
+ONLY_OFFSET_CATS = {"panstarrs", "skymapper"}
+
 # Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
 
@@ -270,7 +272,9 @@ def associate_transient(
     calc_host_props=False,
     verbose=0,
     coord_err_cols=('ra_err', 'dec_err'),
-    run_plot_match=False,
+    strict_checking=False,
+    warn_on_fallback=True,
+    plot_match=False,
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -305,7 +309,11 @@ def associate_transient(
         The verbosity level of the output.
     coord_err_cols : tuple of strings
         The column names associated with positional uncertainties on the transient positions.
-    run_plot_match : boolean, optional
+    strict_checking : boolean, optional
+        If true, raises error if catalog doesn't support conditioning on a property requested.
+    warn_on_fallback : boolean, optional
+        If true, raises warning if catalog doesn't support conditioning on a property requested. 
+    plot_match : boolean, optional
         If true, attempts to generate a plot image.
 
     Returns
@@ -322,8 +330,25 @@ def associate_transient(
     init(autoreset=True)
 
     condition_host_props = list(priors.keys())
-    if (('redshift' in condition_host_props) or ('absmag' in condition_host_props)) and (('panstarrs' in catalogs) or ('skymapper' in catalogs)):
-        raise ValueError("Cannot condition on redshift or absmag with the panstarrs/skymapper catalogs! Condition on offset only or use another catalog.\n\n Interested in contributing a photo-z estimator for PS1? Open an issue at https://github.com/alexandergagliano/Prost/issues.")
+    unsupported_props = {"redshift", "absmag"}.intersection(priors)
+    unsupported_catalogs  = ONLY_OFFSET_CATS.intersection(catalogs)
+
+    if unsupported_props and unsupported_catalogs:
+        msg = (
+            f"{', '.join(sorted(unsupported_catalogs))} do not provide "
+            f"{', '.join(sorted(unsupported_props))}; "
+            "falling back to 'offset' only for those catalogs."
+        )
+
+        if strict_checking:
+            raise ValueError(
+                msg + "\n\nInterested in contributing a photo-z estimator? "
+                      "Open an issue at https://github.com/alexandergagliano/Prost/issues."
+            )
+
+        if warn_on_fallback:
+            logger.warning(msg)
+
 
     # TODO change overloaded variable here
     if calc_host_props:
@@ -400,15 +425,16 @@ def associate_transient(
 
     catalog_dict = OrderedDict(get_catalogs(catalogs))
 
-    if ('panstarrs' in list(catalog_dict.keys())) or ('skymapper' in list(catalog_dict.keys())):
-        calc_host_props = ['offset']
-
     for cat_name, cat_release in catalog_dict.items():
-        cat_release = catalog_dict[cat_name]
+        if cat_name in ONLY_OFFSET_CATS:
+            calc_host_props_cat = ['offset']
+        else:
+            calc_host_props_cat = calc_host_props
+
         cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog, release=cat_release)
 
         try:
-            cat.get_candidates(transient, time_query=True, logger=logger, cosmo=cosmo, calc_host_props=calc_host_props, cat_cols=cat_cols)
+            cat.get_candidates(transient, time_query=True, logger=logger, cosmo=cosmo, calc_host_props=calc_host_props_cat, cat_cols=cat_cols)
         except requests.exceptions.HTTPError:
             logger.warning(f"Candidate retrieval failed for {transient.name} in catalog {cat_name} due to an HTTPError.")
             continue
@@ -457,7 +483,7 @@ def associate_transient(
                 # For some reason the value of "verbose" is ignored here, and the effective
                 # level returned by logger.getEffectiveLevel() is 10 (DEBUG)
                 logger.info(f'''Effective logger level: {logger.getEffectiveLevel()}''')
-                if run_plot_match and logger.getEffectiveLevel() == logging.DEBUG:
+                if plot_match and logger.getEffectiveLevel() == logging.DEBUG:
                     try:
                         plot_match(
                             [result["host_ra"]],

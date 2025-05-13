@@ -24,7 +24,7 @@ transient_catalog = pd.DataFrame({
     'dec': [9.2000414]
 })
 
-# define a catalog to search -- options are glade, decals, and panstarrs
+# define a set of catalogs to search -- options are glade, decals, panstarrs, and skymapper
 catalogs = ["decals"]
 
 # define priors and likelihoods

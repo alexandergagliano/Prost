@@ -186,7 +186,7 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
         Logs the formatted host properties.
     """
 
-    prop_lines = [f"\n    {title} for {transient_name}:"]
+    prop_lines = [f"\n    {title} for {transient_name}:" + Style.RESET_ALL]
 
     # Define all possible properties with labels and formats
     prop_format = {
@@ -203,10 +203,14 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
     # Iterate through selected properties
     for prop in print_props:
         values = cat.galaxies[prop]
+        if prop == 'name':
+            raw_name = cat.galaxies["name"][host_idx]
+            if not raw_name.strip():
+                continue
         if (prop in cat.galaxies.dtype.names) and (0 <= host_idx < len(values)):  # Only include if property exists
             label, fmt = prop_format.get(prop.split("_")[-1], (prop, "{:.4f}"))  # Default fmt if missing
             value = fmt.format(values[host_idx])
-            print_str = f"    {label}: {value}"
+            print_str =  Fore.BLUE + f"    {label}:" + Style.RESET_ALL + f" {value}"
             prop_lines.append(print_str)
 
     # get mean, std, and posterior for specific properties
@@ -221,7 +225,7 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
 
             info = cat.galaxies[f"{prop}_info"][host_idx]
 
-            print_str = f"    {label}: {mean_value} ± {std_value}"
+            print_str = Fore.BLUE + f"    {label}:" + Style.RESET_ALL + f" {mean_value} ± {std_value}"
             if prop == 'offset':
                 print_str += " arcsec"
             if len(info) > 0:
@@ -229,7 +233,7 @@ def log_host_properties(logger, transient_name, cat, host_idx, title, print_prop
             prop_lines.append(print_str)
 
             if prop in condition_props:
-                prop_lines.append(f"    {label} Posterior: {posterior}")
+                prop_lines.append(Fore.BLUE + f"    {label} Posterior:" + Style.RESET_ALL + f" {posterior}")
 
     logger.info("\n".join(prop_lines))
 
@@ -335,9 +339,9 @@ def associate_transient(
 
     if unsupported_props and unsupported_catalogs:
         msg = (
-            f"{', '.join(sorted(unsupported_catalogs))} do not provide "
-            f"{', '.join(sorted(unsupported_props))}; "
-            "falling back to 'offset' only for those catalogs."
+            f"{', '.join(sorted(unsupported_catalogs))} "
+            f"{'does not support conditioning on' if len(unsupported_catalogs)==1 else 'do not support conditioning on'} "
+            f"{', '.join(sorted(unsupported_props))}; falling back to 'offset' only for this subset."
         )
 
         if strict_checking:
@@ -428,8 +432,10 @@ def associate_transient(
     for cat_name, cat_release in catalog_dict.items():
         if cat_name in ONLY_OFFSET_CATS:
             calc_host_props_cat = ['offset']
+            condition_host_props_cat = ['offset']
         else:
             calc_host_props_cat = calc_host_props
+            condition_host_props_cat = condition_host_props
 
         cat = GalaxyCatalog(name=cat_name, n_samples=n_samples, data=glade_catalog, release=cat_release)
 
@@ -440,7 +446,7 @@ def associate_transient(
             continue
 
         if cat.ngals > 0:
-            cat = transient.associate(cat, cosmo, condition_host_props=condition_host_props)
+            cat = transient.associate(cat, cosmo, condition_host_props=condition_host_props_cat)
 
             if transient.best_host != -1:
                 best_idx = transient.best_host
@@ -481,8 +487,6 @@ def associate_transient(
                     )
 
                 # For some reason the value of "verbose" is ignored here, and the effective
-                # level returned by logger.getEffectiveLevel() is 10 (DEBUG)
-                logger.info(f'''Effective logger level: {logger.getEffectiveLevel()}''')
                 if plot_match and logger.getEffectiveLevel() == logging.DEBUG:
                     try:
                         plot_match(

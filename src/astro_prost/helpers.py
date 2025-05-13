@@ -1381,16 +1381,11 @@ class Transient:
             prior_offset = self.calc_prior_offset(fractional_offset_samples, reduce=None) # Shape (N,)
             like_offset = self.calc_like_offset(fractional_offset_samples, reduce=None)  # Shape (N,)
 
-            logging.info("prior_offset:", prior_offset)
-            logging.info("like_offset", like_offset)
-
             post_offset = prior_offset * like_offset
             post_set.append(post_offset)
 
-        # Compute the posterior probabilities for all galaxies, multiplying host properties
-        # shape -> (n_properties, n_gals, n_samples)
+        # Compute the posterior probabilities for all galaxies
         post_gals_stacked = np.stack(post_set, axis=0)
-        # shape -> (n_gals, n_samples)
         post_gals = np.prod(post_gals_stacked, axis=0)
 
         # some very low value that the SN is actually hostless, across all samples.

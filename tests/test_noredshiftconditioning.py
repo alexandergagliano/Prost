@@ -31,15 +31,14 @@ def test_noredshiftconditioning():
     transient_catalog['redshift'] = np.nan
 
     # define priors for properties
-    priorfunc_z = halfnorm(loc=0.0001, scale=0.1)
     priorfunc_offset = uniform(loc=0, scale=10)
     priorfunc_absmag = uniform(loc=-30, scale=20)
 
     likefunc_offset = gamma(a=0.75)
     likefunc_absmag = SnRateAbsmag(a=-30, b=-10)
 
-    priors = {"offset": priorfunc_offset, "absmag": priorfunc_absmag}
-    likes = {"offset": likefunc_offset, "absmag": likefunc_absmag}
+    priors = {"offset": priorfunc_offset}
+    likes = {"offset": likefunc_offset}
 
     # the columns containing the transient names, coordinates, and redshift info
     name_col = "IAUID"

@@ -119,7 +119,7 @@ def sanitize_input(cat_name):
     Parameters
     ----------
     cat_name : str
-        The catalog name to be sanitized. Supported catalog names include 'decals', 'glade', and 'panstarrs'.
+        The catalog name to be sanitized. Supported catalog names include 'decals', 'glade', 'panstarrs', and 'skymapper'.
 
     Returns
     -------

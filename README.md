@@ -57,7 +57,7 @@ hosts = \
 If you find Prost useful for your work, please cite the Zenodo release: 
 
 ```
-@software{alex_gagliano_2025_15397886,
+@software{Gagliano2025_Prost,
   author       = {Alex Gagliano and
                   Kaylee de Soto and
                   Adam Boesky and

@@ -49,10 +49,28 @@ hosts = \
 ```
 
 [![Template](https://img.shields.io/badge/Template-LINCC%20Frameworks%20Python%20Project%20Template-brightgreen)](https://lincc-ppt.readthedocs.io/en/latest/)
-
+[![DOI](https://zenodo.org/badge/848607796.svg)](https://doi.org/10.5281/zenodo.15397885)
 [![PyPI](https://img.shields.io/pypi/v/prost?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/prost/)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/alexandergagliano/prost/smoke-test.yml)](https://github.com/alexandergagliano/prost/actions/workflows/smoke-test.yml)
 [![Read The Docs](https://img.shields.io/readthedocs/astro_prost)](https://astro-prost.readthedocs.io/)
+
+If you find Prost useful for your work, please cite the Zenodo release: 
+
+```
+@software{alex_gagliano_2025_15397886,
+  author       = {Alex Gagliano and
+                  Kaylee de Soto and
+                  Adam Boesky and
+                  T. Andrew Manning},
+  title        = {alexandergagliano/Prost: v1.2.11},
+  month        = may,
+  year         = 2025,
+  publisher    = {Zenodo},
+  version      = {v1.2.11},
+  doi          = {10.5281/zenodo.15397886},
+  url          = {https://doi.org/10.5281/zenodo.15397886},
+}
+```
 
 Questions? Functionality you'd like to see? [Report an issue](https://github.com/alexandergagliano/Prost/issues/new?title=New%20Issue&body=Please%20describe%20the%20issue%20here) or reach out at gaglian2[at]mit.edu.
 

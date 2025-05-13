@@ -327,10 +327,7 @@ def associate_transient(
 
     # TODO change overloaded variable here
     if calc_host_props:
-        if 'panstarrs' not in list(catalogs.keys()):
-            calc_host_props = ['redshift', 'absmag', 'offset']
-        else:
-            calc_host_props = ['offset']
+        calc_host_props = ['redshift', 'absmag', 'offset']
     else:
         calc_host_props = list(priors.keys())
 
@@ -402,6 +399,9 @@ def associate_transient(
         logger.info(f"Running association with the following catalog priorities: {catalogs}")
 
     catalog_dict = OrderedDict(get_catalogs(catalogs))
+
+    if ('panstarrs' in list(catalog_dict.keys())):
+        calc_host_props = ['offset']
 
     for cat_name, cat_release in catalog_dict.items():
         cat_release = catalog_dict[cat_name]

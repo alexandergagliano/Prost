@@ -705,7 +705,7 @@ def associate_sample(
 
             with ProcessPoolExecutor(max_workers=n_processes) as executor:
                 futures = {executor.submit(safe_associate_transient, *event): event[0] for event in batch}
-                for future in tqdm(as_completed(futures), total=len(futures), desc=f"Batch {batch_num}"):
+                for future in tqdm(as_completed(futures), total=len(futures), desc=f"Batch {batch_num}", disable=not progress_bar):
                     try:
                         results_per_batch[futures[future]] = future.result()
                     except Exception as e:
@@ -733,7 +733,7 @@ def associate_sample(
 
                 with ProcessPoolExecutor(max_workers=n_processes) as executor:
                     new_futures = {executor.submit(safe_associate_transient, *event): event[0] for event in failed_events}
-                    for future in tqdm(as_completed(new_futures), total=len(new_futures), desc="Retrying events"):
+                    for future in tqdm(as_completed(new_futures), total=len(new_futures), desc="Retrying events", disable=not progress_bar):
                         try:
                             results_per_batch[new_futures[future]] = future.result()
                         except Exception as e:
@@ -747,7 +747,15 @@ def associate_sample(
                     logger.warning("Some associations still failed after maximum retries.")
 
     else:  # Serial execution mode
-        results = {i: associate_transient(*event) for i, event in enumerate(events)}
+        iterable = tqdm(
+            events,
+            total=len(events),
+            desc="Associating (serial)",
+            disable=not progress_bar)
+
+        results = {}
+        for i, event in enumerate(iterable):
+            results[i] = associate_transient(*event)
 
     if (not parallel) or (os.environ.get(envkey) == str(os.getpid())):
         transient_catalog = consolidate_results(results, transient_catalog)

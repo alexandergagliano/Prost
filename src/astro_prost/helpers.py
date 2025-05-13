@@ -253,17 +253,17 @@ def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     rad_deg = search_rad.deg
     if rad_deg > MAX_RAD_DEG:
         logger.warning("Search radius at this distance >500''! Reducing to ensure a fast skymapper query.")
-        rad_dec = MAX_RAD_DEG
+        rad_deg = MAX_RAD_DEG
 
-    master_url = build_skymapper_url(search_pos.ra.deg, search_pos.dec.deg, search_radius.deg, release, "master")
+    master_url = build_skymapper_url(search_pos.ra.deg, search_pos.dec.deg, rad_deg, release, "master")
     master_df = pd.read_csv(BytesIO(requests.get(master_url).content))
 
-    phot_url = build_skymapper_url(search_pos.ra.deg, search_pos.dec.deg, search_radisu.deg, release, "photometry")
+    phot_url = build_skymapper_url(search_pos.ra.deg, search_pos.dec.deg, rad_deg, release, "photometry")
     phot_df = pd.read_csv(BytesIO(requests.get(phot_url).content))
     phot_df = phot_df[phot_df['e_a'].notna()]
 
     # Find rows with smallest uncertainty for each object/filter combo
-    idx_min = dfPhot.groupby(['object_id', 'filter'])['e_a'].idxmin()
+    idx_min = phot_df.groupby(['object_id', 'filter'])['e_a'].idxmin()
     phot_df_min = phot_df.loc[idx_min]
 
     # Pivot filter-specific columns with prefix
@@ -2317,6 +2317,7 @@ def build_glade_candidates(
 def build_skymapper_candidates(transient,
                             cosmo,
                             logger,
+                            glade_catalog=None,
                             search_rad=None,
                             n_samples=1000,
                             calc_host_props=['redshift', 'absmag', 'offset'],
@@ -2405,7 +2406,7 @@ def build_skymapper_candidates(transient,
         )
 
     temp_mag_r = candidate_hosts["r_petro"].values
-    temp_mag_r_std = candidate_hosts["r_e_petro"].values
+    temp_mag_r_std = candidate_hosts["e_r_petro"].values
 
     # cap at 50% the mag
     # set a floor of 5%

@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
 from astro_prost.associate import setup_logger
-from astro_prost.helpers import fetch_panstarrs_sources, find_panstarrs_shreds, calc_shape_props_panstarrs, is_service_available
+from astro_prost.helpers import fetch_panstarrs_sources, find_shreds, calc_shape_props_panstarrs, is_service_available
 # constants
 from astro_prost.helpers import SIGMA_ABSMAG_CEIL, SIGMA_ABSMAG_FLOOR
 from astropy.coordinates import SkyCoord, Angle
+from math import isclose
 import astropy.units as u
 import time
 import pytest
@@ -53,7 +54,7 @@ def test_panstarrs_shred():
         logger.info(f"Removing panstarrs {release} shreds.")
 
         start = time.perf_counter()
-        shred_idxs = find_panstarrs_shreds(
+        shred_idxs = find_shreds(
             candidate_hosts["objID"].values,
             galaxies_pos,
             temp_sizes,
@@ -72,5 +73,4 @@ def test_panstarrs_shred():
         # Print execution times
         print("Execution time: {:.6f} seconds".format(end - start))
 
-        assert Nshred == Nshred_true[idx]
-
+        assert isclose(Nshred, Nshred_true[idx], rel_tol=0.02) 

@@ -17,6 +17,7 @@ classifiers = [
 dynamic = ["version"]
 requires-python = ">=3.8"
 dependencies = [
+  "setuptools<80.3",
   "numpy", 
   "astropy", 
   "matplotlib", 

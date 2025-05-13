@@ -218,7 +218,7 @@ def build_skymapper_url(ra, dec, search_radius, release, catalog):
     )
     return url
 
-def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, release='dr2'):
+def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, logger=None, release='dr2'):
     """Queries the skymapper catalogs (https://skymapper.anu.edu.au/about-skymapper/).
 
     Parameters
@@ -2363,7 +2363,7 @@ def build_skymapper_candidates(transient,
     transient_pos = transient.position
     transient_pos_samples = transient.position_samples
 
-    candidate_hosts = fetch_skymapper_sources(transient_pos, search_rad, cat_cols, calc_host_props, release)
+    candidate_hosts = fetch_skymapper_sources(transient_pos, search_rad, cat_cols, calc_host_props, logger, release)
 
     if candidate_hosts is None:
         return None, []

@@ -327,7 +327,10 @@ def associate_transient(
 
     # TODO change overloaded variable here
     if calc_host_props:
-        calc_host_props = list({'redshift', 'absmag', 'offset'})
+        if 'panstarrs' not in list(catalogs.keys()):
+            calc_host_props = ['redshift', 'absmag', 'offset']
+        else:
+            calc_host_props = ['offset']
     else:
         calc_host_props = list(priors.keys())
 

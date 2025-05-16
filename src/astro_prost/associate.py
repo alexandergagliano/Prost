@@ -26,7 +26,6 @@ import warnings
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import gc
-from colorama import init
 from colorama import Fore, Style, init
 
 # Parallel processing settings

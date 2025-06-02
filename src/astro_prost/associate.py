@@ -329,9 +329,6 @@ def associate_transient(
 
     logger = setup_logger(log_fn, verbose=verbose, is_main=False)
 
-    # set up color-coding
-    init(autoreset=True)
-
     condition_host_props = list(priors.keys())
     unsupported_props = {"redshift", "absmag"}.intersection(priors)
     unsupported_catalogs  = ONLY_OFFSET_CATS.intersection(catalogs)

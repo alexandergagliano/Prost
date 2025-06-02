@@ -818,6 +818,8 @@ def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, cal
     if self.name not in self.catalog_functions:
         raise ValueError(f"Unknown catalog: {self.name}. Open a pull request to add functionality for other catalogs!")
 
+    init(autoreset=True)
+
     catalog_func = self.catalog_functions[self.name]
     self.limiting_mag = DEFAULT_LIMITING_MAG.get(self.name, None)
 

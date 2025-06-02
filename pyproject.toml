@@ -31,10 +31,7 @@ dependencies = [
   "colorama",
   "sfdmap; python_version <= '3.9'",
   "sfdmap2; python_version >= '3.9'",
-  "filelock",
-  "tensorflow==2.13.1; python_version < '3.10' and python_version != '3.8'",
-  "tensorflow==2.5.0; python_version == '3.8'",
-  "tensorflow>2.16.0; python_version >= '3.10'"
+  "filelock"
 ]
 
 [project.urls]

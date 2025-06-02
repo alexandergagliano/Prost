@@ -1441,17 +1441,17 @@ class Transient:
 
         if best_idx < n_gals:
             # This is a real galaxy
-            self.logger.info(Fore.GREEN	+ "Association successful!")
+            self.logger.info(Fore.GREEN	+ "Association successful!"+Style.RESET_ALL)
             self.best_host = best_idx
         else:
             # no galaxy found
             self.best_host = -1
             if best_idx == n_gals:
-                self.logger.warning(Fore.YELLOW+"Association failed. Host is likely outside the search cone.")
+                self.logger.warning(Fore.YELLOW+"Association failed. Host is likely outside the search cone."+Style.RESET_ALL)
             elif best_idx == (n_gals + 1):
-                self.logger.warning(Fore.YELLOW+"Association failed. Host is likely missing from the catalog.")
+                self.logger.warning(Fore.YELLOW+"Association failed. Host is likely missing from the catalog."+Style.RESET_ALL)
             elif best_idx == (n_gals + 2):
-                self.logger.warning(Fore.YELLOW+"Association failed. Host is likely hostless.")
+                self.logger.warning(Fore.YELLOW+"Association failed. Host is likely hostless."+Style.RESET_ALL)
 
         # Now figure out second best index
         if len(top_idxs) > 1:

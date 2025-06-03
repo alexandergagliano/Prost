@@ -250,7 +250,7 @@ def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
-    rad_deg = search_rad.deg
+    rad_deg = search_rad.to(u.deg).value
     if rad_deg > MAX_RAD_DEG:
         logger.warning("Search radius at this distance >500''! Reducing to ensure a fast skymapper query.")
         rad_deg = MAX_RAD_DEG
@@ -817,6 +817,8 @@ def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, cal
     """
     if self.name not in self.catalog_functions:
         raise ValueError(f"Unknown catalog: {self.name}. Open a pull request to add functionality for other catalogs!")
+
+    init(autoreset=True)
 
     catalog_func = self.catalog_functions[self.name]
     self.limiting_mag = DEFAULT_LIMITING_MAG.get(self.name, None)
@@ -2434,11 +2436,11 @@ def build_skymapper_candidates(transient,
             temp_sizes = temp_sizes[left_idxs]
             temp_sizes_std = temp_sizes_std[left_idxs]
 
-            logger.info(f"Removed {len(shred_idxs)} flagged panstarrs sources.")
+            logger.info(f"Removed {len(shred_idxs)} flagged skymapper sources.")
         else:
-            logger.info("No panstarrs shreds found.")
+            logger.info("No skymapper shreds found.")
 
-    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "panstarrs", release, logger)
+    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "skymapper", release, logger)
     if galaxies is None:
         return None, []
     n_galaxies = len(galaxies)

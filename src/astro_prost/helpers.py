@@ -218,7 +218,7 @@ def build_skymapper_url(ra, dec, search_radius, release, catalog):
     )
     return url
 
-def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, logger=None, release='dr2'):
+def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, logger=None, release='dr4'):
     """Queries the skymapper catalogs (https://skymapper.anu.edu.au/about-skymapper/).
 
     Parameters
@@ -279,9 +279,12 @@ def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     candidate_hosts = phot_df_pivot.merge(master_df, on='object_id', how='outer')
     candidate_hosts.rename(columns={'object_id':'objID', 'raj2000':'ra', 'dej2000':'dec'}, inplace=True)
 
-    # very basic cut to get rid of bad candidates
-    for band in 'ugriz':
-        candidate_hosts = candidate_hosts[candidate_hosts[f'{band}_ngood'] >= 1]
+    # very basic cut to get rid of bad candidates - require ngood >= 1 in g OR r band
+    # Note: SkyMapper doesn't have ngood columns, so skip this filtering for SkyMapper
+    if 'g_ngood' in candidate_hosts.columns and 'r_ngood' in candidate_hosts.columns:
+        g_good = (candidate_hosts['g_ngood'].notna()) & (candidate_hosts['g_ngood'] >= 1)
+        r_good = (candidate_hosts['r_ngood'].notna()) & (candidate_hosts['r_ngood'] >= 1)
+        candidate_hosts = candidate_hosts[g_good | r_good]
 
     candidate_hosts.replace(DUMMY_FILL_VAL, np.nan, inplace=True)
     candidate_hosts.reset_index(inplace=True, drop=True)
@@ -323,10 +326,10 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
-    rad_deg = search_rad.deg
+    rad_deg = search_rad.to(u.deg).value
     if rad_deg > MAX_RAD_DEG:
         logger.warning("Search radius at this distance >500''! Reducing to ensure a fast pan-starrs query.")
-        rad_dec = MAX_RAD_DEG
+        rad_deg = MAX_RAD_DEG
 
     # load table metadata to avoid a query
     pkg_data_file = pkg_resources.files('astro_prost') / 'data' / 'panstarrs_metadata.pkl'
@@ -440,7 +443,7 @@ def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, rele
     if search_rad is None:
         search_rad = Angle(60 * u.arcsec)
 
-    rad_deg = search_rad.deg
+    rad_deg = search_rad.to(u.deg).value
 
     result = qC.query(
         sql=f"""SELECT

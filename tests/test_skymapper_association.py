@@ -54,11 +54,11 @@ def test_skymapper_association():
             )
             
             if sources is None:
-                print(f"❌ FAIL: No sources returned for {transient_name}")
+                print(f"FAIL: No sources returned for {transient_name}")
                 all_passed = False
                 continue
                 
-            print(f"✅ Found {len(sources)} sources in SkyMapper DR4")
+            print(f"Found {len(sources)} sources in SkyMapper DR4")
             
             # Check if expected host is found
             if expected_host_id in sources['objID'].tolist():
@@ -71,23 +71,23 @@ def test_skymapper_association():
                 distance = transient_pos.separation(host_coord).arcsec
                 
                 if distance <= max_distance:
-                    print(f"✅ PASS: Expected host {expected_host_id} found at {distance:.2f} arcsec")
+                    print(f"PASS: Expected host {expected_host_id} found at {distance:.2f} arcsec")
                     
                     # Show host properties
                     if 'r_petro' in host_match.columns:
                         r_mag = host_match['r_petro'].iloc[0]
                         print(f"   Host r-band magnitude: {r_mag:.2f}")
                 else:
-                    print(f"❌ FAIL: Host {expected_host_id} found but too far ({distance:.2f} > {max_distance} arcsec)")
+                    print(f"FAIL: Host {expected_host_id} found but too far ({distance:.2f} > {max_distance} arcsec)")
                     all_passed = False
             else:
-                print(f"❌ FAIL: Expected host {expected_host_id} not found")
+                print(f"FAIL: Expected host {expected_host_id} not found")
                 available_ids = sources['objID'].tolist()
                 print(f"   Available object IDs: {available_ids[:5]}..." if len(available_ids) > 5 else f"   Available object IDs: {available_ids}")
                 all_passed = False
                 
         except Exception as e:
-            print(f"❌ ERROR testing {transient_name}: {e}")
+            print(f"ERROR testing {transient_name}: {e}")
             all_passed = False
     
     # Test the band filtering logic doesn't break
@@ -107,29 +107,29 @@ def test_skymapper_association():
         )
         
         if sources is not None and len(sources) > 0:
-            print("✅ PASS: Band filtering allows sources through (doesn't filter everything)")
+            print("PASS: Band filtering allows sources through (doesn't filter everything)")
             
             # Check that ngood columns behavior
             ngood_cols = [col for col in sources.columns if 'ngood' in col]
             if len(ngood_cols) == 0:
-                print("✅ PASS: No ngood columns (pure SkyMapper data)")
+                print("PASS: No ngood columns (pure SkyMapper data)")
             else:
-                print(f"ℹ️  INFO: Found {len(ngood_cols)} ngood columns (mixed data)")
-                print("✅ PASS: Band filtering correctly handles mixed column scenarios")
+                print(f"INFO: Found {len(ngood_cols)} ngood columns (mixed data)")
+                print("PASS: Band filtering correctly handles mixed column scenarios")
         else:
-            print("❌ FAIL: Band filtering is too aggressive (filters out everything)")
+            print("FAIL: Band filtering is too aggressive (filters out everything)")
             all_passed = False
             
     except Exception as e:
-        print(f"❌ ERROR testing band filtering: {e}")
+        print(f"ERROR testing band filtering: {e}")
         all_passed = False
     
     # Final result
     print("\n" + "=" * 70)
     if all_passed:
-        print("🎉 ALL TESTS PASSED! SkyMapper association is working correctly.")
+        print("ALL TESTS PASSED! SkyMapper association is working correctly.")
     else:
-        print("❌ SOME TESTS FAILED! Check the SkyMapper pipeline.")
+        print("SOME TESTS FAILED! Check the SkyMapper pipeline.")
         sys.exit(1)
     print("=" * 70)
 
@@ -154,12 +154,12 @@ def test_data_release_compatibility():
         )
         
         if sources_dr4 is not None and len(sources_dr4) > 0:
-            print("✅ PASS: DR4 returns sources")
+            print("PASS: DR4 returns sources")
         else:
-            print("❌ FAIL: DR4 returns no sources")
+            print("FAIL: DR4 returns no sources")
             
     except Exception as e:
-        print(f"❌ ERROR with DR4: {e}")
+        print(f"ERROR with DR4: {e}")
     
     # Test that DR2 (old default) doesn't have our test object (expected)
     try:
@@ -172,12 +172,12 @@ def test_data_release_compatibility():
         )
         
         if sources_dr2 is None or len(sources_dr2) == 0:
-            print("✅ PASS: DR2 returns no sources (expected for this test case)")
+            print("PASS: DR2 returns no sources (expected for this test case)")
         else:
-            print(f"ℹ️  INFO: DR2 returns {len(sources_dr2)} sources")
+            print(f"INFO: DR2 returns {len(sources_dr2)} sources")
             
     except Exception as e:
-        print(f"❌ ERROR with DR2: {e}")
+        print(f"ERROR with DR2: {e}")
 
 if __name__ == "__main__":
     test_skymapper_association()

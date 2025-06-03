@@ -567,19 +567,30 @@ def calc_shape_props_skymapper(candidate_hosts):
     PA = candidate_hosts["r_pa"].values
     e_PA = candidate_hosts["r_e_pa"].values
 
+    # Handle nan values in shape parameters - set to valid defaults
+    a = np.where(np.isnan(a), SIZE_FLOOR, np.maximum(a, SIZE_FLOOR))
+    b = np.where(np.isnan(b), SIZE_FLOOR, np.maximum(b, SIZE_FLOOR))
+    
+    # Handle nan values in error measurements - set to uncertainty floor
+    e_a = np.where(np.isnan(e_a), SIGMA_SIZE_FLOOR * a, np.maximum(e_a, SHAPE_FLOOR))
+    e_b = np.where(np.isnan(e_b), SIGMA_SIZE_FLOOR * b, np.maximum(e_b, SHAPE_FLOOR))
+    
+    # Handle nan values in position angle measurements
+    PA = np.where(np.isnan(PA), 0.0, PA)
+    e_PA = np.where(np.isnan(e_PA), SIGMA_SIZE_FLOOR * np.abs(PA), np.maximum(e_PA, SHAPE_FLOOR))
+
     a_over_b = a / b
     a_over_b = np.clip(a_over_b, 0.1, 10)
 
-    # combine errors in quadrature
-    a_over_b_std = np.maximum(
-        SHAPE_FLOOR,
-        np.sqrt((e_a / b)**2 + (a * e_b / b**2)**2)
-    )
+    # combine errors in quadrature - ensure no nan values
+    a_over_b_std = np.sqrt((e_a / b)**2 + (a * e_b / b**2)**2)
+    a_over_b_std = np.where(np.isnan(a_over_b_std), SIGMA_SIZE_FLOOR * a_over_b, a_over_b_std)
+    a_over_b_std = np.maximum(a_over_b_std, SHAPE_FLOOR)
 
     # degrees to radius
     phi = np.radians(PA)
     phi_std = np.radians(e_PA)
-    phi_std = np.maximum(SHAPE_FLOOR, phi_std)
+    phi_std = np.maximum(phi_std, SHAPE_FLOOR)
 
     #return result
     return a, e_a, a_over_b, a_over_b_std, phi, phi_std

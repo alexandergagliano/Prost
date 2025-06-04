@@ -26,7 +26,7 @@ import warnings
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import gc
-from colorama import Fore, Style, init
+from colorama import Fore, Style
 
 # Parallel processing settings
 NPROCESS_MAX = np.maximum(os.cpu_count() - 4, 1)

@@ -24,7 +24,7 @@ import pandas as pd
 import logging
 import re
 from io import BytesIO
-from colorama import Fore, Style, init
+from colorama import Fore, Style, init, deinit
 
 # Precision & default values
 PROB_FLOOR = np.finfo(float).eps
@@ -861,6 +861,7 @@ def fetch_catalog_data(self, transient, search_rad, cosmo, logger, cat_cols, cal
     init_params['shred_cut'] = self.shred_cut
 
     # Run the function and store results
+    deinit()
     return catalog_func(**init_params)
 
 class GalaxyCatalog:

@@ -23,7 +23,6 @@ dependencies = [
   "pandas", 
   "scikit-learn", 
   "tqdm",
-  "torch", 
   "scipy", 
   "specutils>=1.13; python_version=='3.9'",
   "astro-datalab", 

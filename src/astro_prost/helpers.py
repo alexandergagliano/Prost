@@ -25,7 +25,10 @@ import logging
 import re
 from io import BytesIO
 from colorama import Fore, Style, init, deinit
-from lsst.rsp import get_tap_service, retrieve_query
+try:
+    from lsst.rsp import get_tap_service, retrieve_query
+except:
+    pass #if not in the RSP, ignore LSST 
 
 # Precision & default values
 PROB_FLOOR = np.finfo(float).eps

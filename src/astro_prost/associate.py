@@ -42,10 +42,11 @@ DEFAULT_RELEASES = {
     "glade": "latest",
     "decals": "dr9",
     "panstarrs": "dr2",
-    "skymapper": "dr4"
+    "skymapper": "dr4",
+    "rubin": "dp0.2"
 }
 
-ONLY_OFFSET_CATS = {"panstarrs", "skymapper"}
+ONLY_OFFSET_CATS = {"panstarrs", "skymapper", "rubin"}
 
 # Filter unnecessary warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")

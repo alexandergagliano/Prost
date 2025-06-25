@@ -25,6 +25,7 @@ import logging
 import re
 from io import BytesIO
 from colorama import Fore, Style, init, deinit
+from lsst.rsp import get_tap_service, retrieve_query
 
 # Precision & default values
 PROB_FLOOR = np.finfo(float).eps
@@ -44,8 +45,8 @@ OFFSET_FLOOR = SHAPE_FLOOR = 1.e-10
 SIGMA_ABSMAG_FLOOR = SIGMA_SIZE_FLOOR = SIGMA_REDSHIFT_FLOOR = 0.05  # 5% minimum uncertainty
 SIGMA_ABSMAG_CEIL = SIGMA_SIZE_CEIL = SIGMA_REDSHIFT_CEIL = 0.5  # 50% maximum uncertainty
 
-# Default settings for catalogs
-DEFAULT_LIMITING_MAG = {"panstarrs": 22, "decals": 26, "glade": 17, "skymapper": 22}
+# Default settings for catalogs -- these are meant to be conservative!
+DEFAULT_LIMITING_MAG = {"panstarrs": 22, "decals": 26, "glade": 17, "skymapper": 22, "rubin": 27}
 
 CATALOG_SHRED_SETTINGS = {
     "panstarrs": True,  # Only enable for Pan-STARRS and skymapper by default
@@ -210,6 +211,12 @@ def setup_logger(log_file=None, verbose=1, is_main=False):
         add_console_handler(logger, formatter)
     return logger
 
+def flux_to_mag(flux, zeropoint):
+    """Convert flux to magnitude, handling nonpositive values."""
+    flux = np.maximum(flux, 1e-10)
+    mag = -2.5 * np.log10(flux) + zeropoint
+    return mag
+
 def build_skymapper_url(ra, dec, search_radius, release, catalog):
     url = (
         f"http://skymapper.anu.edu.au/sm-cone/public/query"
@@ -290,6 +297,64 @@ def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     candidate_hosts.reset_index(inplace=True, drop=True)
     if len(candidate_hosts) < 1:
         return None
+
+    return candidate_hosts
+
+def fetch_rubin_sources(search_pos, search_rad, cat_cols, calc_host_props, logger=None, release="dp0.2"):
+    """Queries the rubin obs. lsst (placeholder now using dp0.2 data, from tutorial 02b on the rsp!).
+
+    Parameters
+    ----------
+    search_pos : astropy SkyCoord object
+        Search position (transient location in this code).
+    search_rad : astropy Angle object
+        Size of the search radius.
+    cat_cols : boolean
+        If True, concatenates all columns from the catalog to the final output.
+    calc_host_props : list
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
+    release : str
+        Catalog to query (for now only dp0.2!)
+
+    Returns
+    -------
+    pandas.DataFrame
+        Dataframe containing the retrieved sources (after some basic quality cuts).
+
+    """
+    service = get_tap_service("tap")
+    assert service is not None
+
+    str_center_coords = str(search_pos.ra.deg) + ", " + str(search_pos.dec.deg)
+    str_radius = str(search_rad.deg)
+
+    query = "SELECT * "\
+            "FROM dp02_dc2_catalogs.Object "\
+            "WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), "\
+            "CIRCLE('ICRS', " + str_center_coords + ", " + str_radius + ")) = 1 "\
+            "AND detect_isPrimary = 1"
+
+    job = service.submit_job(query)
+    job.run()
+    job.wait(phases=['COMPLETED', 'ERROR'])
+    candidate_hosts = job.fetch_result().to_table().to_pandas()
+    job.delete()
+    del query
+
+    if len(candidate_hosts) < 1:
+        return None
+
+    candidate_hosts.replace(DUMMY_FILL_VAL, np.nan, inplace=True)
+
+    candidate_hosts.dropna(subset=[f'{flt}_ixx' for flt in 'gri'], inplace=True)
+    candidate_hosts.dropna(subset=[f'{flt}_kronRad' for flt in 'gri'], inplace=True)
+
+    candidate_hosts.reset_index(inplace=True, drop=True)
+
+    for prop in ['_ixx', '_iyy', '_ixy', '_kronRad']:
+        prop_list = [f"{flt}{prop}" for flt in 'gri']
+        candidate_hosts[prop] = candidate_hosts[prop_list].median(axis=1)
+    candidate_hosts.rename(columns={'objectId':'objID', 'coord_ra':'ra', 'coord_dec':'dec'}, inplace=True)
 
     return candidate_hosts
 
@@ -492,6 +557,50 @@ def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, rele
         return None
     else:
         return candidate_hosts
+
+def calc_shape_props_rubin(candidate_hosts, band='r'):
+    """Wrapper to calculate the shape parameters for rubin lsst galaxies.
+
+    Parameters
+    ----------
+    candidate_hosts : pandas.DataFrame
+        Dataset containing sources with shape information.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        (temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std),
+        where:
+          - temp_sizes: Semi-major axes (arcsec)
+          - temp_sizes_std: Uncertainty in semi-major axes
+          - a_over_b: axis ratio
+          - a_over_b_std: Uncertainty in axis ratio
+          - phi: Position angles (radians)
+          - phi_std: Uncertainty in position angles
+
+    """
+    temp_sizes = candidate_hosts[f"{band}_kronRad"].values
+
+    # size uncertainty: 10% floor
+    temp_sizes_std = SIGMA_SIZE_FLOOR * temp_sizes
+    temp_sizes_std = np.maximum(temp_sizes_std, SHAPE_FLOOR)
+    temp_sizes_std[temp_sizes_std < (SIGMA_SIZE_FLOOR * temp_sizes)] = SIGMA_SIZE_FLOOR * temp_sizes[temp_sizes_std < (SIGMA_SIZE_FLOOR * temp_sizes)]
+
+    # Moment-based axis ratio and PA
+    gal_u = candidate_hosts[f"{band}_ixy"].values
+    gal_q = candidate_hosts[f"{band}_ixx"].values - candidate_hosts[f"{band}_iyy"].values
+
+    phi = 0.5 * np.arctan2(gal_u, gal_q)
+    phi_std = 0.05 * np.abs(phi)
+    phi_std = np.maximum(SHAPE_FLOOR, phi_std)
+
+    kappa = gal_q**2 + gal_u**2
+    kappa = np.minimum(kappa, 0.99)
+    a_over_b = (1 + kappa + 2 * np.sqrt(kappa)) / (1 - kappa)
+    a_over_b = np.clip(a_over_b, 0.1, 10)
+    a_over_b_std = SIGMA_SIZE_FLOOR * np.abs(a_over_b)  # uncertainty floor
+
+    return temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std
 
 def calc_shape_props_panstarrs(candidate_hosts):
     """Wrapper to calculate the shape parameters for pan-starrs galaxies.
@@ -905,6 +1014,7 @@ class GalaxyCatalog:
             "decals": build_decals_candidates,
             "glade": build_glade_candidates,
             "skymapper": build_skymapper_candidates,
+            "rubin": build_rubin_candidates,
         }
 
     def get_candidates(self, transient, cosmo, logger, time_query=False, calc_host_props=['offset' ,'absmag', 'redshift'], cat_cols=False):
@@ -2694,6 +2804,237 @@ def build_decals_candidates(transient,
             galaxies["absmag_samples"][i] = absmag_samples[i, :]
 
     return galaxies, cat_col_fields
+
+def build_rubin_candidates(
+    transient, 
+    cosmo,
+    logger, 
+    glade_catalog=None,
+    search_rad=None,
+    n_samples=1000,
+    calc_host_props=['redshift', 'absmag', 'offset'],
+    cat_cols=False,
+    release='dp0.2',
+    shred_cut=False,
+    dust_path=DEFAULT_DUST_PATH,
+):
+    """Populates a GalaxyCatalog object with candidates from a cone search of the
+       panstarrs catalog (See https://outerspace.stsci.edu/display/PANSTARRS/ for details).
+
+    Parameters
+    ----------
+    transient : Transient
+        Custom Transient object with name, position, and positional uncertainties defined.
+    transient_pos : astropy.coord.SkyCoord
+        Position of transient to associate.
+    cosmo : astropy cosmology
+        Assumed cosmology for conversions.
+    logger : logging.Logger
+        Logger instance for messages to console or output file.
+    search_rad : astropy Angle
+        Radius for cone search.
+    n_samples : int
+        Number of samples for Monte Carlo association.
+    glade_catalog : pandas.DataFrame
+        The locally-packaged GLADE catalog (to avoid querying).
+    calc_host_props : list
+        Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
+    cat_cols : boolean
+        If True, concatenates catalog fields for best host to final catalog.
+    shred_cut : boolean
+        If True, removes likely source shreds associated with the same candidate galaxy.
+    dust_path : str
+        Path to the dust map data files.
+
+    Returns
+    -------
+    galaxies : structured numpy array
+        Array of properties for candidate sources needed
+        for host association.
+
+    cat_col_fields : list
+        List of columns retrieved from the galaxy catalog
+        (rather than calculated internally).
+
+    """
+    if release != "dp0.2":
+        raise ValueError("Only Rubin DP0.2 data is accessible! But real data is coming...")
+
+    ZEROPOINTS = {
+        "u": 26.52,
+        "g": 28.51,
+        "r": 28.36,
+        "i": 28.17,
+        "z": 27.78,
+        "y": 26.82,
+    }
+
+    transient_name = transient.name
+    transient_pos = transient.position
+    transient_pos_samples = transient.position_samples
+
+    if shred_cut:
+        logger.info("Running with shred_cut = True...")
+
+    candidate_hosts = fetch_rubin_sources(transient_pos, search_rad, cat_cols, calc_host_props, logger, release)
+
+    if glade_catalog is not None:
+        glade_catalog.rename(columns={'z_best':'redshift', 'z_best_std':'redshift_std'}, inplace=True)
+
+    if candidate_hosts is None:
+        return None, []
+
+    if 'offset' in calc_host_props:
+        temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_rubin(candidate_hosts)
+
+        galaxies_pos = SkyCoord(
+            candidate_hosts["ra"].values * u.deg, candidate_hosts["dec"].values * u.deg
+        )
+
+
+        dlr_samples = calc_dlr(
+            transient_pos_samples,
+            galaxies_pos,
+            temp_sizes,
+            temp_sizes_std,
+            a_over_b,
+            a_over_b_std,
+            phi,
+            phi_std,
+            n_samples=n_samples,
+        )
+
+    band = 'r'
+    flux = candidate_hosts[f"{band}_kronFlux"].values
+    flux_err = candidate_hosts[f"{band}_kronFluxErr"].values
+    zeropoint = ZEROPOINTS[band]
+
+    temp_mag = flux_to_mag(flux, zeropoint)
+    temp_mag_std = 2.5 / np.log(10) * (flux_err / np.maximum(flux, 1e-10))
+    temp_mag_std = np.clip(temp_mag_std, 0.05, 0.5 * np.abs(temp_mag))
+
+
+    # cap at 50% the mag
+    # set a floor of 5%
+    temp_mag_std[temp_mag_std > (SIGMA_ABSMAG_CEIL*temp_mag)] = SIGMA_ABSMAG_CEIL * temp_mag[temp_mag_std > (SIGMA_ABSMAG_CEIL*temp_mag)]
+    temp_mag_std[temp_mag_std < (SIGMA_ABSMAG_FLOOR * temp_mag)] = SIGMA_ABSMAG_FLOOR * temp_mag[temp_mag_std < (SIGMA_ABSMAG_FLOOR * temp_mag)]
+
+    # shred logic
+    if (shred_cut) and (len(candidate_hosts) > 1):
+        logger.info(f"Removing rubin {release} shreds.")
+        shred_idxs = find_shreds(
+            candidate_hosts["objectId"].values,
+            galaxies_pos,
+            temp_sizes,
+            temp_sizes_std,
+            a_over_b,
+            a_over_b_std,
+            phi,
+            phi_std,
+            temp_mag_r,
+            logger
+        )
+
+        if len(shred_idxs) > 0:
+            left_idxs = ~candidate_hosts.index.isin(shred_idxs)
+            candidate_hosts = candidate_hosts[left_idxs]
+            temp_mag_r = temp_mag_r[left_idxs]
+            temp_mag_r_std = temp_mag_r_std[left_idxs]
+            galaxies_pos = galaxies_pos[left_idxs]
+            dlr_samples = dlr_samples[left_idxs]
+            temp_sizes = temp_sizes[left_idxs]
+            temp_sizes_std = temp_sizes_std[left_idxs]
+
+            logger.info(f"Removed {len(shred_idxs)} flagged rubin sources.")
+        else:
+            logger.info("No rubin shreds found.")
+
+    galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "rubin", release, logger)
+    if galaxies is None:
+        return None, []
+    n_galaxies = len(galaxies)
+
+    galaxies['objID_info'] = [f'rubin {release}']*n_galaxies
+
+    if ('redshift' in calc_host_props) or ('absmag' in calc_host_props):
+        galaxies["redshift_mean"] = np.nan
+        galaxies["redshift_std"] = np.nan
+
+        # if the source is within 1arcsec of a GLADE host, take that spec-z.
+        if glade_catalog is not None:
+            logger.debug("Cross-matching with GLADE for redshifts...")
+
+            ra_min = transient_pos.ra.deg - 1
+            ra_max = transient_pos.ra.deg + 1
+            dec_min = transient_pos.dec.deg - 1
+            dec_max = transient_pos.dec.deg + 1
+
+            filtered_glade = glade_catalog[(glade_catalog["RAJ2000"] > ra_min) & (glade_catalog["RAJ2000"] < ra_max) &
+                            (glade_catalog["DEJ2000"] > dec_min) & (glade_catalog["DEJ2000"] < dec_max)]
+
+            glade_catalog = filtered_glade
+
+            if len(glade_catalog) >= 1:
+                glade_coords = SkyCoord(glade_catalog["RAJ2000"], glade_catalog["DEJ2000"], unit=(u.deg, u.deg))
+                idx, seps, _ = match_coordinates_sky(galaxies_pos, glade_coords)
+
+                mask_within_1arcsec = seps.arcsec < 1
+
+                galaxies["redshift_mean"][mask_within_1arcsec] = glade_catalog["redshift"].values[
+                    idx[mask_within_1arcsec]
+                ]
+                galaxies["redshift_std"][mask_within_1arcsec] = glade_catalog["redshift_std"].values[
+                    idx[mask_within_1arcsec]
+                ]
+
+        redshift_samples = norm.rvs(
+            galaxies["redshift_mean"][:, np.newaxis],
+            galaxies["redshift_std"][:, np.newaxis],
+            size=(n_galaxies, n_samples),
+        )
+
+        # set photometric redshift floor
+        redshift_samples[redshift_samples < REDSHIFT_FLOOR] = REDSHIFT_FLOOR
+
+        for i in range(n_galaxies):
+            galaxies["redshift_samples"][i] = redshift_samples[i, :]
+
+    if 'absmag' in calc_host_props:
+        absmag_samples = (
+            norm.rvs(
+                loc=temp_mag[:, np.newaxis],
+                scale=temp_mag_std[:, np.newaxis],
+                size=(n_galaxies, n_samples),
+            )
+            - cosmo.distmod(redshift_samples).value
+        )
+
+        galaxies['absmag_mean'] = temp_mag - cosmo.distmod(galaxies["redshift_mean"]).value
+        galaxies['absmag_std'] = temp_mag_std
+        galaxies["absmag_info"] = [band]*n_galaxies
+
+        for i in range(n_galaxies):
+            galaxies["absmag_samples"][i] = absmag_samples[i, :]
+
+    if 'offset' in calc_host_props:
+        # Calculate angular separation between SN and all galaxies (in arcseconds)
+        offset_samples = galaxies_pos[:, None].separation(transient_pos_samples).arcsec
+
+        for i in range(n_galaxies):
+            galaxies['offset_samples'][i] = offset_samples[i, :]
+            galaxies["dlr_samples"][i] = dlr_samples[i, :]
+
+        galaxies['dlr_mean'] = np.nanmean(dlr_samples, axis=1)
+        galaxies['dlr_std'] = np.nanstd(dlr_samples, axis=1)
+        galaxies['size_mean'] = temp_sizes
+        galaxies['size_std'] = temp_sizes_std
+
+        galaxies['offset_mean'] = np.nanmean(offset_samples, axis=1)
+        galaxies['offset_std'] = np.nanstd(offset_samples, axis=1)
+        galaxies['offset_info'] = 'ARCSEC'
+
+    return galaxies, cat_col_fields
+
 
 def build_panstarrs_candidates(
     transient,

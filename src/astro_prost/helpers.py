@@ -26,7 +26,7 @@ import re
 from io import BytesIO
 from colorama import Fore, Style, init, deinit
 try:
-    from lsst.rsp import get_tap_service, retrieve_query
+    from lsst.rsp import get_tap_service
 except:
     pass #if not in the RSP, ignore LSST 
 
@@ -303,8 +303,8 @@ def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, l
 
     return candidate_hosts
 
-def fetch_rubin_sources(search_pos, search_rad, cat_cols, calc_host_props, logger=None, release="dp0.2"):
-    """Queries the rubin obs. lsst (placeholder now using dp0.2 data, from tutorial 02b on the rsp!).
+def fetch_rubin_sources(search_pos, search_rad, cat_cols, calc_host_props, logger=None, release="dp1"):
+    """Queries the rubin obs. lsst (placeholder now using dp0.2 and dp1 data, from tutorial 02b on the rsp!).
 
     Parameters
     ----------
@@ -317,7 +317,7 @@ def fetch_rubin_sources(search_pos, search_rad, cat_cols, calc_host_props, logge
     calc_host_props : list
         Properties to calculate internally for each host ('offset', 'redshift', 'absmag').
     release : str
-        Catalog to query (for now only dp0.2!)
+        Catalog to query (for now only dp0.2 and dp1!)
 
     Returns
     -------
@@ -331,11 +331,16 @@ def fetch_rubin_sources(search_pos, search_rad, cat_cols, calc_host_props, logge
     str_center_coords = str(search_pos.ra.deg) + ", " + str(search_pos.dec.deg)
     str_radius = str(search_rad.deg)
 
-    query = "SELECT * "\
-            "FROM dp02_dc2_catalogs.Object "\
+    if release == "dp0.2":
+        catalog_name = "dp02_dc2_catalogs.Object"
+    else: 
+        catalog_name = "dp1.Object"
+
+    query = "SELECT * " +\
+            f"FROM {catalog_name} " +\
             "WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), "\
-            "CIRCLE('ICRS', " + str_center_coords + ", " + str_radius + ")) = 1 "\
-            "AND detect_isPrimary = 1"
+            "CIRCLE('ICRS', " + str_center_coords + ", " + str_radius + ")) = 1"
+            #"AND detect_isPrimary = 1"
 
     job = service.submit_job(query)
     job.run()
@@ -2817,7 +2822,7 @@ def build_rubin_candidates(
     n_samples=1000,
     calc_host_props=['redshift', 'absmag', 'offset'],
     cat_cols=False,
-    release='dp0.2',
+    release='dp1',
     shred_cut=False,
     dust_path=DEFAULT_DUST_PATH,
 ):
@@ -2860,8 +2865,8 @@ def build_rubin_candidates(
         (rather than calculated internally).
 
     """
-    if release != "dp0.2":
-        raise ValueError("Only Rubin DP0.2 data is accessible! But real data is coming...")
+    if release not in ["dp1", "dp0.2"]:
+        raise ValueError("Only Rubin DP0.2 and DP1 data is accessible! LSST data is coming...")
 
     ZEROPOINTS = {
         "u": 26.52,
@@ -2953,8 +2958,10 @@ def build_rubin_candidates(
             logger.info("No rubin shreds found.")
 
     galaxies, cat_col_fields = build_galaxy_array(candidate_hosts, cat_cols, transient_name, "rubin", release, logger)
+
     if galaxies is None:
-        return None, []
+        return None
+
     n_galaxies = len(galaxies)
 
     galaxies['objID_info'] = [f'rubin {release}']*n_galaxies

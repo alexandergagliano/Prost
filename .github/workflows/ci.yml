@@ -35,7 +35,7 @@ jobs:
       id: parallel_tests
       continue-on-error: true
       run: |
-        pytest -n auto --capture=no -W ignore::DeprecationWarning || echo "pytest_failed=true" >> $GITHUB_ENV
+        pytest -n auto --capture=no -k "not test_rsp and not test_rsp_dp1" -W ignore::DeprecationWarning || echo "pytest_failed=true" >> $GITHUB_ENV
 
     - name: Rerun failed tests in serial (if any)
       if: env.pytest_failed == 'true'

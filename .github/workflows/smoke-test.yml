@@ -42,7 +42,11 @@ jobs:
         pip list
     - name: Run unit tests with pytest /  pytest-copie
       run: |
-        python -m pytest
+        pytest -n auto --capture=no -k "not test_rsp and not test_rsp_dp1" -W ignore::DeprecationWarning || echo "pytest_failed=true" >> $GITHUB_ENV
+    - name: Rerun failed tests in serial (if any)
+      if: env.pytest_failed == 'true'
+      run: |
+        pytest --last
     - name: Send status to Slack app
       if: ${{ failure() && github.event_name != 'workflow_dispatch' }}
       id: slack

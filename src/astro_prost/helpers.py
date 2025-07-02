@@ -1265,6 +1265,8 @@ class Transient:
             self.redshift = np.nanmean(samples)
             self.redshift_std = np.nanstd(samples)
         else:
+            if self.redshift < REDSHIFT_FLOOR:
+                self.redshift = REDSHIFT_FLOOR
             samples = norm.rvs(self.redshift, self.redshift_std, size=n_samples)
 
         # Resample only those below the floor

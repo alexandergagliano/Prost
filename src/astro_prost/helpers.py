@@ -42,7 +42,7 @@ MAX_RAD_DEG = 0.14 # 500'' search radius max
 REDSHIFT_FLOOR = 0.001  # minimum redshift of z=0.001
 SIZE_FLOOR = 0.25  # 1 pixel, for Pan-STARRS
 ABSMAG_FLOOR = -10  # guess at a (generous) minimum absolute magnitude for a galaxy?
-STARMAG_DIFF = 0.1 # psfmag - kronmag threshold for star/galaxy cut
+STARMAG_DIFF = 0.05 # psfmag - kronmag threshold for star/galaxy cut
 OFFSET_FLOOR = SHAPE_FLOOR = 1.e-10
 
 # Uncertainty floors & ceilings

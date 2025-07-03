@@ -41,7 +41,8 @@ MAX_RAD_DEG = 0.14 # 500'' search radius max
 # Redshift & galaxy properties
 REDSHIFT_FLOOR = 0.001  # minimum redshift of z=0.001
 SIZE_FLOOR = 0.25  # 1 pixel, for Pan-STARRS
-ABSMAG_FLOOR = -10  # guess at a minimum absolute magnitude for a galaxy?
+ABSMAG_FLOOR = -10  # guess at a (generous) minimum absolute magnitude for a galaxy?
+STARMAG_DIFF = 0.1 # psfmag - kronmag threshold for star/galaxy cut
 OFFSET_FLOOR = SHAPE_FLOOR = 1.e-10
 
 # Uncertainty floors & ceilings
@@ -297,7 +298,7 @@ def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, l
         candidate_hosts = candidate_hosts[g_good | r_good]
 
     # quick cut to remove stars 
-    candidate_hosts = candidate_hosts[np.abs(candidate_hosts['i_psf'] - candidate_hosts['i_petro']) > 0.05]
+    candidate_hosts = candidate_hosts[np.abs(candidate_hosts['i_psf'] - candidate_hosts['i_petro']) > STARMAG_DIFF]
 
     candidate_hosts.replace(DUMMY_FILL_VAL, np.nan, inplace=True)
     candidate_hosts.reset_index(inplace=True, drop=True)
@@ -480,7 +481,7 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     candidate_hosts = candidate_hosts[candidate_hosts["primaryDetection"] == 1]
 
     # first-order cut to get rid of most stars
-    candidate_hosts = candidate_hosts[np.abs(candidate_hosts['iPSFMag'] - candidate_hosts['iKronMag']) > 0.05]
+    candidate_hosts = candidate_hosts[np.abs(candidate_hosts['iPSFMag'] - candidate_hosts['iKronMag']) > STARMAG_DIFF]
 
     drop_cols = ['raMean', 'decMean']
 

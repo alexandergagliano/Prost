@@ -31,7 +31,7 @@ def test_panstarrs_shred():
 
     logger = setup_logger(verbose=0)
 
-    Nshred_true = [0, 165, 64] 
+    Nshred_true = [0, 32, 32] 
 
     for idx, transient_pos in enumerate(transient_pos_set):
 

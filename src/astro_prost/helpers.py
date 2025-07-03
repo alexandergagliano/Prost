@@ -554,6 +554,7 @@ def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, rele
     WHERE
         q3c_radial_query(t.ra, t.dec, {search_pos.ra.deg:.5f}, {search_pos.dec.deg:.5f}, {rad_deg})
     AND (t.nobs_r > 0) AND (t.dered_flux_r > 0) AND (t.snr_r > 0)
+    AND (t.type != 'PSF')
     AND nullif(t.dered_mag_r, 'NaN') is not null AND (t.fitbits != 8192)
     AND ((pz.z_spec > 0) OR (pz.z_phot_mean > 0))"""
     )

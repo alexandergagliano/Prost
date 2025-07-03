@@ -419,6 +419,7 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, l
             "objID",
             "raMean",
             "decMean",
+            "iPSFMag",
             "gmomentXX",
             "rmomentXX",
             "imomentXX",

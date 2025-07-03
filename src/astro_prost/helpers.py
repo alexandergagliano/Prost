@@ -296,6 +296,9 @@ def fetch_skymapper_sources(search_pos, search_rad, cat_cols, calc_host_props, l
         r_good = (candidate_hosts['r_ngood'].notna()) & (candidate_hosts['r_ngood'] >= 1)
         candidate_hosts = candidate_hosts[g_good | r_good]
 
+    # quick cut to remove stars 
+    candidate_hosts = candidate_hosts[np.abs(candidate_hosts['i_psf'] - candidate_hosts['i_petro']) > 0.05]
+
     candidate_hosts.replace(DUMMY_FILL_VAL, np.nan, inplace=True)
     candidate_hosts.reset_index(inplace=True, drop=True)
     if len(candidate_hosts) < 1:
@@ -474,6 +477,9 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     # some VERY basic filtering to say that it's confidently detected
     candidate_hosts = candidate_hosts[candidate_hosts["nDetections"] > 2]
     candidate_hosts = candidate_hosts[candidate_hosts["primaryDetection"] == 1]
+
+    # first-order cut to get rid of most stars
+    candidate_hosts = candidate_hosts[np.abs(candidate_hosts['iPSFMag'] - candidate_hosts['iKronMag']) > 0.05]
 
     drop_cols = ['raMean', 'decMean']
 

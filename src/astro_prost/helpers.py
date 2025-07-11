@@ -481,6 +481,8 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     candidate_hosts.rename(columns={'raMean':'ra', 'decMean':'dec'}, inplace=True)
     candidate_hosts.reset_index(drop=True, inplace=True)
 
+    print("Retrieved the following candidates:", candidate_hosts[['ra', 'dec']])
+
     return candidate_hosts
 
 def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, release='dr9'):
@@ -1040,7 +1042,7 @@ class GalaxyCatalog:
         """
         search_rad = Angle(300 * u.arcsec)
 
-        if transient.redshift == transient.redshift:
+        if (transient.redshift == transient.redshift) and (transient.redshift > 0):
             search_rad = Angle(
                 np.nanmax(
                     [

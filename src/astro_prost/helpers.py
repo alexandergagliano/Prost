@@ -481,8 +481,6 @@ def fetch_panstarrs_sources(search_pos, search_rad, cat_cols, calc_host_props, l
     candidate_hosts.rename(columns={'raMean':'ra', 'decMean':'dec'}, inplace=True)
     candidate_hosts.reset_index(drop=True, inplace=True)
 
-    print("Retrieved the following candidates:", candidate_hosts[['ra', 'dec']])
-
     return candidate_hosts
 
 def fetch_decals_sources(search_pos, search_rad, cat_cols, calc_host_props, release='dr9'):

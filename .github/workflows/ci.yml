@@ -40,4 +40,4 @@ jobs:
     - name: Rerun failed tests in serial (if any)
       if: env.pytest_failed == 'true'
       run: |
-        pytest --last-failed --maxfail=3 -n 1 --capture=no -W ignore::DeprecationWarning
+        pytest --lf --maxfail=3 -n 1 --capture=no -W ignore::DeprecationWarning

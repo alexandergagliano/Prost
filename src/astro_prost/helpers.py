@@ -1054,7 +1054,7 @@ class GalaxyCatalog:
         """
         search_rad = Angle(300 * u.arcsec)
 
-        if transient.redshift == transient.redshift:
+        if (transient.redshift == transient.redshift) and (transient.redshift > 0):
             search_rad = Angle(
                 np.nanmax(
                     [

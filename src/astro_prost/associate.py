@@ -418,6 +418,9 @@ def associate_transient(
         fields.append(f"{prop}_info")
         if prop in condition_host_props:
             fields.append(f"{prop}_posterior")
+        if prop == "offset":
+            fields.append("frac_offset_mean")
+            fields.append("frac_offset_std")
 
     if cat_priority is not None:
         catalogs = sorted(

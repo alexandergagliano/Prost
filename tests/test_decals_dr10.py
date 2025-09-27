@@ -71,3 +71,8 @@ def test_associate_decals_dr10():
     true_coord = SkyCoord(184.90550975, -29.06745087, unit=(u.deg, u.deg))
     assert (host_coord.separation(true_coord).arcsec <= 1) and (hostTable['best_cat_release'].values[0] == 'dr10')
 
+    assert 'host_offset_mean' in hostTable.columns
+    assert 'host_frac_offset_mean' in hostTable.columns
+    assert 0 < hostTable['host_offset_mean'].values[0] < 150
+    assert 0 < hostTable['host_frac_offset_mean'].values[0] < 10
+

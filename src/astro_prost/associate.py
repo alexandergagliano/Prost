@@ -273,6 +273,7 @@ def associate_transient(
     redshift_col,
     cat_cols,
     log_fn,
+    n_hosts=2,
     calc_host_props=False,
     verbose=0,
     coord_err_cols=('ra_err', 'dec_err'),
@@ -316,7 +317,7 @@ def associate_transient(
     strict_checking : boolean, optional
         If true, raises error if catalog doesn't support conditioning on a property requested.
     warn_on_fallback : boolean, optional
-        If true, raises warning if catalog doesn't support conditioning on a property requested. 
+        If true, raises warning if catalog doesn't support conditioning on a property requested.
     plot_match : boolean, optional
         If true, attempts to generate a plot image.
 
@@ -380,6 +381,7 @@ def associate_transient(
         redshift=redshift,
         n_samples=n_samples,
         logger=logger,
+        n_hosts=n_hosts,
     )
 
     logger.info(
@@ -446,19 +448,21 @@ def associate_transient(
             cat = transient.associate(cat, cosmo, condition_host_props=condition_host_props_cat)
 
             if transient.best_host != -1:
-                best_idx = transient.best_host
-                second_best_idx = transient.second_best_host
-
                 print_props = ['objID', 'name', 'ra', 'dec', 'total_posterior']
                 condition_props = list(priors.keys())
 
-                log_host_properties(logger, transient.name, cat, best_idx, Fore.BLUE+f"\nProperties of best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
-                log_host_properties(logger, transient.name, cat, second_best_idx, Fore.BLUE+f"\nProperties of 2nd best host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
+                ordinals = ["best", "2nd best", "3rd best", "4th best", "5th best", "6th best", "7th best", "8th best", "9th best", "10th best"]
 
-                # Populate results using a loop instead of manual assignments
-                for key, idx in {"host": best_idx, "host_2": second_best_idx}.items():
+                # Log properties for top n_hosts
+                for i, host_idx in enumerate(transient.best_hosts):
+                    rank_label = ordinals[i] if i < len(ordinals) else f"{i+1}th best"
+                    log_host_properties(logger, transient.name, cat, host_idx, Fore.BLUE+f"\nProperties of {rank_label} host (in {cat_name} {cat_release})", print_props, calc_host_props, condition_props)
+
+                # Populate results for all n_hosts
+                for i, host_idx in enumerate(transient.best_hosts):
+                    key = "host" if i == 0 else f"host_{i+1}"
                     for field in fields:
-                        result[f"{key}_{field}"] = cat.galaxies[field][idx]
+                        result[f"{key}_{field}"] = cat.galaxies[field][host_idx]
 
                 # Set additional metadata
                 result.update({
@@ -471,9 +475,9 @@ def associate_transient(
                     "none_posterior": transient.none_posterior,
                 })
 
-                # Collect extra catalog columns if needed
-                if cat_cols:
-                    result["extra_cat_cols"] = {field: cat.galaxies[field][best_idx] for field in cat.cat_col_fields}
+                # Collect extra catalog columns if needed (for best host only)
+                if cat_cols and len(transient.best_hosts) > 0:
+                    result["extra_cat_cols"] = {field: cat.galaxies[field][transient.best_hosts[0]] for field in cat.cat_col_fields}
 
                 if (result['host_name'].startswith("NGC")) or (result['host_name'].startswith("M")):
                     logger.info(f"Matched host is {result['host_name']}!")
@@ -523,6 +527,7 @@ def associate_sample(
     likes=None,
     n_samples=1000,
     verbose=1,
+    n_hosts=2,
     parallel=True,
     save=True,
     save_path="./",
@@ -554,6 +559,8 @@ def associate_sample(
         List of samples to draw for monte-carlo association.
     verbose : int
         Verbosity level for logging; can be 0 - 3.
+    n_hosts : int
+        Number of potential hosts to return.
     parallel : boolean
         If True, runs in parallel with multiprocessing. Cannot be used with ipython!
     save : boolean
@@ -679,6 +686,7 @@ def associate_sample(
             redshift_col,
             cat_cols,
             log_fn,
+            n_hosts,
             calc_host_props,
             verbose,
             coord_err_cols

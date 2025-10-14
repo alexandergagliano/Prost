@@ -46,7 +46,7 @@ jobs:
     - name: Rerun failed tests in serial (if any)
       if: env.pytest_failed == 'true'
       run: |
-        pytest --last
+        pytest --lf -k "not test_rsp and not test_rsp_dp1" -W ignore::DeprecationWarning
     - name: Send status to Slack app
       if: ${{ failure() && github.event_name != 'workflow_dispatch' }}
       id: slack

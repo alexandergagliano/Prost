@@ -19,7 +19,7 @@ else:
 import importlib
 from astropy.table import Table
 from .diagnose import plot_match
-from .helpers import GalaxyCatalog, Transient, setup_logger, sanitize_input
+from .helpers import GalaxyCatalog, Transient, setup_logger, sanitize_input, get_ned_specz
 import logging
 from collections import OrderedDict
 import warnings
@@ -280,6 +280,7 @@ def associate_transient(
     strict_checking=False,
     warn_on_fallback=True,
     plot_match=False,
+    best_redshift=False,
 ):
     """Associates a transient with its most likely host galaxy.
 
@@ -320,6 +321,9 @@ def associate_transient(
         If true, raises warning if catalog doesn't support conditioning on a property requested.
     plot_match : boolean, optional
         If true, attempts to generate a plot image.
+    best_redshift : boolean, optional
+        If True, queries NED for spectroscopic redshift when host is found within 1 arcsec.
+        Default is False.
 
     Returns
     -------
@@ -490,6 +494,25 @@ def associate_transient(
                         f"and RA, DEC = {result['host_ra']:.6f}, {result['host_dec']:.6f}"
                     )
 
+                # Query NED for spectroscopic redshift if requested
+                if best_redshift:
+                    z_spec, z_spec_err, has_specz = get_ned_specz(
+                        result['host_ra'],
+                        result['host_dec'],
+                        search_radius=1.0,
+                        logger=logger
+                    )
+
+                    if has_specz:
+                        logger.info(
+                            f"Updating host redshift from catalog value "
+                            f"(z={result['host_redshift_mean']:.4f}, {result['host_redshift_info']}) "
+                            f"to NED spectroscopic value (z={z_spec:.4f}±{z_spec_err:.4f})"
+                        )
+                        result['host_redshift_mean'] = z_spec
+                        result['host_redshift_std'] = z_spec_err
+                        result['host_redshift_info'] = 'SPEC'
+
                 # For some reason the value of "verbose" is ignored here, and the effective
                 if plot_match and logger.getEffectiveLevel() == logging.DEBUG:
                     try:
@@ -540,7 +563,8 @@ def associate_sample(
     cosmology=None,
     n_processes=None,
     calc_host_props=True,
-    coord_err_cols=None
+    coord_err_cols=None,
+    best_redshift=False
 ):
     """Wrapper function for associating sample of transients.
 
@@ -583,6 +607,9 @@ def associate_sample(
     calc_host_props : boolean
         If True, calculates all host properties (redshift, absmag, and fractional offset) regardless of whether or not
         they're needed for association.
+    best_redshift : boolean, optional
+        If True, queries NED for spectroscopic redshift when host is found within 1 arcsec.
+        Default is False.
 
     Returns
     -------
@@ -692,7 +719,11 @@ def associate_sample(
             n_hosts,
             calc_host_props,
             verbose,
-            coord_err_cols
+            coord_err_cols,
+            False,  # strict_checking
+            True,   # warn_on_fallback
+            False,  # plot_match
+            best_redshift
         )
         for idx, row in transient_catalog.iterrows()
     ]

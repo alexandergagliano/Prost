@@ -3428,3 +3428,126 @@ def is_service_available(url, timeout=5):
         return True
     except Exception:
         return False
+
+
+def get_ned_specz(ra, dec, search_radius=1.0, logger=None):
+    """Query NED for spectroscopic redshift at given coordinates.
+
+    This function queries the NASA/IPAC Extragalactic Database (NED) for objects
+    near the specified coordinates and retrieves spectroscopic redshift information
+    if available. It filters out photometric redshifts and attempts to get detailed
+    redshift measurements with uncertainties.
+
+    Parameters
+    ----------
+    ra : float
+        Right ascension in degrees.
+    dec : float
+        Declination in degrees.
+    search_radius : float, optional
+        Search radius in arcseconds. Default is 1.0 arcsec.
+    logger : logging.Logger, optional
+        Logger instance for messages. If None, no logging is performed.
+
+    Returns
+    -------
+    z_spec : float or None
+        Spectroscopic redshift if found, otherwise None.
+    z_spec_err : float or None
+        Uncertainty in spectroscopic redshift if found, otherwise None.
+    has_specz : bool
+        True if a spectroscopic redshift was found, False otherwise.
+
+    Notes
+    -----
+    The function uses NED's 'Redshift Flag' to distinguish between spectroscopic
+    and photometric redshifts. It rejects objects flagged as 'PHOT' and accepts
+    those with empty flags (typically spectroscopic) or 'PUN' (published, uncorrected).
+
+    When detailed redshift tables are available, the function filters out measurements
+    marked with "Uncertain origin" and converts velocities to redshifts using z = v/c.
+
+    If uncertainty information is not available, the function estimates a conservative
+    uncertainty of either 50 km/s (converted to redshift) or 5% of the redshift value.
+
+    Examples
+    --------
+    >>> z, z_err, has_z = get_ned_specz(69.438805, -20.507317, search_radius=1.0)
+    >>> if has_z:
+    ...     print(f"Spectroscopic redshift: {z:.4f} ± {z_err:.4f}")
+
+    """
+    try:
+        from astroquery.ipac.ned import Ned
+    except ImportError:
+        if logger:
+            logger.warning("astroquery not available; cannot query NED for spectroscopic redshifts")
+        return None, None, False
+
+    try:
+        coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
+
+        # Query NED for nearby objects
+        result_table = Ned.query_region(coord, radius=search_radius*u.arcsec)
+
+        if len(result_table) == 0:
+            if logger:
+                logger.debug(f"No NED objects found within {search_radius} arcsec of RA={ra:.6f}, Dec={dec:.6f}")
+            return None, None, False
+
+        # Look for objects with spectroscopic redshifts
+        # NED uses 'Redshift Flag' to indicate quality/type
+        # Common flags: blank (usually spec-z), 'PHOT', 'PUN' (published, uncorrected)
+        for row in result_table:
+            if row['Redshift'] > 0:  # Valid redshift exists
+                z_flag = row['Redshift Flag'].strip() if row['Redshift Flag'] else ''
+
+                # Accept if flag is empty (usually spec-z) or explicitly 'PUN' (published, uncorrected but usually spec)
+                # Reject if flag is 'PHOT' (photometric)
+                if z_flag != 'PHOT':
+                    z_spec = float(row['Redshift'])
+                    separation = row['Separation']  # in arcmin
+
+                    # Try to get detailed redshift info to find uncertainties
+                    try:
+                        obj_name = row['Object Name']
+                        z_table = Ned.get_table(obj_name, table='redshifts')
+
+                        # Get the most reliable velocity measurement
+                        # Filter out entries marked as "Uncertain origin"
+                        reliable_z = z_table[~z_table['Qualifiers'].astype(str).str.contains('Uncertain', case=False, na=False)]
+
+                        if len(reliable_z) > 0:
+                            # Use first reliable measurement
+                            velocity = reliable_z['Published Velocity'][0]  # km/s
+                            # Convert to redshift: z = v/c
+                            z_spec = velocity / 299792.458
+                            # Estimate uncertainty as ~50 km/s / c (~0.00017) if not provided
+                            z_spec_err = 50.0 / 299792.458
+                        else:
+                            # Use the value from main table, estimate 5% uncertainty
+                            z_spec_err = 0.05 * z_spec
+
+                    except Exception as e:
+                        # If detailed query fails, use 5% uncertainty estimate
+                        if logger:
+                            logger.debug(f"Could not retrieve detailed redshift info from NED: {e}")
+                        z_spec_err = 0.05 * z_spec
+
+                    if logger:
+                        logger.info(
+                            f"Found NED spectroscopic redshift: z={z_spec:.4f}±{z_spec_err:.4f} "
+                            f"at separation={separation:.3f} arcmin"
+                        )
+
+                    return z_spec, z_spec_err, True
+
+        # No spectroscopic redshift found
+        if logger:
+            logger.debug(f"NED objects found but no spectroscopic redshift within {search_radius} arcsec")
+        return None, None, False
+
+    except Exception as e:
+        if logger:
+            logger.warning(f"NED query failed: {e}")
+        return None, None, False

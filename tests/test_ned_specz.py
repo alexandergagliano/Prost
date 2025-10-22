@@ -1,9 +1,10 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 import numpy as np
+import pytest
 
 from astro_prost.associate import associate_sample
-from astro_prost.helpers import SnRateAbsmag
+from astro_prost.helpers import SnRateAbsmag, get_ned_specz
 
 
 def test_ned_specz_2025qoz():
@@ -21,6 +22,14 @@ def test_ned_specz_2025qoz():
     3. The host redshift is updated from PHOT to SPEC
     4. The spectroscopic redshift value is approximately 0.028
     """
+    # Check if NED is accessible before running the test
+    # Expected host coordinates from GLADE
+    test_ra, test_dec = 69.438805, -20.507317
+    _, _, ned_available = get_ned_specz(test_ra, test_dec, search_radius=1.0, logger=None)
+
+    if not ned_available:
+        pytest.skip("NED service is not accessible (network timeout or service unavailable)")
+
     np.random.seed(42)
 
     # SN 2025qoz: RA=69.4397792, Dec=-20.5065667

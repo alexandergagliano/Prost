@@ -2432,10 +2432,10 @@ def build_glade_candidates(
         )
 
         galaxies["redshift_mean"] = pd.to_numeric(candidate_hosts["redshift"].values, errors='coerce')
-        galaxies["redshift_std"] = pd.to_numeric(candidate_hosts["redshift_std"].values, errors='coerce')
+        galaxies["redshift_std"] = redshift_std
         galaxies['redshift_info'] = ['PHOT']
 
-        # if the galaxy has a measured luminosity distance or spec-z, add to info
+        # Mark objects with measured luminosity distance or spec-z
         has_specz = candidate_hosts['f_dL'] > 1
         galaxies['redshift_info'][has_specz] = 'SPEC'
 

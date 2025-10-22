@@ -1,6 +1,7 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 import pytest
+import requests
 from astro_prost.associate import associate_sample
 from astro_prost.helpers import SnRateAbsmag, is_service_available
 from astropy.coordinates import SkyCoord
@@ -12,7 +13,6 @@ else:
 import numpy as np
 import astropy.units as u
 import time
-import numpy as np
 
 @pytest.mark.skipif(
     not is_service_available("https://catalogs.mast.stsci.edu"),
@@ -55,20 +55,23 @@ def test_noredshiftconditioning():
     catalogs = ["panstarrs"]
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    hostTable = associate_sample(
-        transient_catalog,
-        priors=priors,
-        likes=likes,
-        catalogs=catalogs,
-        name_col=name_col,
-        coord_cols=coord_cols,
-        parallel=parallel,
-        verbose=verbose,
-        save=save,
-        progress_bar=progress_bar,
-        cat_cols=cat_cols,
-        run_name='pytest_noRedshift',
-    )
+    try:
+        hostTable = associate_sample(
+            transient_catalog,
+            priors=priors,
+            likes=likes,
+            catalogs=catalogs,
+            name_col=name_col,
+            coord_cols=coord_cols,
+            parallel=parallel,
+            verbose=verbose,
+            save=save,
+            progress_bar=progress_bar,
+            cat_cols=cat_cols,
+            run_name='pytest_noRedshift',
+        )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        pytest.skip(f"PanSTARRS service timed out or connection failed: {e}")
 
     host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))
     true_coord = SkyCoord(118.027566, 24.338844, unit=(u.deg, u.deg))

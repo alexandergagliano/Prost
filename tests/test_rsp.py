@@ -1,5 +1,7 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
+import requests
+import pytest
 from astro_prost.associate import associate_sample
 from astro_prost.helpers import SnRateAbsmag
 from astropy.coordinates import SkyCoord
@@ -59,8 +61,8 @@ def test_rsp():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-        pytest.skip("Service timeout")
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, NameError):
+        pytest.skip("Service unavailable or not configured")
 
  
    

@@ -1,6 +1,7 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 import pytest
+import requests
 from astro_prost.associate import associate_sample
 from astro_prost.helpers import SnRateAbsmag, is_service_available
 from astropy.coordinates import SkyCoord

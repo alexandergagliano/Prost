@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+import requests
 from scipy.stats import gamma, halfnorm, uniform
 
 from astro_prost.associate import associate_sample
@@ -54,7 +55,8 @@ def test_cat_priority():
     coord_cols = ("RA", "Dec")
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    hostTable = associate_sample(
+    try:
+        hostTable = associate_sample(
         transient_catalog,
         run_name="decals_test",
         priors=priors,
@@ -70,6 +72,9 @@ def test_cat_priority():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
+
 
     assert (hostTable['best_cat'].values[0] == 'decals') and (hostTable['best_cat_release'].values[0] == 'dr9')
 

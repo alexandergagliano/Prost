@@ -12,6 +12,8 @@ Run with: python test_skymapper_association.py
 import sys
 sys.path.insert(0, 'src')
 
+import pytest
+import requests
 from astro_prost.helpers import fetch_skymapper_sources
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -43,15 +45,18 @@ def test_skymapper_association():
         try:
             # Create transient position
             transient_pos = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
-            
+
             # Query SkyMapper DR4 (the working data release)
-            sources = fetch_skymapper_sources(
-                search_pos=transient_pos,
-                search_rad=search_radius, 
-                cat_cols=cat_cols,
-                calc_host_props=False,
-                release='dr4'
-            )
+            try:
+                sources = fetch_skymapper_sources(
+                    search_pos=transient_pos,
+                    search_rad=search_radius,
+                    cat_cols=cat_cols,
+                    calc_host_props=False,
+                    release='dr4'
+                )
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                pytest.skip("Service timeout")
             
             if sources is None:
                 print(f"FAIL: No sources returned for {transient_name}")

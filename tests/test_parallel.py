@@ -1,6 +1,7 @@
 import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 import pytest
+import requests
 from astro_prost.associate import associate_sample
 from astro_prost.helpers import SnRateAbsmag, is_service_available
 from astropy.coordinates import SkyCoord
@@ -52,7 +53,8 @@ def test_associate_parallel():
     redshift_col = 'redshift'
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    hostTable_serial  = associate_sample(
+    try:
+        hostTable_serial  = associate_sample(
         transient_catalog,
         priors=priors,
         likes=likes,
@@ -66,9 +68,13 @@ def test_associate_parallel():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
+
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    hostTable_parallel = associate_sample(
+    try:
+        hostTable_parallel = associate_sample(
         transient_catalog,
         priors=priors,
         likes=likes,
@@ -82,6 +88,9 @@ def test_associate_parallel():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
+
   
     hostIDs_serial = np.sort(hostTable_serial['host_objID'].values)
     hostIDs_parallel = np.sort(hostTable_parallel['host_objID'].values)

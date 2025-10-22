@@ -49,7 +49,8 @@ def test_bigrun():
     coord_cols = ("RA", "Dec")
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    hostTable = associate_sample(
+    try:
+        hostTable = associate_sample(
         transient_catalog,
         run_name="bigrun_test",
         priors=priors,
@@ -64,6 +65,9 @@ def test_bigrun():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
+
  
    
     assert len(hostTable) > 5

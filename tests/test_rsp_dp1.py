@@ -43,7 +43,8 @@ def test_rsp_dp1():
     coord_cols = ("RA", "Dec")
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    hostTable = associate_sample(
+    try:
+        hostTable = associate_sample(
         transient_catalog,
         run_name="rubin_dp1_test",
         priors=priors,
@@ -58,6 +59,9 @@ def test_rsp_dp1():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
+
  
    
     assert hostTable['host_objID'].values[0] == '614437059293096720'

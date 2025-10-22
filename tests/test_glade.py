@@ -50,7 +50,8 @@ def test_associate_glade():
     redshift_col = 'redshift'
 
     # cosmology can be specified, else flat lambdaCDM is assumed with H0=70, Om0=0.3, Ode0=0.7
-    hostTable = associate_sample(
+    try:
+        hostTable = associate_sample(
         transient_catalog,
         priors=priors,
         likes=likes,
@@ -64,6 +65,9 @@ def test_associate_glade():
         progress_bar=progress_bar,
         cat_cols=cat_cols,
     )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
+
  
     host_coord = SkyCoord(hostTable['host_ra'].values[0], hostTable['host_dec'].values[0], unit=(u.deg, u.deg))
     true_coord = SkyCoord(185.728875, 15.822305, unit=(u.deg, u.deg))

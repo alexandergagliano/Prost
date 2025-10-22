@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import requests
 from astro_prost.associate import setup_logger
 from astro_prost.helpers import fetch_panstarrs_sources, find_shreds, calc_shape_props_panstarrs, is_service_available
 # constants
@@ -35,7 +36,10 @@ def test_panstarrs_shred():
 
     for idx, transient_pos in enumerate(transient_pos_set):
 
-        candidate_hosts = fetch_panstarrs_sources(transient_pos, search_rad, cat_cols, calc_host_props, release)
+        try:
+            candidate_hosts = fetch_panstarrs_sources(transient_pos, search_rad, cat_cols, calc_host_props, logger, release)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            pytest.skip("Service timeout")
 
         temp_sizes, temp_sizes_std, a_over_b, a_over_b_std, phi, phi_std = calc_shape_props_panstarrs(candidate_hosts)
 

@@ -2,6 +2,7 @@ import pandas as pd
 from scipy.stats import gamma, halfnorm, uniform
 import numpy as np
 import pytest
+import requests
 
 from astro_prost.associate import associate_sample
 from astro_prost.helpers import SnRateAbsmag, get_ned_specz
@@ -65,36 +66,42 @@ def test_ned_specz_2025qoz():
     cat_cols = False
 
     # Run with best_redshift=False (default behavior)
-    hostTable_no_ned = associate_sample(
-        transient_catalog,
-        priors=priors,
-        likes=likes,
-        catalogs=["glade"],
-        name_col="IAUID",
-        coord_cols=("RA", "Dec"),
-        parallel=parallel,
-        verbose=verbose,
-        save=save,
-        progress_bar=progress_bar,
-        cat_cols=cat_cols,
-        best_redshift=False
-    )
+    try:
+        hostTable_no_ned = associate_sample(
+            transient_catalog,
+            priors=priors,
+            likes=likes,
+            catalogs=["glade"],
+            name_col="IAUID",
+            coord_cols=("RA", "Dec"),
+            parallel=parallel,
+            verbose=verbose,
+            save=save,
+            progress_bar=progress_bar,
+            cat_cols=cat_cols,
+            best_redshift=False
+        )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
 
     # Run with best_redshift=True (query NED for spec-z)
-    hostTable_with_ned = associate_sample(
-        transient_catalog,
-        priors=priors,
-        likes=likes,
-        catalogs=["glade"],
-        name_col="IAUID",
-        coord_cols=("RA", "Dec"),
-        parallel=parallel,
-        verbose=verbose,
-        save=save,
-        progress_bar=progress_bar,
-        cat_cols=cat_cols,
-        best_redshift=True
-    )
+    try:
+        hostTable_with_ned = associate_sample(
+            transient_catalog,
+            priors=priors,
+            likes=likes,
+            catalogs=["glade"],
+            name_col="IAUID",
+            coord_cols=("RA", "Dec"),
+            parallel=parallel,
+            verbose=verbose,
+            save=save,
+            progress_bar=progress_bar,
+            cat_cols=cat_cols,
+            best_redshift=True
+        )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        pytest.skip("Service timeout")
 
     # Verify that without NED query, we get photometric redshift from GLADE
     assert hostTable_no_ned['host_redshift_info'][0] == 'PHOT', \

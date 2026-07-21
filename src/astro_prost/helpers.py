@@ -51,6 +51,7 @@ SIGMA_ABSMAG_CEIL = SIGMA_SIZE_CEIL = SIGMA_REDSHIFT_CEIL = 0.5  # 50% maximum u
 
 # Default settings for catalogs -- these are meant to be conservative!
 DEFAULT_LIMITING_MAG = {"panstarrs": 22, "decals": 26, "glade": 17, "skymapper": 22, "rubin": 27}
+PROST_PANSTARRS_TIMEOUT = int(os.getenv('PROST_PANSTARRS_TIMEOUT', '10'))
 
 CATALOG_SHRED_SETTINGS = {
     "panstarrs": True,  # Only enable for Pan-STARRS and skymapper by default
@@ -837,6 +838,7 @@ def calc_shape_props_glade(candidate_hosts):
     temp_pa = candidate_hosts["PAHyp"].values.copy()
 
     # assume no position angle for unmeasured gals
+    temp_pa = temp_pa.copy()
     temp_pa[temp_pa != temp_pa] = 0
 
     # (n) HyperLEDA decimal logarithm of the length of the projected major axis
@@ -2288,14 +2290,14 @@ def panstarrs_search(
 
         data["columns"] = f"[{','.join(columns)}]"
 
-    r = requests.get(url, params=data, timeout=10)
+    response = requests.get(url, params=data, timeout=PROST_PANSTARRS_TIMEOUT)
 
-    r.raise_for_status()
+    response.raise_for_status()
 
     if format == "json":
-        return r.json()
+        return response.json()
     else:
-        return r.text
+        return response.text
 
 
 def build_glade_candidates(
